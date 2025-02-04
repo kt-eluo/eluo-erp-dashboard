@@ -115,3 +115,24 @@ body {
 .animate-slide-up-modal {
   animation: slide-up-modal 0.4s ease-out;
 }
+
+/* 헤더 관련 스타일 */
+.header-shadow {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* 알림 드롭다운 애니메이션 */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-dropdown {
+  animation: slideDown 0.2s ease-out;
+}

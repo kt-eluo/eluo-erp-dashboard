@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import "./globals.css";
 import './styles/custom.css'  // 전역 적용
 import { Toaster } from 'react-hot-toast'
+import Header from '@/components/layout/Header'
 
 const pretendard = localFont({
   src: [
@@ -42,7 +43,10 @@ export default function RootLayout({
   return (
     <html lang="ko" className={pretendard.className}>
       <body>
-        {children}
+        <Header />
+        <main className="pt-16"> {/* 헤더 높이만큼 상단 패딩 */}
+          {children}
+        </main>
         <Toaster position="top-center" />
       </body>
     </html>
