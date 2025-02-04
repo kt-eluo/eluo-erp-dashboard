@@ -3,3 +3,21 @@ body {
     overflow-x: hidden;
 }
 
+
+/* 메인 페이지 설정 */
+.mn-lineTxt {
+    position: relative;
+}
+.mn-lineTxt::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin: auto;
+    width: 30%;
+    display: block;
+    height: 2px;
+    background-color: #000;
+}

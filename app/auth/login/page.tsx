@@ -86,16 +86,16 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen login_page relative overflow-hidden">
       {/* 파란색 섹션 - 가장 낮은 z-index */}
-      <div className={`w-full bg-[#3B82F6] p-6 md:p-8 lg:p-12 flex flex-col justify-center overflow-hidden transition-all duration-500 ease-in-out z-0`}>
+      <div className={`w-full bg-[#3B82F6] p-6 md:p-8 lg:p-20 flex flex-col justify-center overflow-hidden transition-all duration-500 ease-in-out z-0 mn-lineTxt`}>
         {/* 장식용 도형 요소들 */}
-        <div className="absolute top-0 left-0 w-64 h-64 rounded-full bg-white opacity-10 -translate-x-1/2 -translate-y-1/2 animate-float-slow" />
+        <div className="absolute top-0 left-20 w-64 h-64 rounded-full bg-white opacity-90 -translate-x-1/2 -translate-y-1/2 animate-float-slow" />
         <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full bg-white opacity-10 translate-x-1/4 translate-y-1/4 animate-float-delay" />
         <div className="absolute top-1/2 right-12 w-32 h-1 bg-white opacity-20 rotate-45 animate-pulse-slow" />
-        <div className="absolute top-1/3 left-0 w-24 h-24 rounded-full border-4 border-white opacity-20 animate-spin-slow" />
+        <div className="absolute top-1/3 left-5 w-24 h-24 rounded-full border-2 border-black opacity-100 animate-spin-slow" />
         
         {/* 텍스트 컨텐츠 */}
-        <div className="text-white space-y-4 md:space-y-6 relative z-10 w-fit">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold">
+        <div className="text-white space-y-4 md:space-y-6 relative z-10 w-fit pl-20">
+          <h1 className="text-3xl md:text-4xl lg:text-6xl font-bold">
             Eluo
             <br />
             In Your
