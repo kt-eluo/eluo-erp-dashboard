@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import { Menu, X, Home, BarChart2, Users, Settings, LogOut, Calendar, FileText } from 'lucide-react'
+import { Menu, X, Home, Users, Settings, LogOut, Calendar, FileText } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { PieChart, Pie, Cell } from 'recharts'
 

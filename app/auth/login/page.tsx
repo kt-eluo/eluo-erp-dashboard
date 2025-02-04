@@ -1,184 +1,35 @@
 'use client'
 import Image from 'next/image'
 import LoginForm from '@/components/auth/LoginForm'
-import { useState, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'react-hot-toast'
 import SignUpForm from '@/components/auth/SignUpForm'
 
-interface SignUpForm {
-  email: string;
-  password: string;
-  name: string;
-  company: string;
-  termsAccepted: boolean;
-}
-
-// 에러 메시지를 위한 새로운 인터페이스 추가
-interface SignUpFormErrors {
-  email?: string;
-  password?: string;
-  name?: string;
-  company?: string;
-  termsAccepted?: string;
-}
-
 export default function LoginPage() {
-  const [isSliding, setIsSliding] = useState(false)
-  const [showSignupModal, setShowSignupModal] = useState(false)
+  const [showSignUp, setShowSignUp] = useState(false)
   const [showPasswordResetModal, setShowPasswordResetModal] = useState(false)
+  const [isSliding, setIsSliding] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
-  const [resetError, setResetError] = useState('')
   const [isResetLoading, setIsResetLoading] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<SignUpForm>({
-    email: '',
-    password: '',
-    name: '',
-    company: '',
-    termsAccepted: false
-  })
-  const [errors, setErrors] = useState<SignUpFormErrors>({})
-  
-  const router = useRouter()
+  const [resetError, setResetError] = useState<string | null>(null)
   const supabase = createClientComponentClient()
 
-  const validateForm = () => {
-    const newErrors: SignUpFormErrors = {}
-    
-    if (!formData.email) {
-      newErrors.email = '이메일을 입력해주세요'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = '올바른 이메일 형식이 아닙니다'
-    }
-    
-    if (!formData.password) {
-      newErrors.password = '비밀번호를 입력해주세요'
-    } else if (formData.password.length < 8) {
-      newErrors.password = '비밀번호는 8자 이상이어야 합니다'
-    }
-    
-    if (!formData.name) {
-      newErrors.name = '이름을 입력해주세요'
-    }
-    
-    if (!formData.company) {
-      newErrors.company = '회사명을 입력해주세요'
-    }
-    
-    if (!formData.termsAccepted) {
-      newErrors.termsAccepted = '이용약관에 동의해주세요'
-    }
-    
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }))
-  }
-
-  const handleSignUp = async (e: FormEvent) => {
-    e.preventDefault()
-    console.log('회원가입 시작:', formData)
-    
-    if (!validateForm()) return
-    
-    setIsLoading(true)
-    try {
-      // 1. 회원가입 요청
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            name: formData.name,
-            company: formData.company
-          }
-        }
-      })
-
-      if (authError) {
-        let errorMessage = '회원가입에 실패했습니다'
-        
-        if (authError.message.includes('User already registered')) {
-          errorMessage = '이미 가입된 이메일 주소입니다. 로그인을 시도해주세요.'
-        } else if (authError.message.includes('Password should be at least')) {
-          errorMessage = '비밀번호는 최소 6자 이상이어야 합니다.'
-        } else if (authError.message.includes('Invalid email')) {
-          errorMessage = '올바르지 않은 이메일 형식입니다.'
-        }
-        
-        toast.error(errorMessage)
-        return
-      }
-
-      // 2. 사용자 프로필 생성
-      if (authData.user) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .insert([
-            {
-              user_id: authData.user.id,
-              email: formData.email,
-              name: formData.name,
-              company: formData.company,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ])
-          .select()
-          .single()
-
-        if (profileError) {
-          toast.error('프로필 정보 저장에 실패했습니다.')
-          return
-        }
-
-        // 프로필 데이터가 성공적으로 저장되면 alert 표시
-        if (profileData) {
-          alert('회원가입이 완료되었습니다.')
-        }
-
-        // 3. 자동 로그인
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        })
-
-        if (signInError) {
-          toast.error('자동 로그인에 실패했습니다.')
-          return
-        }
-
-        // alert 이후에 페이지 이동
-        setTimeout(() => {
-          router.refresh()
-          router.push('/dashboard')
-        }, 500)
-      }
-    } catch (error) {
-      console.error('전체 에러:', error)
-      toast.error('회원가입 처리 중 오류가 발생했습니다.')
-    } finally {
-      setIsLoading(false)
-      handleCloseSignup()
-    }
-  }
-
-  const handleCloseSignup = () => {
-    setShowSignupModal(false)
+  const handleShowSignUp = () => {
+    setIsSliding(true);
     setTimeout(() => {
-      setIsSliding(false)
-    }, 300)
+      setShowSignUp(true);
+    }, 500);
   }
 
-  const handleOpenPasswordReset = () => {
+  const handleShowLogin = () => {
+    setIsSliding(true);
+    setTimeout(() => {
+      setShowSignUp(false);
+    }, 500);
+  }
+
+  const handleShowPasswordReset = () => {
     setIsSliding(true);
     setTimeout(() => {
       setShowPasswordResetModal(true);
@@ -192,7 +43,7 @@ export default function LoginPage() {
     }, 300);
   }
 
-  const handlePasswordReset = async (e: FormEvent) => {
+  const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!resetEmail) {
       setResetError('이메일을 입력해주세요')
@@ -261,20 +112,14 @@ export default function LoginPage() {
               <button 
                 type="button"
                 className="relative z-30 text-gray-500 hover:text-gray-700 cursor-pointer py-2 px-3 rounded transition-colors"
-                onClick={() => {
-                  console.log('회원가입 버튼 클릭됨'); // 클릭 확인용 로그
-                  setIsSliding(true);
-                  setTimeout(() => {
-                    setShowSignupModal(true);
-                  }, 500);
-                }}
+                onClick={handleShowSignUp}
               >
                 회원가입
               </button>
               <span className="text-gray-300">|</span>
               <button 
                 className="relative z-30 text-gray-500 hover:text-gray-700 cursor-pointer py-2 px-3 rounded transition-colors"
-                onClick={handleOpenPasswordReset}
+                onClick={handleShowPasswordReset}
               >
                 비밀번호 찾기
               </button>
@@ -315,12 +160,12 @@ export default function LoginPage() {
       </div>
 
       {/* 회원가입 모달 */}
-      {showSignupModal && (
+      {showSignUp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-xl mx-4 animate-slide-up-modal">
             <div className="relative p-6 sm:p-8">
               <button 
-                onClick={handleCloseSignup}
+                onClick={handleShowLogin}
                 className="relative inline-flex items-center justify-center p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <span className="text-xl">←</span>

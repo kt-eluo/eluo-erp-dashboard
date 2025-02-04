@@ -51,18 +51,21 @@ export default function LoginForm() {
       router.refresh()
       router.push('/dashboard')
       
-    } catch (error: any) {
-      console.error('Login Error Details:', {
-        error,
-        email,
-        timestamp: new Date().toISOString()
-      })
-      
-      setError(error.message || '로그인에 실패했습니다')
-      toast.error(error.message || '로그인에 실패했습니다')
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message)
+        toast.error(error.message)
+      } else {
+        setError('로그인에 실패했습니다')
+        toast.error('로그인에 실패했습니다')
+      }
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleError = (error: Error | null) => {
+    // 구체적인 타입 지정
   }
 
   return (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import type { UserRole } from '@/types/auth'
@@ -12,6 +12,10 @@ interface User {
   created_at: string
 }
 
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'default' | 'primary' | 'secondary'
+}
+
 export default function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,12 +23,7 @@ export default function UserManagementPage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    checkUserRole()
-    fetchUsers()
-  }, [])
-
-  const checkUserRole = async () => {
+  const checkUserRole = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: profile } = await supabase
@@ -38,9 +37,9 @@ export default function UserManagementPage() {
       }
       setCurrentUserRole(profile?.role as UserRole)
     }
-  }
+  }, [supabase, router])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -53,7 +52,12 @@ export default function UserManagementPage() {
 
     setUsers(data)
     setLoading(false)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    checkUserRole()
+    fetchUsers()
+  }, [checkUserRole, fetchUsers])
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     try {
