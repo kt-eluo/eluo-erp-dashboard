@@ -15,6 +15,16 @@ export default function LoginPage() {
   const [resetError, setResetError] = useState<string | null>(null)
   const supabase = createClientComponentClient()
 
+  // 로그인 모달 열기 (뒤로가기 버튼)
+  const handleShowLogin = () => {
+    setIsSliding(false);
+    setTimeout(() => {
+      setShowSignUp(false);
+      setShowPasswordResetModal(false);
+    }, 300);
+  }
+
+  // 회원가입 모달 열기
   const handleShowSignUp = () => {
     setIsSliding(true);
     setTimeout(() => {
@@ -22,13 +32,15 @@ export default function LoginPage() {
     }, 500);
   }
 
-  const handleShowLogin = () => {
-    setIsSliding(true);
+  // 회원가입 모달 닫기
+  const handleCloseSignUp = () => {
+    setIsSliding(false);
     setTimeout(() => {
       setShowSignUp(false);
-    }, 500);
+    }, 300);
   }
 
+  // 비밀번호 재설정 모달 열기
   const handleShowPasswordReset = () => {
     setIsSliding(true);
     setTimeout(() => {
@@ -36,6 +48,7 @@ export default function LoginPage() {
     }, 500);
   }
 
+  // 비밀번호 재설정 모달 닫기
   const handleClosePasswordReset = () => {
     setShowPasswordResetModal(false);
     setTimeout(() => {
@@ -43,6 +56,7 @@ export default function LoginPage() {
     }, 300);
   }
 
+  // 비밀번호 재설정 메일 발송
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!resetEmail) {
@@ -50,6 +64,7 @@ export default function LoginPage() {
       return
     }
     
+    // 비밀번호 재설정 메일 발송 처리
     setIsResetLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
@@ -165,7 +180,7 @@ export default function LoginPage() {
           <div className="w-full max-w-md bg-white rounded-3xl shadow-xl mx-4 animate-slide-up-modal">
             <div className="relative p-6 sm:p-8">
               <button 
-                onClick={handleShowLogin}
+                onClick={handleCloseSignUp}
                 className="relative inline-flex items-center justify-center p-2 hover:bg-gray-100 rounded-full transition-colors"
               >
                 <span className="text-xl">←</span>
