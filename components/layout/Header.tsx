@@ -121,7 +121,7 @@ export default function Header() {
       <div className="mx-auto px-6 h-full flex items-center justify-between">
         {/* 좌측: 역할 표시 */}
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium border-2 border-black">
+          <div className="flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium border border-black">
             <Flag 
               className={`w-4 h-4 ${
                 userRole === 'ADMIN' ? 'text-black-500 fill-red-500' :
