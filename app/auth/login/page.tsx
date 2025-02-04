@@ -34,9 +34,9 @@ export default function LoginPage() {
 
   // 회원가입 모달 닫기
   const handleCloseSignUp = () => {
-    setIsSliding(false);
+    setShowSignUp(false);
     setTimeout(() => {
-      setShowSignUp(false);
+      setIsSliding(false);
     }, 300);
   }
 
@@ -123,7 +123,7 @@ export default function LoginPage() {
           <LoginForm />
 
           <div className="mt-4 text-center text-xs sm:text-sm text-gray-500">
-            <div className="flex justify-center space-x-2 sm:space-x-4 mt-4 sm:mt-6">
+            <div className="flex items-center justify-center space-x-2 sm:space-x-4 mt-4 sm:mt-6">
               <button 
                 type="button"
                 className="relative z-30 text-gray-500 hover:text-gray-700 cursor-pointer py-2 px-3 rounded transition-colors"
