@@ -40,6 +40,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
   const showSidebar = pathname.startsWith('/dashboard')
 
@@ -50,10 +51,16 @@ export default function RootLayout({
         {showSidebar && (
           <Sidebar 
             isSidebarOpen={isSidebarOpen} 
-            setIsSidebarOpen={setIsSidebarOpen} 
+            setIsSidebarOpen={setIsSidebarOpen}
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
           />
         )}
-        <main className={`pt-16 ${showSidebar && isSidebarOpen ? 'lg:ml-64' : ''}`}>
+        <main className={`pt-16 transition-all duration-300 ${
+          showSidebar ? (
+            isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+          ) : ''
+        }`}>
           {children}
         </main>
         <Toaster position="top-center" />

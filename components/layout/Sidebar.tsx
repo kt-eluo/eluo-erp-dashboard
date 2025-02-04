@@ -9,10 +9,16 @@ import Link from 'next/link'
 interface SidebarProps {
   isSidebarOpen: boolean
   setIsSidebarOpen: (isOpen: boolean) => void
+  isCollapsed: boolean
+  setIsCollapsed: (isCollapsed: boolean) => void
 }
 
-export default function Sidebar({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false)
+export default function Sidebar({ 
+  isSidebarOpen, 
+  setIsSidebarOpen, 
+  isCollapsed, 
+  setIsCollapsed 
+}: SidebarProps) {
   const router = useRouter()
   const supabase = createClientComponentClient()
 
