@@ -46,69 +46,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 사이드바 */}
-      <aside className={`fixed top-0 left-0 z-40 w-64 h-screen transition-transform ${
-        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <div className="h-full px-3 py-4 overflow-y-auto bg-white border-r">
-          <div className="flex items-center justify-between mb-6 px-3">
-            <span className="text-2xl font-semibold">Eluo</span>
-            <button 
-              onClick={() => setIsSidebarOpen(false)}
-              className="lg:hidden"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
-          
-          <nav className="space-y-2">
-            <a href="#" className="flex items-center px-3 py-3 text-gray-900 rounded-lg bg-gray-100">
-              <Home className="w-5 h-5 mr-3" />
-              <span>대시보드</span>
-            </a>
-            <a href="#" className="flex items-center px-3 py-3 text-gray-900 rounded-lg hover:bg-gray-100">
-              <Calendar className="w-5 h-5 mr-3" />
-              <span>매출관리</span>
-            </a>
-            <a href="#" className="flex items-center px-3 py-3 text-gray-900 rounded-lg hover:bg-gray-100">
-              <FileText className="w-5 h-5 mr-3" />
-              <span>정산관리</span>
-            </a>
-            <a 
-              href="/dashboard/users" 
-              className="flex items-center px-3 py-3 text-gray-900 rounded-lg hover:bg-gray-100"
-            >
-              <Users className="w-5 h-5 mr-3" />
-              <span>사용자 관리</span>
-            </a>
-            <a href="#" className="flex items-center px-3 py-3 text-gray-900 rounded-lg hover:bg-gray-100">
-              <Settings className="w-5 h-5 mr-3" />
-              <span>설정</span>
-            </a>
-          </nav>
-
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <button
-              onClick={handleLogout}
-              className="flex items-center w-full px-3 py-3 text-gray-900 rounded-lg hover:bg-gray-100"
-            >
-              <LogOut className="w-5 h-5 mr-3" />
-              <span>로그아웃</span>
-            </button>
-          </div>
-        </div>
-      </aside>
-
       {/* 메인 콘텐츠 */}
-      <div className={`p-6 ${isSidebarOpen ? 'lg:ml-64' : ''}`}>
+      <div className="p-6 max-w-7xl mx-auto">
         {/* 상단 헤더 */}
         <div className="mb-8 flex items-center justify-between">
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className={`lg:hidden ${isSidebarOpen ? 'hidden' : ''}`}
-          >
-            <Menu className="h-6 w-6" />
-          </button>
           <h1 className="text-2xl font-semibold">매출조회</h1>
         </div>
 
@@ -164,7 +105,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-center gap-4 mt-4">
               {pieData.map((entry, index) => (
-                <div key={index} className="flex items-center">
+                <div key={`legend-${index}`} className="flex items-center">
                   <div 
                     className="w-3 h-3 rounded-full mr-2"
                     style={{ backgroundColor: entry.color }}

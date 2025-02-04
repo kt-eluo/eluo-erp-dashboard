@@ -14,6 +14,7 @@ interface Notification {
   created_at: string
 }
 
+// 공통 헤더 컴포넌트
 export default function Header() {
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userEmail, setUserEmail] = useState<string>('')
