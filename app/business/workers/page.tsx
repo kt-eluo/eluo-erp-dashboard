@@ -3,8 +3,16 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import type { Worker, WorkerJobType } from '@/types/worker'
+import type { Worker, WorkerJobType, WorkerLevelType } from '@/types/worker'
 import AddWorkerSlideOver from '@/components/workers/AddWorkerSlideOver'
+
+interface WorkerFormData {
+  name: string;
+  job_type: WorkerJobType;
+  level: WorkerLevelType;
+  price: number;
+  is_dispatched: boolean | null;
+}
 
 export default function WorkersManagementPage() {
   const [workers, setWorkers] = useState<Worker[]>([])
@@ -17,37 +25,36 @@ export default function WorkersManagementPage() {
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
 
-  useEffect(() => {
-    const fetchWorkers = async () => {
-      try {
-        let query = supabase
-          .from('workers')
-          .select('*')
-          
-        // 직무 필터 적용
-        if (selectedJobType !== 'all') {
-          query = query.eq('job_type', selectedJobType)
-        }
-
-        const { data, error } = await query.order('created_at', { ascending: false })
-
-        if (error) throw error
-        setWorkers(data || [])
-      } catch (error) {
-        console.error('Error fetching workers:', error)
-      } finally {
-        setLoading(false)
+  const fetchWorkers = async () => {
+    try {
+      let query = supabase
+        .from('workers')
+        .select('*')
+        
+      if (selectedJobType !== 'all') {
+        query = query.eq('job_type', selectedJobType)
       }
+
+      const { data, error } = await query.order('created_at', { ascending: false })
+
+      if (error) throw error
+      setWorkers(data || [])
+    } catch (error) {
+      console.error('Error fetching workers:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchWorkers()
-  }, [supabase, selectedJobType])  // selectedJobType 변경시 재조회
+  }, [selectedJobType])
 
-  const handleAddWorker = async (workerData: any) => {
+  const handleAddWorker = async (data: WorkerFormData) => {
     try {
       const { error } = await supabase
         .from('workers')
-        .insert([workerData])
+        .insert([data])
 
       if (error) throw error
 
@@ -121,7 +128,7 @@ export default function WorkersManagementPage() {
           </div>
 
           <div className="flex gap-2">
-            <button className="px-4 py-2 text-black rounded-lg hover:bg-[#3F3ABE] transition-colors border border-gray-300">
+            <button className="px-4 py-2 text-black rounded-lg hover:bg-gray-50 transition-colors border border-gray-300">
               여러명 추가
             </button>
             <button 

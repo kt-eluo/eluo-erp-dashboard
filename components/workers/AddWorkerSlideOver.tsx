@@ -25,11 +25,12 @@ export default function AddWorkerSlideOver({
   const [jobType, setJobType] = useState<WorkerJobType | ''>('')
   const [level, setLevel] = useState<WorkerLevelType | ''>('')
   const [price, setPrice] = useState('')
-  const [isDispatched, setIsDispatched] = useState(false)
+  const [isDispatched, setIsDispatched] = useState<boolean | null>(null)
   const [isJobTypeOpen, setIsJobTypeOpen] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
   const [isPriceOpen, setIsPriceOpen] = useState(false)
   const [tempPrice, setTempPrice] = useState('')
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false)
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
   const levels: WorkerLevelType[] = ['초급', '중급', '고급']
@@ -319,16 +320,58 @@ export default function AddWorkerSlideOver({
                     </div>
 
                     {/* 파견 여부 */}
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={isDispatched}
-                        onChange={(e) => setIsDispatched(e.target.checked)}
-                        className="h-4 w-4 text-[#4E49E7] focus:ring-[#4E49E7] border-gray-300 rounded"
-                      />
-                      <label className="ml-2 block text-sm text-gray-700">
-                        파견중
-                      </label>
+                    <div>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsDispatchOpen(!isDispatchOpen)}
+                          className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
+                        >
+                          <span className={isDispatched !== null ? 'text-gray-900' : 'text-gray-400'}>
+                            {isDispatched === true ? '파견중' : isDispatched === false ? '파견안함' : '파견 여부'}
+                          </span>
+                          <svg
+                            className={`w-5 h-5 transition-transform duration-200 ${isDispatchOpen ? 'transform rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+
+                        {/* 드롭다운 메뉴 */}
+                        {isDispatchOpen && (
+                          <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200">
+                            <div className="py-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsDispatched(true)
+                                  setIsDispatchOpen(false)
+                                }}
+                                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
+                                  isDispatched === true ? 'text-[#4E49E7] font-medium' : 'text-gray-900'
+                                }`}
+                              >
+                                파견중
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsDispatched(false)
+                                  setIsDispatchOpen(false)
+                                }}
+                                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
+                                  isDispatched === false ? 'text-[#4E49E7] font-medium' : 'text-gray-900'
+                                }`}
+                              >
+                                파견안함
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </form>

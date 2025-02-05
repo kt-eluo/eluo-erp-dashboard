@@ -35,7 +35,7 @@ export default function Sidebar({
     <aside className={`fixed top-16 left-0 z-50 h-[calc(100vh-4rem)] transition-all duration-300 ${
       isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
     } ${isCollapsed ? 'w-16' : 'w-64'}`}>
-      <div className="h-full px-3 py-4 overflow-y-auto bg-white border-r border-gray-200 relative shadow-[3px_0_10px_rgba(0,0,0,0.08)]">
+      <div className="h-full flex flex-col px-3 py-4 bg-white border-r border-gray-200 relative shadow-[2px_0_5px_rgba(0,0,0,0.1)]">
         <div className="flex justify-end mb-6">
           <button 
             onClick={toggleCollapse}
@@ -49,7 +49,7 @@ export default function Sidebar({
           </button>
         </div>
         
-        <nav className="space-y-1">
+        <nav className="flex-1 space-y-1 min-h-0">
           {[
             { href: '/dashboard', icon: Home, label: '대시보드' },
             { href: '/business/resources', icon: FileText, label: '리소스 관리' },
@@ -63,8 +63,10 @@ export default function Sidebar({
               title={label}
             >
               <Icon className="w-5 h-5 shrink-0" />
-              <span className={`ml-3 whitespace-nowrap transition-all duration-300 ${
-                isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'
+              <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 ${
+                isCollapsed 
+                  ? 'w-0 opacity-0' 
+                  : 'w-auto opacity-100 delay-[50ms]'
               }`}>
                 {label}
               </span>
@@ -72,15 +74,17 @@ export default function Sidebar({
           ))}
         </nav>
 
-        <div className="absolute bottom-4 left-0 right-0 px-3 space-y-1">
+        <div className="flex-none space-y-1 pt-4 border-t border-gray-200">
           <Link 
             href="/dashboard/users"
             className="flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
             title="사용자 관리"
           >
             <Users className="w-5 h-5 shrink-0" />
-            <span className={`ml-3 whitespace-nowrap transition-all duration-300 ${
-              isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'
+            <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 ${
+              isCollapsed 
+                ? 'w-0 opacity-0' 
+                : 'w-auto opacity-100 delay-[50ms]'
             }`}>
               사용자 관리
             </span>
@@ -88,12 +92,14 @@ export default function Sidebar({
 
           <Link 
             href="/dashboard/settings"
-            className="flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+            className="flex items-center whitespace-nowrap transition-all duration-300 h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
             title="설정"
           >
             <Settings className="w-5 h-5 shrink-0" />
-            <span className={`ml-3 whitespace-nowrap transition-all duration-300 ${
-              isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'
+            <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 ${
+              isCollapsed 
+                ? 'w-0 opacity-0' 
+                : 'w-auto opacity-100 delay-[50ms]'
             }`}>
               설정
             </span>
@@ -101,12 +107,14 @@ export default function Sidebar({
 
           <button
             onClick={handleLogout}
-            className="flex items-center w-full h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+            className="flex items-center w-full whitespace-nowrap transition-all duration-300 h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
             title="로그아웃"
           >
             <LogOut className="w-5 h-5 shrink-0" />
-            <span className={`ml-3 whitespace-nowrap transition-all duration-300 ${
-              isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'
+            <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 ${
+              isCollapsed 
+                ? 'w-0 opacity-0' 
+                : 'w-auto opacity-100 delay-[50ms]'
             }`}>
               로그아웃
             </span>
