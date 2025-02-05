@@ -224,3 +224,103 @@ const users = await client.users.getUserList({
 - 화면 낭독기(Screen Reader)와 호환되도록 **ARIA 속성**을 적용합니다.
 - 색약 사용자를 고려한 **명확한 대비 색상**을 유지합니다.
 
+---
+
+# 강조색 사용 규칙
+
+## 1. 색상 정의
+강조색은 다음과 같습니다.
+
+### Primary Colors (주요 색상)
+- **chakra-colors-primary**: `#2C74FF`
+- **chakra-colors-primary-50**: `#F8FAFF`
+- **chakra-colors-primary-100**: `#E7EFFF`
+- **chakra-colors-primary-200**: `#C0D6FF`
+- **chakra-colors-primary-300**: `#9EBFFF`
+- **chakra-colors-primary-400**: `#70A1FF`
+- **chakra-colors-primary-500**: `#2C74FF`
+- **chakra-colors-primary-600**: `#0359FF`
+- **chakra-colors-primary-700**: `#004AD9`
+- **chakra-colors-primary-800**: `#003CB1`
+- **chakra-colors-primary-900**: `#002E88`
+
+### Secondary Colors (보조 색상)
+- **chakra-colors-secondary**: `#FFEB73`
+- **chakra-colors-secondary-50**: `#FFFDF2`
+- **chakra-colors-secondary-100**: `#FFFAD9`
+- **chakra-colors-secondary-200**: `#FFF6BF`
+- **chakra-colors-secondary-500**: `#FFEB73`
+
+### 상태 색상 (Status Colors)
+- **Success**
+  - **chakra-colors-success**: `#2FB916`
+  - **chakra-colors-success-500**: `#2FB916`
+  - **chakra-colors-success-900**: `#185e0b`
+- **Caution**
+  - **chakra-colors-caution**: `#F9A825`
+  - **chakra-colors-caution-500**: `#F9A825`
+  - **chakra-colors-caution-900**: `#b37105`
+- **Error**
+  - **chakra-colors-error**: `#FF2F2F`
+  - **chakra-colors-error-500**: `#FF2F2F`
+  - **chakra-colors-error-900**: `#c80000`
+
+## 2. 강조색 사용 지침
+
+### UI 요소별 색상 사용
+- **Primary Colors**: 주요 버튼, 헤더, 링크, 핵심 액션 요소
+- **Secondary Colors**: 보조 버튼, 카드 배경, 서브 액션 요소
+- **Success, Caution, Error Colors**: 상태 메시지, 알림, 경고창 등
+- **Job Colors**: 역할별 구분이 필요한 UI 요소
+
+### 명도 및 대비 기준
+- 강조색이 포함된 UI 요소는 텍스트 대비 최소 **4.5:1** 이상의 명도 대비를 유지해야 합니다.
+
+### Dark Mode 고려
+- 다크 모드에서 밝은 색상이 너무 눈부시지 않도록 `dim-primary`, `dim-secondary` 같은 보정 색상을 적용합니다.
+
+## 3. 유사한 색상 그룹화
+비슷한 색상의 사용 기준을 명확히 정리합니다.
+
+- **Primary (기본 색상)** → 버튼, 주요 액션
+- **Cobalt (코발트 계열)** → 정보성 배경, 카드
+- **Blue (파란 계열)** → 보조 강조, 링크
+- **Violet (보라 계열)** → 창의적인 UI 요소
+
+## 4. 토큰화 및 확장성 고려
+역할별 색상을 더욱 세분화하여 확장성을 고려합니다.
+
+- **chakra-colors-job-frontend**: `#7E8BFF`
+- **chakra-colors-job-backend**: `#6BB8FF`
+- **chakra-colors-job-design**: `#FFA877`
+- **chakra-colors-job-pm**: `#FF7B7B`
+- **chakra-colors-job-qa**: `#B587FF`
+
+## 5. 예제 코드
+
+```tsx
+const theme = extendTheme({
+  colors: {
+    primary: {
+      50: "#F8FAFF",
+      100: "#E7EFFF",
+      500: "#2C74FF",
+      900: "#002E88",
+    },
+    secondary: {
+      50: "#FFFDF2",
+      100: "#FFFAD9",
+      500: "#FFEB73",
+    },
+    success: {
+      500: "#2FB916",
+    },
+    caution: {
+      500: "#F9A825",
+    },
+    error: {
+      500: "#FF2F2F",
+    },
+  },
+});
+```

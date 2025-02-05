@@ -3,32 +3,34 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-
-interface Worker {
-  id: string
-  name: string
-  email: string
-  role: string
-  status: 'active' | 'inactive'
-  created_at: string
-}
+import type { Worker, WorkerJobType } from '@/types/worker'
+import AddWorkerSlideOver from '@/components/workers/AddWorkerSlideOver'
 
 export default function WorkersManagementPage() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedJobType, setSelectedJobType] = useState<WorkerJobType | 'all'>('all')
+  const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
+
+  const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
 
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('workers')
           .select('*')
-          .order('created_at', { ascending: false })
+          
+        // 직무 필터 적용
+        if (selectedJobType !== 'all') {
+          query = query.eq('job_type', selectedJobType)
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false })
 
         if (error) throw error
-
         setWorkers(data || [])
       } catch (error) {
         console.error('Error fetching workers:', error)
@@ -38,7 +40,23 @@ export default function WorkersManagementPage() {
     }
 
     fetchWorkers()
-  }, [supabase])
+  }, [supabase, selectedJobType])  // selectedJobType 변경시 재조회
+
+  const handleAddWorker = async (workerData: any) => {
+    try {
+      const { error } = await supabase
+        .from('workers')
+        .insert([workerData])
+
+      if (error) throw error
+
+      // 성공적으로 추가되면 목록 새로고침
+      fetchWorkers()
+      setIsAddSlideOverOpen(false)
+    } catch (error) {
+      console.error('Error adding worker:', error)
+    }
+  }
 
   if (loading) {
     return (
@@ -56,15 +74,87 @@ export default function WorkersManagementPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold">실무자 관리</h1>
-        <button
-          onClick={() => {/* 실무자 추가 모달 열기 */}}
-          className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          실무자 추가
-        </button>
+    <div className="p-6 bg-white min-h-screen">
+      <div className="mb-8">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="프로젝트 또는 실무자 이름을 검색해세요."
+              className="w-full h-10 pl-10 pr-4 rounded-lg border bg-gray-30 border-gray-300 focus:outline-none focus:border-gray-400"
+            />
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+              fill="none"
+              strokeWidth="2"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          <div className="flex gap-2">
+            <button className="px-4 py-2 text-black rounded-lg hover:bg-[#3F3ABE] transition-colors border border-gray-300">
+              여러명 추가
+            </button>
+            <button 
+              onClick={() => setIsAddSlideOverOpen(true)}
+              className="px-4 py-2 bg-[#4E49E7] text-white rounded-lg hover:bg-[#3F3ABE] transition-colors border border-black"
+            >
+              추가
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center text-sm text-black-500 bg-gray-50 px-4 py-3 rounded-lg mb-6">
+          <svg 
+            className="w-5 h-5 mr-2 text-gray-400" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+            />
+          </svg>
+          각 직무 별 이름은 가나다순으로 정렬돼요.
+        </div>
+
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setSelectedJobType('all')}
+              className={`
+                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
+                ${selectedJobType === 'all'
+                  ? 'border-black text-black'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }
+              `}
+            >
+              전체
+            </button>
+            {jobTypes.map((jobType) => (
+              <button
+                key={jobType}
+                onClick={() => setSelectedJobType(jobType)}
+                className={`
+                  whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm
+                  ${selectedJobType === jobType
+                    ? 'border-black text-black'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                {jobType}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm">
@@ -76,16 +166,16 @@ export default function WorkersManagementPage() {
                   이름
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  이메일
+                  직무
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  역할
+                  등급
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  상태
+                  단가
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  등록일
+                  파견여부
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   관리
@@ -99,34 +189,30 @@ export default function WorkersManagementPage() {
                     <div className="text-sm font-medium text-gray-900">{worker.name}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{worker.email}</div>
+                    <div className="text-sm text-gray-900">{worker.job_type}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{worker.role}</div>
+                    <div className="text-sm text-gray-900">{worker.level}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {new Intl.NumberFormat('ko-KR').format(worker.price)}원
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      worker.status === 'active' 
+                      worker.is_dispatched 
                         ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {worker.status === 'active' ? '활성' : '비활성'}
+                      {worker.is_dispatched ? '파견중' : '대기중'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(worker.created_at).toLocaleDateString()}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => {/* 실무자 수정 모달 열기 */}}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                    >
+                    <button className="text-[#4E49E7] hover:text-[#3F3ABE] mr-4 border-b border-[#4E49E7] hover:border-[#3F3ABE]">
                       수정
                     </button>
-                    <button
-                      onClick={() => {/* 실무자 삭제 확인 모달 열기 */}}
-                      className="text-red-600 hover:text-red-900"
-                    >
+                    <button className="text-red-600 hover:text-red-700 border-b border-red-600 hover:border-red-700">
                       삭제
                     </button>
                   </td>
@@ -136,6 +222,12 @@ export default function WorkersManagementPage() {
           </table>
         </div>
       </div>
+
+      <AddWorkerSlideOver
+        isOpen={isAddSlideOverOpen}
+        onClose={() => setIsAddSlideOverOpen(false)}
+        onSubmit={handleAddWorker}
+      />
     </div>
   )
 } 
