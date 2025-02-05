@@ -42,12 +42,14 @@ export default function RootLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
-  const showSidebar = pathname.startsWith('/dashboard')
+  
+  const showHeader = !pathname.includes('/auth/login')
+  const showSidebar = pathname.startsWith('/dashboard') || pathname.startsWith('/business')
 
   return (
     <html lang="ko" className={pretendard.className}>
       <body>
-        <Header />
+        {showHeader && <Header />}
         {showSidebar && (
           <Sidebar 
             isSidebarOpen={isSidebarOpen} 
@@ -56,7 +58,7 @@ export default function RootLayout({
             setIsCollapsed={setIsCollapsed}
           />
         )}
-        <main className={`pt-16 transition-all duration-300 ${
+        <main className={`${showHeader ? 'pt-16' : ''} transition-all duration-300 ${
           showSidebar ? (
             isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
           ) : ''

@@ -24,6 +24,7 @@ your-nextjs-project/
 ├── app/                      # App Router 라우트 폴더
 │ ├── api/                    # API 엔드포인트 관련 폴더
 │ ├── dashboard/              # 개별 페이지 폴더 예시 (재사용되지 않는 컴포넌트 포함)
+│ ├── business/               # 비즈니스 페이지 폴더 예시 (재사용되지 않는 컴포넌트 포함)
 │ └─├── page.tsx              # dashboard 페이지
 │   └── DashboardStats.tsx    # 페이지 전용 컴포넌트
 ├── components/               # 공통 컴포넌트 모음
@@ -208,3 +209,18 @@ const users = await client.users.getUserList({
 
 -   **데이터베이스 작업을 위해 ORM으로 Drizzle을 사용하세요.**
 -   **Drizzle을 사용하여 데이터베이스 모델을 정의하고, CRUD 작업을 구현하세요.**
+
+---
+
+## Responsive Optimization (반응형 최적화)
+- **다양한 화면 크기**(모바일, 태블릿, 데스크톱)에서 원활하게 작동해야 합니다.
+- 버튼, 입력 필드 등의 **UI 요소는 터치와 클릭 모두 최적화**되어야 합니다.
+- 가독성을 높이기 위해 **반응형 폰트 크기** 및 **유동적인 레이아웃**을 적용해야 합니다.
+
+---
+
+## Accessibility (접근성)
+- **키보드 네비게이션**을 지원해야 합니다.
+- 화면 낭독기(Screen Reader)와 호환되도록 **ARIA 속성**을 적용합니다.
+- 색약 사용자를 고려한 **명확한 대비 색상**을 유지합니다.
+

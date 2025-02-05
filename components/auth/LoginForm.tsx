@@ -23,41 +23,53 @@ export default function LoginForm() {
     setError(null)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data: { user }, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        console.error('Login Error:', error)
-        throw error
-      }
+      if (signInError) throw signInError
 
-      if (data.user) {
-        const { data: profileData, error: profileError } = await supabase
+      if (user) {
+        // 프로필 조회
+        const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
-          .eq('user_id', data.user.id)
+          .eq('id', user.id)
           .single()
 
         if (profileError) {
-          console.error('Profile fetch error:', profileError)
+          console.log('프로필이 없어 새로 생성합니다.')
+          // 프로필이 없는 경우 새로 생성
+          const { error: insertError } = await supabase
+            .from('user_profiles')
+            .insert([
+              {
+                id: user.id,
+                email: user.email,
+                role: 'Client',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+            ])
+
+          if (insertError) {
+            console.error('프로필 생성 에러:', insertError)
+            throw new Error('프로필 생성에 실패했습니다.')
+          }
         }
 
-        console.log('Login successful:', { user: data.user, profile: profileData })
+        // 로그인 성공 후 리다이렉트
+        router.push('/dashboard')
       }
-
-      toast.success('로그인되었습니다')
-      router.refresh()
-      router.push('/dashboard')
-      
-    } catch (error: unknown) {
+    } catch (error) {
+      console.error('로그인 에러:', error)
       if (error instanceof Error) {
         setError(error.message)
         toast.error(error.message)
       } else {
-        setError('로그인에 실패했습니다')
-        toast.error('로그인에 실패했습니다')
+        setError('로그인에 실패했습니다.')
+        toast.error('로그인에 실패했습니다.')
       }
     } finally {
       setLoading(false)
