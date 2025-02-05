@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import type { Worker, WorkerJobType, WorkerLevelType } from '@/types/worker'
+import type { Worker, WorkerJobType, WorkerLevelType, WorkerMMRecord } from '@/types/worker'
 import AddWorkerSlideOver from '@/components/workers/AddWorkerSlideOver'
 
 interface WorkerFormData {
@@ -50,13 +50,30 @@ export default function WorkersManagementPage() {
     fetchWorkers()
   }, [selectedJobType])
 
-  const handleAddWorker = async (data: WorkerFormData) => {
+  const handleAddWorker = async (data: { worker: WorkerFormData, mmRecords: WorkerMMRecord[] }) => {
     try {
-      const { error } = await supabase
+      // 1. 먼저 worker 추가
+      const { data: worker, error: workerError } = await supabase
         .from('workers')
-        .insert([data])
+        .insert([data.worker])
+        .select()
+        .single()
 
-      if (error) throw error
+      if (workerError) throw workerError
+
+      // 2. M/M 기록 추가
+      if (worker) {
+        const { error: mmError } = await supabase
+          .from('worker_mm_records')
+          .insert(
+            data.mmRecords.map(record => ({
+              ...record,
+              worker_id: worker.id
+            }))
+          )
+
+        if (mmError) throw mmError
+      }
 
       // 성공적으로 추가되면 목록 새로고침
       fetchWorkers()
