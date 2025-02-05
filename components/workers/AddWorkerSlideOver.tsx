@@ -155,7 +155,7 @@ export default function AddWorkerSlideOver({
             {/* 메인 컨텐츠 영역 */}
             <div className="flex-1 flex overflow-hidden">
               {/* 폼 영역 - 너비 증가 및 여백 조정 */}
-              <div className="w-[720px] flex flex-col bg-white overflow-y-auto">
+              <div className="w-[720px] flex flex-col bg-white overflow-y-auto slide-over-scroll">
                 <form id="workerForm" onSubmit={handleSubmit} className="flex-1">
                   {/* 실무자 정보 영역 */}
                   <div className="px-8 pt-6 pb-4">
@@ -526,7 +526,7 @@ export default function AddWorkerSlideOver({
               </div>
 
               {/* 프로젝트 영역 - 남은 공간 사용 */}
-              <div className="flex-1 flex flex-col bg-white border-l border-gray-200 overflow-y-auto">
+              <div className="flex-1 flex flex-col bg-white border-l border-gray-200 overflow-y-auto slide-over-scroll">
                 {/* 프로젝트 헤더 */}
                 <div className="flex-none border-b border-gray-200">
                   <nav className="flex">
