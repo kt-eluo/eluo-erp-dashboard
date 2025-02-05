@@ -11,6 +11,7 @@ export default function WorkersManagementPage() {
   const [loading, setLoading] = useState(true)
   const [selectedJobType, setSelectedJobType] = useState<WorkerJobType | 'all'>('all')
   const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
+  const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -56,6 +57,31 @@ export default function WorkersManagementPage() {
     } catch (error) {
       console.error('Error adding worker:', error)
     }
+  }
+
+  const handleDeleteWorker = async () => {
+    if (!selectedWorker?.id) return
+
+    try {
+      const { error } = await supabase
+        .from('workers')
+        .delete()
+        .eq('id', selectedWorker.id)
+
+      if (error) throw error
+
+      // 성공적으로 삭제되면 목록 새로고침
+      fetchWorkers()
+      setIsAddSlideOverOpen(false)
+      setSelectedWorker(null)
+    } catch (error) {
+      console.error('Error deleting worker:', error)
+    }
+  }
+
+  const handleEditWorker = (worker: Worker) => {
+    setSelectedWorker(worker)
+    setIsAddSlideOverOpen(true)
   }
 
   if (loading) {
@@ -209,10 +235,19 @@ export default function WorkersManagementPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-[#4E49E7] hover:text-[#3F3ABE] mr-4 border-b border-[#4E49E7] hover:border-[#3F3ABE]">
+                    <button 
+                      onClick={() => handleEditWorker(worker)}
+                      className="text-[#4E49E7] hover:text-[#3F3ABE] mr-4 border-b border-[#4E49E7] hover:border-[#3F3ABE]"
+                    >
                       수정
                     </button>
-                    <button className="text-red-600 hover:text-red-700 border-b border-red-600 hover:border-red-700">
+                    <button 
+                      onClick={() => {
+                        setSelectedWorker(worker);
+                        handleDeleteWorker();
+                      }}
+                      className="text-red-600 hover:text-red-700 border-b border-red-600 hover:border-red-700"
+                    >
                       삭제
                     </button>
                   </td>
@@ -225,8 +260,14 @@ export default function WorkersManagementPage() {
 
       <AddWorkerSlideOver
         isOpen={isAddSlideOverOpen}
-        onClose={() => setIsAddSlideOverOpen(false)}
+        onClose={() => {
+          setIsAddSlideOverOpen(false)
+          setSelectedWorker(null)
+        }}
         onSubmit={handleAddWorker}
+        onDelete={handleDeleteWorker}
+        isEdit={!!selectedWorker}
+        workerId={selectedWorker?.id}
       />
     </div>
   )
