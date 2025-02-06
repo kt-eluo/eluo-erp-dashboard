@@ -3,9 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Bell, Flag } from 'lucide-react'
-
-// UserRole 타입을 명시적으로 정의
-type UserRole = 'ADMIN' | 'CPO' | 'MANAGER' | 'USER';
+import type { UserRole } from '@/types/auth'
 
 interface Notification {
   id: string
@@ -59,7 +57,7 @@ export default function Header() {
               {
                 id: user.id,
                 email: user.email,
-                role: 'USER' // 기본 역할
+                role: 'Client' // 'USER' -> 'Client'로 수정
               }
             ])
             .single()
@@ -69,7 +67,7 @@ export default function Header() {
             return
           }
 
-          setUserRole('USER')
+          setUserRole('Client')  // 'USER' -> 'Client'로 수정
           setUserEmail(user.email || '')
         }
       } catch (error) {
@@ -108,10 +106,11 @@ export default function Header() {
     if (!role) return 'Loading...'
     
     const roleMap: Record<UserRole, string> = {
-      'ADMIN': '관리자',
       'CPO': 'CPO',
-      'MANAGER': '매니저',
-      'USER': '일반사용자'
+      'BD/BM': 'BD/BM',
+      'PM/PL': 'PM/PL',
+      'PA': 'PA',
+      'Client': 'Client'
     }
     
     return roleMap[role] || role
@@ -125,10 +124,11 @@ export default function Header() {
           <div className="flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-medium border border-black">
             <Flag 
               className={`w-3.5 h-3.5 ${
-                userRole === 'ADMIN' ? 'text-black-500 fill-red-500' :
                 userRole === 'CPO' ? 'text-black-500 fill-purple-500' :
-                userRole === 'MANAGER' ? 'text-black-500 fill-green-500' :
-                'text-black-400 fill-blue-400'
+                userRole === 'BD/BM' ? 'text-black-500 fill-red-500' :
+                userRole === 'PM/PL' ? 'text-black-500 fill-green-500' :
+                userRole === 'PA' ? 'text-black-500 fill-blue-500' :
+                'text-black-400 fill-gray-400'  // Client 또는 기타 역할의 경우
               }`} 
             />
             <span>{getRoleDisplay(userRole)}</span>

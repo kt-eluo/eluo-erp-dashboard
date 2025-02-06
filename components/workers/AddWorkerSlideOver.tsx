@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, ArrowLeft, Trash2 } from 'lucide-react'
 import type { WorkerJobType, WorkerLevelType, WorkerMMRecord } from '@/types/worker'
 import { Line } from 'react-chartjs-2'
@@ -14,6 +14,8 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'react-hot-toast'
 
 ChartJS.register(
   CategoryScale,
@@ -32,6 +34,7 @@ interface AddWorkerSlideOverProps {
   onDelete?: () => void
   isEdit?: boolean
   workerId?: string
+  worker?: Worker | null
 }
 
 export default function AddWorkerSlideOver({ 
@@ -40,13 +43,14 @@ export default function AddWorkerSlideOver({
   onSubmit, 
   onDelete,
   isEdit = false,
-  workerId 
+  workerId,
+  worker 
 }: AddWorkerSlideOverProps) {
-  const [name, setName] = useState('')
-  const [jobType, setJobType] = useState<WorkerJobType | ''>('')
-  const [level, setLevel] = useState<WorkerLevelType | ''>('')
-  const [price, setPrice] = useState('')
-  const [isDispatched, setIsDispatched] = useState<boolean | null>(null)
+  const [name, setName] = useState(worker?.name || '')
+  const [jobType, setJobType] = useState<WorkerJobType | ''>(worker?.job_type || '')
+  const [level, setLevel] = useState<WorkerLevelType | ''>(worker?.level || '')
+  const [price, setPrice] = useState(worker?.price ? worker.price.toLocaleString() : '')
+  const [isDispatched, setIsDispatched] = useState<boolean | null>(worker?.is_dispatched ?? null)
   const [isJobTypeOpen, setIsJobTypeOpen] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
   const [isPriceOpen, setIsPriceOpen] = useState(false)
@@ -57,6 +61,12 @@ export default function AddWorkerSlideOver({
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
   const levels: WorkerLevelType[] = ['초급', '중급', '고급']
+
+  // 드롭박스 ref 추가
+  const jobTypeRef = useRef<HTMLDivElement>(null)
+  const levelRef = useRef<HTMLDivElement>(null)
+  const priceRef = useRef<HTMLDivElement>(null)
+  const dispatchRef = useRef<HTMLDivElement>(null)
 
   // body 스크롤 제어
   useEffect(() => {
@@ -72,27 +82,159 @@ export default function AddWorkerSlideOver({
     };
   }, [isOpen]);
 
+  // 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (jobTypeRef.current && !jobTypeRef.current.contains(event.target as Node)) {
+        setIsJobTypeOpen(false)
+      }
+      if (levelRef.current && !levelRef.current.contains(event.target as Node)) {
+        setIsLevelOpen(false)
+      }
+      if (priceRef.current && !priceRef.current.contains(event.target as Node)) {
+        setIsPriceOpen(false)
+      }
+      if (dispatchRef.current && !dispatchRef.current.contains(event.target as Node)) {
+        setIsDispatchOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  // worker 데이터가 변경될 때마다 form 값 업데이트
+  useEffect(() => {
+    if (worker) {
+      setName(worker.name)
+      setJobType(worker.job_type)
+      setLevel(worker.level)
+      setPrice(worker.price.toLocaleString())
+      setIsDispatched(worker.is_dispatched)
+    } else {
+      // worker가 없는 경우(새로 추가) 초기화
+      setName('')
+      setJobType('')
+      setLevel('')
+      setPrice('')
+      setIsDispatched(null)
+    }
+  }, [worker])
+
+  // M/M 기록 가져오기
+  useEffect(() => {
+    const fetchMMRecords = async () => {
+      if (workerId) {
+        const { data, error } = await supabase
+          .from('worker_mm_records')
+          .select('*')
+          .eq('worker_id', workerId)
+          .eq('year', currentYear)
+
+        if (!error && data) {
+          setMMRecords(data)
+        }
+      } else {
+        setMMRecords([])
+      }
+    }
+
+    fetchMMRecords()
+  }, [workerId])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // 기존 worker 데이터 저장
-    const workerData = {
-      name,
-      job_type: jobType,
-      level,
-      price: parseInt(price.replace(/,/g, '')),
-      is_dispatched: isDispatched
+    try {
+      // 1. 이름 유효성 검사
+      if (!name) {
+        toast.error('이름을 입력해주세요.')
+        return
+      }
+
+      // 2. 이름 길이 검사 (최대 100자)
+      if (name.length > 100) {
+        toast.error('이름은 최대 100자까지 입력 가능합니다.')
+        return
+      }
+
+      // 3. 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호만 허용)
+      const nameRegex = /^[가-힣a-zA-Z0-9\s()（）[\]｛｝《》〈〉「」『』【】]+$/
+      if (!nameRegex.test(name)) {
+        toast.error('특수문자는 입력할 수 없습니다.')
+        return
+      }
+
+      const workerData = {
+        name,
+        job_type: jobType as WorkerJobType || null,
+        level: level as WorkerLevelType || null,
+        price: price ? parseInt(price.replace(/,/g, '')) : null,
+        is_dispatched: isDispatched ?? false
+      }
+
+      onSubmit({ 
+        worker: workerData,
+        mmRecords 
+      })
+
+      onClose()
+    } catch (error: any) {
+      console.error('Error:', error)
+      toast.error(error?.message || '저장 중 오류가 발생했습니다.')
     }
+  }
 
-    // M/M 기록 데이터 준비
-    const mmData = mmRecords.map(record => ({
-      worker_id: workerId, // 새로 생성된 worker의 ID
-      year: record.year,
-      month: record.month,
-      mm_value: record.mm_value
-    }))
+  // 이름 입력 시 실시간 유효성 검사
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    
+    // 입력 중에는 모든 값을 허용
+    setName(value)
+    
+    // 입력이 완료된 상태에서만 검사 (한글 입력 중이 아닐 때)
+    if (!e.nativeEvent.isComposing) {
+      // 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호만 허용)
+      const nameRegex = /^[가-힣a-zA-Z0-9\s()（）[\]｛｝《》〈〉「」『』【】]*$/
+      if (value && !nameRegex.test(value)) {
+        toast.error('특수문자는 입력할 수 없습니다.')
+        return
+      }
 
-    onSubmit({ worker: workerData, mmRecords: mmData })
+      // 길이 검사
+      if (value.length > 100) {
+        toast.error('이름은 최대 100자까지 입력 가능합니다.')
+        return
+      }
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!workerId) return
+    
+    try {
+      // M/M 기록 먼저 삭제
+      await supabase
+        .from('worker_mm_records')
+        .delete()
+        .eq('worker_id', workerId)
+
+      // worker 삭제
+      const { error } = await supabase
+        .from('workers')
+        .delete()
+        .eq('id', workerId)
+
+      if (error) throw error
+
+      toast.success('실무자가 삭제되었습니다.')
+      onClose()
+    } catch (error) {
+      console.error('Error:', error)
+      toast.error('삭제 중 오류가 발생했습니다.')
+    }
   }
 
   const formatPrice = (value: string) => {
@@ -106,7 +248,7 @@ export default function AddWorkerSlideOver({
   }
 
   const updateMMValue = (month: number, value: number) => {
-    setMMRecords(prev => {
+    setMMRecords((prev: WorkerMMRecord[]) => {
       const existing = prev.find(r => r.month === month && r.year === currentYear)
       if (existing) {
         return prev.map(r => 
@@ -115,7 +257,7 @@ export default function AddWorkerSlideOver({
             : r
         )
       }
-      return [...prev, { year: currentYear, month, mm_value: value }]
+      return [...prev, { year: currentYear, month, mm_value: value, worker_id: workerId || '' }]
     })
   }
 
@@ -131,7 +273,7 @@ export default function AddWorkerSlideOver({
         />
 
         {/* 슬라이드 오버 패널 */}
-        <div className={`fixed inset-y-0 right-0 pl-10 max-w-full flex transform transition-transform duration-500 ease-in-out ${
+        <div className={`fixed inset-y-0 right-0 pl-10 max-w-full flex transform transition-transform duration-500 ease-in-out overflow-y-auto ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}>
           <div className="w-[1200px] flex flex-col">
@@ -151,14 +293,14 @@ export default function AddWorkerSlideOver({
                   <button
                     type="button"
                     onClick={onDelete}
-                    className="px-3 py-1.5 text-sm font-medium text-black-500 hover:text-white border border-black-200 rounded-md hover:bg-red-600 transition-colors duration-200"
+                    className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-red-600 transition-colors duration-200"
                   >
                     삭제하기
                   </button>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-3 py-1.5 text-sm font-medium text-black-500 hover:text-white border border-black-600 rounded-md hover:bg-gray-600 transition-colors duration-200"
+                    className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-gray-600 transition-colors duration-200"
                   >
                     닫기
                   </button>
@@ -169,8 +311,8 @@ export default function AddWorkerSlideOver({
             {/* 메인 컨텐츠 영역 */}
             <div className="flex-1 flex overflow-hidden">
               {/* 폼 영역 - 너비 증가 및 여백 조정 */}
-              <div className="w-[720px] flex flex-col bg-white overflow-y-auto slide-over-scroll">
-                <form id="workerForm" onSubmit={handleSubmit} className="flex-1">
+              <div className="w-[720px] flex flex-col bg-white">
+                <form id="workerForm" onSubmit={handleSubmit} className="flex-1 overflow-y-auto hide-scrollbar">
                   {/* 실무자 정보 영역 */}
                   <div className="px-8 pt-6 pb-4">
                     <div className="flex items-center text-[14px] text-[#4E49E7]">
@@ -199,16 +341,16 @@ export default function AddWorkerSlideOver({
                         <input
                           type="text"
                           value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          className="w-full border-0 border-b-2 border-transparent bg-transparent text-[18px] font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0"
-                          required
-                          placeholder="이름"
+                          onChange={handleNameChange}
+                          maxLength={100}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E49E7] focus:border-[#4E49E7] sm:text-sm"
+                          placeholder="이름을 입력하세요"
                         />
                       </div>
 
                       {/* 직무 */}
                       <div>
-                        <div className="relative">
+                        <div className="relative" ref={jobTypeRef}>
                           <button
                             type="button"
                             onClick={() => setIsJobTypeOpen(!isJobTypeOpen)}
@@ -254,7 +396,7 @@ export default function AddWorkerSlideOver({
 
                       {/* 등급 */}
                       <div>
-                        <div className="relative">
+                        <div className="relative" ref={levelRef}>
                           <button
                             type="button"
                             onClick={() => setIsLevelOpen(!isLevelOpen)}
@@ -300,7 +442,7 @@ export default function AddWorkerSlideOver({
 
                       {/* 단가 */}
                       <div>
-                        <div className="relative">
+                        <div className="relative" ref={priceRef}>
                           <button
                             type="button"
                             onClick={() => setIsPriceOpen(!isPriceOpen)}
@@ -386,7 +528,7 @@ export default function AddWorkerSlideOver({
 
                       {/* 파견 여부 */}
                       <div>
-                        <div className="relative">
+                        <div className="relative" ref={dispatchRef}>
                           <button
                             type="button"
                             onClick={() => setIsDispatchOpen(!isDispatchOpen)}
@@ -579,7 +721,7 @@ export default function AddWorkerSlideOver({
               <button
                 type="submit"
                 form="workerForm"
-                className="w-full py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E49E7]"
+                className="w-full py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E49E7] rounded-lg"
               >
                 저장
               </button>
