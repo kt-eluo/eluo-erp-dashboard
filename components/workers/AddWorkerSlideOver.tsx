@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, ArrowLeft, Trash2 } from 'lucide-react'
 import type { WorkerJobType, WorkerLevelType, WorkerMMRecord } from '@/types/worker'
 import { Line } from 'react-chartjs-2'
@@ -57,6 +57,20 @@ export default function AddWorkerSlideOver({
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
   const levels: WorkerLevelType[] = ['초급', '중급', '고급']
+
+  // body 스크롤 제어
+  useEffect(() => {
+    const body = document.body;
+    if (isOpen) {
+      body.classList.add('lock');
+    } else {
+      body.classList.remove('lock');
+    }
+
+    return () => {
+      body.classList.remove('lock');
+    };
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -159,7 +173,7 @@ export default function AddWorkerSlideOver({
                 <form id="workerForm" onSubmit={handleSubmit} className="flex-1">
                   {/* 실무자 정보 영역 */}
                   <div className="px-8 pt-6 pb-4">
-                    <div className="flex items-center text-sm text-[#4E49E7]">
+                    <div className="flex items-center text-[14px] text-[#4E49E7]">
                       <svg 
                         className="w-5 h-5 mr-2" 
                         fill="none" 
@@ -186,7 +200,7 @@ export default function AddWorkerSlideOver({
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="w-full border-0 border-b-2 border-transparent bg-transparent text-3xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2"
+                          className="w-full border-0 border-b-2 border-transparent bg-transparent text-[18px] font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0"
                           required
                           placeholder="이름"
                         />
@@ -441,7 +455,7 @@ export default function AddWorkerSlideOver({
 
                       {/* M/M 투입 추이 그래프 */}
                       <div className="border rounded-lg p-6">
-                        <h3 className="text-lg font-medium mb-6">{currentYear}년 M/M 투입 추이</h3>
+                        <h3 className="text-[18px] font-medium mb-6">{currentYear}년 M/M 투입 추이</h3>
                         <div className="h-[200px] mb-8">
                           <Line
                             data={{
@@ -471,7 +485,7 @@ export default function AddWorkerSlideOver({
 
                         {/* M/M 투입 테이블 */}
                         <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
+                          <table className="w-full text-[14px]">
                             <thead>
                               <tr className="bg-gray-50">
                                 <th className="px-4 py-2 border">구분</th>
@@ -565,7 +579,7 @@ export default function AddWorkerSlideOver({
               <button
                 type="submit"
                 form="workerForm"
-                className="w-full flex justify-center py-3 px-4 border border-black rounded-md shadow-sm text-sm font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E49E7]"
+                className="w-full py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E49E7]"
               >
                 저장
               </button>

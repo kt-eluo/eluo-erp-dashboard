@@ -118,13 +118,13 @@ export default function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-black z-50">
+    <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-black z-50">
       <div className="mx-auto px-6 h-full flex items-center justify-between">
         {/* 좌측: 역할 표시 */}
         <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium border border-black">
+          <div className="flex items-center space-x-2 px-2.5 py-1 rounded-full text-xs font-medium border border-black">
             <Flag 
-              className={`w-4 h-4 ${
+              className={`w-3.5 h-3.5 ${
                 userRole === 'ADMIN' ? 'text-black-500 fill-red-500' :
                 userRole === 'CPO' ? 'text-black-500 fill-purple-500' :
                 userRole === 'MANAGER' ? 'text-black-500 fill-green-500' :
@@ -136,19 +136,19 @@ export default function Header() {
         </div>
 
         {/* 우측: 알림 & 프로필 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           {/* 알림 아이콘 */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors relative w-9 h-9 rounded-full border border-black inline-flex items-center justify-center text-sm font-medium leading-none"
+              className="p-1.5 hover:bg-gray-100 rounded-full transition-colors relative w-7 h-7 border border-black inline-flex items-center justify-center text-xs font-medium leading-none"
             >
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
                 width="24" 
                 height="24" 
                 viewBox="0 0 24 24" 
-                className="w-5 h-5 text-gray-600"
+                className="w-4 h-4 text-gray-600"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -192,8 +192,8 @@ export default function Header() {
           </div>
 
           {/* 프로필 이니셜 */}
-          <div className="flex items-center space-x-2">
-            <div className="w-9 h-9 rounded-full bg-gray-100 border border-black text-black-700 inline-flex items-center justify-center text-sm font-medium leading-none">
+          <div className="flex items-center">
+            <div className="w-7 h-7 rounded-full bg-gray-100 border border-black text-black-700 inline-flex items-center justify-center text-xs font-medium leading-none">
               {userEmail ? getInitial(userEmail) : '?'}
             </div>
           </div>

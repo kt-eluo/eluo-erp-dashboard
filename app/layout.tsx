@@ -58,7 +58,7 @@ export default function RootLayout({
             setIsCollapsed={setIsCollapsed}
           />
         )}
-        <main className={`${showHeader ? 'pt-16' : ''} transition-all duration-300 ${
+        <main className={`${showHeader ? 'pt-14' : ''} transition-all duration-300 ${
           showSidebar ? (
             isCollapsed ? 'lg:ml-16' : 'lg:ml-64'
           ) : ''

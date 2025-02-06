@@ -324,3 +324,61 @@ const theme = extendTheme({
   },
 });
 ```
+
+---
+
+# 폰트 사이즈 사용 규칙
+
+## 1. 폰트 사이즈 정의
+폰트 크기는 다음과 같습니다.
+
+### 기본 폰트 크기 (Font Sizes)
+- **chakra-fontSizes-title**: `20px`
+- **chakra-fontSizes-subtitle**: `18px`
+- **chakra-fontSizes-body**: `16px`
+- **chakra-fontSizes-small**: `14px`
+- **chakra-fontSizes-tiny**: `12px`
+
+## 2. 폰트 크기 사용 지침
+
+### UI 요소별 폰트 크기 사용
+- **Title (`20px`)**: 주요 헤딩 (`h1`)
+- **Subtitle (`18px`)**: 보조 헤딩 (`h2, h3`)
+- **Body (`16px`)**: 기본 본문 텍스트
+- **Small (`14px`)**: 보조 정보, 캡션 등
+- **Tiny (`12px`)**: 버튼 레이블, 메타데이터
+
+### 가독성 및 디자인 원칙
+- **기본 폰트 크기**는 `16px` (`1rem`)을 기준으로 설정합니다.
+- **헤딩 (`h1~h3`)**은 본문 대비 1.25~1.5배 크기로 설정하여 시각적 계층 구조를 유지합니다.
+- **반응형 디자인**에서는 `rem` 단위를 사용하여 조정 가능하도록 설정합니다.
+
+### Dark Mode 고려
+- 다크 모드에서 작은 폰트(`14px 이하`)는 대비를 강화하기 위해 `font-weight: 500 이상`을 권장합니다.
+
+## 3. 폰트 크기 그룹화
+유사한 역할을 하는 폰트 크기를 정리합니다.
+
+- **Title (`20px`)** → 헤딩 (`h1`)
+- **Subtitle (`18px`)** → 섹션 제목, `h2`
+- **Body (`16px`)** → 기본 텍스트
+- **Small (`14px`)** → 캡션, 설명 텍스트
+- **Tiny (`12px`)** → 메타데이터, 툴팁
+
+## 4. 예제 코드
+
+```tsx
+const theme = extendTheme({
+  fontSizes: {
+    title: "20px",
+    subtitle: "16px",
+    body: "15px",
+    small: "12px",
+    tiny: "11px",
+  },
+});
+```
+
+---
+
+# 폰트 사이즈 사용 규칙
