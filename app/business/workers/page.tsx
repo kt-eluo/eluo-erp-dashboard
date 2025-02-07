@@ -29,6 +29,7 @@ export default function WorkersManagementPage() {
   const [selectedJobType, setSelectedJobType] = useState<WorkerJobType | 'all'>('all')
   const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null)
+  const [searchInput, setSearchInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [isMultipleAddModalOpen, setIsMultipleAddModalOpen] = useState(false)
   const router = useRouter()
@@ -75,6 +76,17 @@ export default function WorkersManagementPage() {
       toast.error('실무자 목록을 불러오는데 실패했습니다.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    setSearchTerm(searchInput)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch()
     }
   }
 
@@ -395,15 +407,8 @@ export default function WorkersManagementPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 border-t-[#4E49E7] animate-spin" />
       </div>
     )
   }
@@ -429,18 +434,27 @@ export default function WorkersManagementPage() {
       </div>
 
       <div className="mb-6">
-        <div className="relative w-full">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+        <form onSubmit={handleSearch} className="relative flex w-[400px]">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-l-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-[#4E49E7] focus:border-[#4E49E7] text-[13px]"
+              placeholder="실무자 검색"
+            />
           </div>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-[#4E49E7] focus:border-[#4E49E7] sm:text-sm"
-            placeholder="실무자 검색"
-          />
-        </div>
+          <button
+            type="submit"
+            className="px-4 py-2 text-[13px] text-black bg-white hover:text-white border border-gray-400 rounded-r-md hover:bg-[#4E49E7] transition-colors duration-200"
+          >
+            검색
+          </button>
+        </form>
       </div>
 
       <div className="flex items-center text-sm text-black-500 bg-gray-50 px-4 py-3 rounded-lg mb-6">
