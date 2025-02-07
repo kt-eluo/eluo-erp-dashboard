@@ -54,8 +54,8 @@ export default function AddMultipleWorkersModal({
       return
     }
 
-    // 특수문자 검사
-    const nameRegex = /^[가-힣a-zA-Z0-9\s()（）[\]｛｝《》〈〉「」『』【】]*$/
+    // 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호, 밑줄만 허용)
+    const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]*$/
     if (value && !nameRegex.test(value)) {
       toast.error('특수문자는 입력할 수 없습니다.')
       return
@@ -88,7 +88,7 @@ export default function AddMultipleWorkersModal({
     }
 
     // 3. 특수문자 검사
-    const nameRegex = /^[가-힣a-zA-Z0-9\s()（）[\]｛｝《》〈〉「」『』【】]*$/
+    const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]+$/
     const invalidNames = workers.filter(w => !nameRegex.test(w.name))
     if (invalidNames.length > 0) {
       toast.error('특수문자는 입력할 수 없습니다.')

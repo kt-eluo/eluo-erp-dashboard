@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ArrowLeft, Trash2 } from 'lucide-react'
 import type { WorkerJobType, WorkerLevelType, WorkerMMRecord } from '@/types/worker'
-import { Line } from 'react-chartjs-2'
+import { Line, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,7 +12,8 @@ import {
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ArcElement
 } from 'chart.js'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
@@ -24,14 +25,15 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ArcElement
 )
 
 interface AddWorkerSlideOverProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: any) => void
-  onDelete?: () => void
+  onDelete: (worker?: Worker) => Promise<void>
   isEdit?: boolean
   workerId?: string
   worker?: Worker | null
@@ -58,6 +60,7 @@ export default function AddWorkerSlideOver({
   const [isDispatchOpen, setIsDispatchOpen] = useState(false)
   const [mmRecords, setMMRecords] = useState<WorkerMMRecord[]>([])
   const currentYear = new Date().getFullYear()
+  const [loading, setLoading] = useState(false)
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
   const levels: WorkerLevelType[] = ['초급', '중급', '고급']
@@ -109,17 +112,17 @@ export default function AddWorkerSlideOver({
   useEffect(() => {
     if (worker) {
       setName(worker.name)
-      setJobType(worker.job_type)
-      setLevel(worker.level)
-      setPrice(worker.price.toLocaleString())
+      setJobType(worker.job_type || '')
+      setLevel(worker.level || '')
+      setPrice(worker.price ? worker.price.toLocaleString() : '')
       setIsDispatched(worker.is_dispatched)
     } else {
-      // worker가 없는 경우(새로 추가) 초기화
+      // 새로운 실무자 추가 시 초기화
       setName('')
       setJobType('')
       setLevel('')
       setPrice('')
-      setIsDispatched(null)
+      setIsDispatched(false)
     }
   }, [worker])
 
@@ -148,27 +151,80 @@ export default function AddWorkerSlideOver({
     e.preventDefault()
     
     try {
-      // 1. 이름 유효성 검사
+      // 1. 기본 유효성 검사 (기존 코드 유지)
       if (!name) {
         toast.error('이름을 입력해주세요.')
         return
       }
 
-      // 2. 이름 길이 검사 (최대 100자)
       if (name.length > 100) {
         toast.error('이름은 최대 100자까지 입력 가능합니다.')
         return
       }
 
-      // 3. 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호만 허용)
-      const nameRegex = /^[가-힣a-zA-Z0-9\s()（）[\]｛｝《》〈〉「」『』【】]+$/
+      const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]+$/
       if (!nameRegex.test(name)) {
         toast.error('특수문자는 입력할 수 없습니다.')
         return
       }
 
+      let finalName = name
+      let hasNameConflict = false
+
+      // 동명이인 체크 (수정 모드이거나 새로 추가할 때)
+      if (!isEdit || (isEdit && worker && name !== worker.name)) {
+        // 동일한 이름의 실무자들 조회 (기본 이름 + 넘버링된 이름 모두 검색)
+        const { data: existingWorkers, error: searchError } = await supabase
+          .from('workers')
+          .select('id, name, created_at')
+          .or(`name.eq.${name},name.like.${name}_%`)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+
+        if (searchError) {
+          console.error('Error searching workers:', searchError)
+          toast.error('실무자 정보 확인 중 오류가 발생했습니다.')
+          return
+        }
+
+        // 동명이인이 있는 경우 처리
+        if (existingWorkers && existingWorkers.length > 0) {
+          hasNameConflict = true
+          
+          // 현재 사용 중인 가장 큰 넘버링 찾기
+          let maxNumber = 0
+          existingWorkers.forEach(worker => {
+            const match = worker.name.match(new RegExp(`${name}_(\\d+)$`))
+            if (match) {
+              const num = parseInt(match[1])
+              maxNumber = Math.max(maxNumber, num)
+            }
+          })
+
+          // 기존 넘버링이 없는 이름이 있다면 먼저 처리
+          const originalName = existingWorkers.find(w => w.name === name)
+          if (originalName) {
+            const { error: updateError } = await supabase
+              .from('workers')
+              .update({ name: `${name}_1` })
+              .eq('id', originalName.id)
+
+            if (updateError) {
+              console.error('Error updating existing worker:', updateError)
+              toast.error('실무자 정보 업데이트 중 오류가 발생했습니다.')
+              return
+            }
+            maxNumber = Math.max(maxNumber, 1)
+          }
+
+          // 새로운 이름에 다음 번호 부여
+          finalName = `${name}_${maxNumber + 1}`
+        }
+      }
+
+      // 3. 실무자 정보 업데이트
       const workerData = {
-        name,
+        name: finalName,
         job_type: jobType as WorkerJobType || null,
         level: level as WorkerLevelType || null,
         price: price ? parseInt(price.replace(/,/g, '')) : null,
@@ -179,6 +235,11 @@ export default function AddWorkerSlideOver({
         worker: workerData,
         mmRecords 
       })
+
+      // 4. 성공 메시지
+      if (hasNameConflict) {
+        toast.success('목록에 동명이인이 있어 넘버링이 추가 되었습니다.')
+      }
 
       onClose()
     } catch (error: any) {
@@ -196,8 +257,8 @@ export default function AddWorkerSlideOver({
     
     // 입력이 완료된 상태에서만 검사 (한글 입력 중이 아닐 때)
     if (!e.nativeEvent.isComposing) {
-      // 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호만 허용)
-      const nameRegex = /^[가-힣a-zA-Z0-9\s()（）[\]｛｝《》〈〉「」『』【】]*$/
+      // 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호, 밑줄만 허용)
+      const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]*$/
       if (value && !nameRegex.test(value)) {
         toast.error('특수문자는 입력할 수 없습니다.')
         return
@@ -214,26 +275,23 @@ export default function AddWorkerSlideOver({
   const handleDelete = async () => {
     if (!workerId) return
     
+    if (!window.confirm('정말 삭제하시겠습니까?')) return
+
     try {
-      // M/M 기록 먼저 삭제
-      await supabase
-        .from('worker_mm_records')
-        .delete()
-        .eq('worker_id', workerId)
+      setLoading(true)
+      toast.loading('삭제 중...')
 
-      // worker 삭제
-      const { error } = await supabase
-        .from('workers')
-        .delete()
-        .eq('id', workerId)
-
-      if (error) throw error
-
-      toast.success('실무자가 삭제되었습니다.')
+      // 기존 삭제 로직 실행 (confirm 없이)
+      await onDelete(worker)
+      
+      // 성공 처리는 onDelete 내부에서 처리되므로 여기서는 닫기만 실행
       onClose()
     } catch (error) {
       console.error('Error:', error)
+      toast.dismiss()
       toast.error('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -290,13 +348,15 @@ export default function AddWorkerSlideOver({
                   </button>
                 </div>
                 <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-red-600 transition-colors duration-200"
-                  >
-                    삭제하기
-                  </button>
+                  {isEdit && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-red-600 transition-colors duration-200"
+                    >
+                      삭제하기
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={onClose}
@@ -343,7 +403,7 @@ export default function AddWorkerSlideOver({
                           value={name}
                           onChange={handleNameChange}
                           maxLength={100}
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E49E7] focus:border-[#4E49E7] sm:text-sm"
+                          className="block w-full text-[38px] font-bold px-0 border-0 focus:ring-0 focus:border-gray-900"
                           placeholder="이름을 입력하세요"
                         />
                       </div>
@@ -582,50 +642,94 @@ export default function AddWorkerSlideOver({
                       </div>
                     </div>
 
-                    {/* M/M 투입 추이 섹션 */}
-                    <div className="space-y-8 pb-8">
+                    {/* M/M 섹션 */}
+                    <div className="border-t border-gray-200 pt-6">
                       {/* 월간 M/M 투입 금액 */}
-                      <div className="border rounded-lg p-6">
-                        <h3 className="text-lg font-medium mb-4">월간 M/M 투입 금액</h3>
-                        <div className="flex items-center justify-between">
-                          <div className="text-3xl font-bold">
-                            M/M 대비 +0
-                            <span className="text-base font-normal text-gray-500 ml-2">원</span>
+                      <div className="mb-8">
+                        <h3 className="text-[14px] font-medium text-gray-900 mb-4">월간 M/M 투입 금액</h3>
+                        <div className="flex flex-col items-center">
+                          <div className="w-[200px] h-[200px] mb-4">
+                            <Doughnut
+                              data={{
+                                labels: ['투입', '미투입'],
+                                datasets: [{
+                                  data: [
+                                    mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0),
+                                    12 - mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0)
+                                  ],
+                                  backgroundColor: [
+                                    '#4E49E7',
+                                    '#E5E7EB'
+                                  ],
+                                  borderWidth: 0
+                                }]
+                              }}
+                              options={{
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                plugins: {
+                                  legend: {
+                                    display: false
+                                  }
+                                },
+                                cutout: '70%'
+                              }}
+                            />
+                          </div>
+                          <div className="text-center">
+                            <div className="text-[14px] text-gray-500 mb-2">총 투입</div>
+                            <div className="text-[24px] font-bold text-[#4E49E7]">
+                              {mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0).toLocaleString()}
+                              <span className="text-[14px] font-normal ml-1">만원</span>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* M/M 투입 추이 그래프 */}
-                      <div className="border rounded-lg p-6">
-                        <h3 className="text-[18px] font-medium mb-6">{currentYear}년 M/M 투입 추이</h3>
-                        <div className="h-[200px] mb-8">
+                      {/* 연간 M/M 투입 추이 */}
+                      <div>
+                        <h3 className="text-[14px] font-medium text-gray-900 mb-4">
+                          {currentYear}년 M/M 투입 추이
+                        </h3>
+                        
+                        {/* 그래프 */}
+                        <div className="h-[200px] mb-6">
                           <Line
                             data={{
-                              labels: ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'],
+                              labels: Array.from({ length: 12 }, (_, i) => `${i + 1}월`),
                               datasets: [{
-                                label: 'M/M',
-                                data: Array.from({ length: 12 }, (_, i) => 
-                                  mmRecords.find(r => r.month === i + 1)?.mm_value || 0
-                                ),
+                                label: '월별 M/M',
+                                data: Array.from({ length: 12 }, (_, i) => {
+                                  const record = mmRecords.find(r => r.month === i + 1)
+                                  return record?.mm_value || 0
+                                }),
                                 borderColor: '#4E49E7',
-                                backgroundColor: '#4E49E7',
-                                tension: 0.4
+                                backgroundColor: 'rgba(78, 73, 231, 0.1)',
+                                tension: 0.4,
+                                fill: true
                               }]
                             }}
                             options={{
                               responsive: true,
                               maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  display: false
+                                }
+                              },
                               scales: {
                                 y: {
                                   beginAtZero: true,
-                                  max: 1
+                                  ticks: {
+                                    callback: value => `${value}만원`
+                                  }
                                 }
                               }
                             }}
                           />
                         </div>
 
-                        {/* M/M 투입 테이블 */}
+                        {/* 상세 테이블 */}
                         <div className="overflow-x-auto">
                           <table className="w-full text-[14px]">
                             <thead>
@@ -643,34 +747,26 @@ export default function AddWorkerSlideOver({
                                   <td className="px-4 py-2 border font-medium">{quarter}분기</td>
                                   {[0, 1, 2].map((monthOffset) => {
                                     const month = (quarter - 1) * 3 + monthOffset + 1;
+                                    const record = mmRecords.find(r => r.month === month)
                                     return (
                                       <td key={month} className="px-4 py-2 border text-center">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max="1"
-                                          step="0.1"
-                                          value={mmRecords.find(r => r.month === month)?.mm_value || 0}
-                                          onChange={(e) => updateMMValue(month, parseFloat(e.target.value))}
-                                          className="w-16 text-center border rounded px-1"
-                                        />
+                                        {record?.mm_value?.toLocaleString() || '0'}
                                       </td>
                                     );
                                   })}
                                   <td className="px-4 py-2 border text-center font-medium">
-                                    {(mmRecords
+                                    {mmRecords
                                       .filter(r => Math.ceil(r.month / 3) === quarter)
-                                      .reduce((sum, record) => sum + record.mm_value, 0)
-                                    ).toFixed(1)}
+                                      .reduce((sum, record) => sum + (record.mm_value || 0), 0)
+                                      .toLocaleString()}
                                   </td>
                                 </tr>
                               ))}
                               <tr className="bg-gray-50">
-                                <td className="px-4 py-2 border font-medium">연간 합계</td>
-                                <td className="px-4 py-2 border text-center" colSpan={3}>
-                                  {mmRecords.reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)}
+                                <td className="px-4 py-2 border font-medium">{currentYear}년 합계</td>
+                                <td className="px-4 py-2 border text-center font-medium" colSpan={4}>
+                                  {mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0).toLocaleString()}
                                 </td>
-                                <td className="px-4 py-2 border"></td>
                               </tr>
                             </tbody>
                           </table>

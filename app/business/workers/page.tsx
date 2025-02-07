@@ -87,109 +87,126 @@ export default function WorkersManagementPage() {
 
     try {
       setLoading(true)
-      toast.loading('실무자 추가 중...')
-
-      // 1. 동일한 이름의 실무자들 조회 (기본 이름 + 넘버링된 이름 모두 검색)
-      const { data: existingWorkers, error: searchError } = await supabase
-        .from('workers')
-        .select('id, name, created_at')
-        .or(`name.eq.${data.worker.name},name.like.${data.worker.name}_%`)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true })
-
-      if (searchError) {
-        console.error('Error searching workers:', searchError)
-        toast.dismiss()
-        toast.error('실무자 확인 중 오류가 발생했습니다.')
-        return
-      }
+      toast.loading(selectedWorker ? '실무자 수정 중...' : '실무자 추가 중...')
 
       let finalName = data.worker.name
+      let hasNameConflict = false
 
-      // 2. 동명이인이 있는 경우 처리
-      if (existingWorkers && existingWorkers.length > 0) {
-        // 2-1. 현재 사용 중인 가장 큰 넘버링 찾기
-        let maxNumber = 0
-        existingWorkers.forEach(worker => {
-          const match = worker.name.match(new RegExp(`${data.worker.name}_(\\d+)$`))
-          if (match) {
-            const num = parseInt(match[1])
-            maxNumber = Math.max(maxNumber, num)
-          }
-        })
+      // 1. 수정 모드이고 이름이 변경된 경우에만 동명이인 체크
+      if (selectedWorker && data.worker.name !== selectedWorker.name) {
+        // 1.1 동일한 이름의 실무자들 조회 (기본 이름 + 넘버링된 이름 모두 검색)
+        const { data: existingWorkers, error: searchError } = await supabase
+          .from('workers')
+          .select('id, name, created_at')
+          .or(`name.eq.${data.worker.name},name.like.${data.worker.name}_%`)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
 
-        // 2-2. 기존 넘버링이 없는 이름이 있다면 먼저 처리
-        const originalName = existingWorkers.find(w => w.name === data.worker.name)
-        if (originalName) {
-          const { error: updateError } = await supabase
-            .from('workers')
-            .update({ name: `${data.worker.name}_1` })
-            .eq('id', originalName.id)
-
-          if (updateError) {
-            console.error('Error updating existing worker:', updateError)
-            toast.dismiss()
-            toast.error('실무자 정보 업데이트 중 오류가 발생했습니다.')
-            return
-          }
-          maxNumber = Math.max(maxNumber, 1)
+        if (searchError) {
+          console.error('Error searching workers:', searchError)
+          toast.dismiss()
+          toast.error('실무자 확인 중 오류가 발생했습니다.')
+          return
         }
 
-        // 2-3. 새로운 실무자는 다음 번호 부여
-        finalName = `${data.worker.name}_${maxNumber + 1}`
+        // 1.2 동명이인이 있는 경우 처리
+        if (existingWorkers && existingWorkers.length > 0) {
+          hasNameConflict = true  // 동명이인 발생 표시
+          // 1.2.1 현재 사용 중인 가장 큰 넘버링 찾기
+          let maxNumber = 0
+          existingWorkers.forEach(worker => {
+            const match = worker.name.match(new RegExp(`${data.worker.name}_(\\d+)$`))
+            if (match) {
+              const num = parseInt(match[1])
+              maxNumber = Math.max(maxNumber, num)
+            }
+          })
+
+          // 1.2.2 기존 넘버링이 없는 이름이 있다면 먼저 처리
+          const originalName = existingWorkers.find(w => w.name === data.worker.name)
+          if (originalName) {
+            const { error: updateError } = await supabase
+              .from('workers')
+              .update({ name: `${data.worker.name}_1` })
+              .eq('id', originalName.id)
+
+            if (updateError) {
+              console.error('Error updating existing worker:', updateError)
+              toast.dismiss()
+              toast.error('실무자 정보 업데이트 중 오류가 발생했습니다.')
+              return
+            }
+            maxNumber = Math.max(maxNumber, 1)
+          }
+
+          // 1.2.3 새로운 실무자는 다음 번호 부여
+          finalName = `${data.worker.name}_${maxNumber + 1}`
+        }
       }
 
-      // 3. 새로운 실무자 추가
-      const { data: newWorker, error: insertError } = await supabase
-        .from('workers')
-        .insert({
-          name: finalName,
-          job_type: data.worker.job_type || null,
-          level: data.worker.level || null,
-          price: data.worker.price || null,
-          is_dispatched: data.worker.is_dispatched ?? false
-        })
-        .select()
-        .single()
+      // 2. 실무자 정보 업데이트 또는 추가
+      const workerData = {
+        name: finalName,
+        job_type: data.worker.job_type || null,
+        level: data.worker.level || null,
+        price: data.worker.price || null,
+        is_dispatched: data.worker.is_dispatched ?? false
+      }
 
-      if (insertError) {
-        console.error('Worker Insert Error:', insertError)
+      let error;
+
+      if (selectedWorker?.id) {
+        // 수정 모드: UPDATE 쿼리 실행
+        const { error: updateError } = await supabase
+          .from('workers')
+          .update(workerData)
+          .eq('id', selectedWorker.id)
+        
+        error = updateError
+      } else {
+        // 추가 모드: INSERT 쿼리 실행
+        const { error: insertError } = await supabase
+          .from('workers')
+          .insert(workerData)
+        
+        error = insertError
+      }
+
+      if (error) {
+        console.error('Error:', error)
         toast.dismiss()
-        toast.error('실무자 추가 중 오류가 발생했습니다.')
+        toast.error(selectedWorker ? '실무자 수정 중 오류가 발생했습니다.' : '실무자 추가 중 오류가 발생했습니다.')
         return
       }
 
-      // 4. 목록 새로고침
+      // 3. 목록 새로고침
       await fetchWorkers()
       setIsAddSlideOverOpen(false)
       
       toast.dismiss()
-      if (existingWorkers && existingWorkers.length > 0) {
-        toast.success('실무자 추가가 완료되었습니다. 동명이인이 있어 자동으로 넘버가 추가됩니다.')
+      if (hasNameConflict) {
+        toast.success('목록에 동명이인이 있어 넘버링이 추가 되었습니다.')
       } else {
-        toast.success('실무자 추가가 완료되었습니다.')
+        toast.success(selectedWorker ? '실무자 정보가 수정되었습니다.' : '실무자 추가가 완료되었습니다.')
       }
     } catch (error) {
       console.error('Error:', error)
       toast.dismiss()
-      toast.error('실무자 추가 중 오류가 발생했습니다.')
+      toast.error(selectedWorker ? '실무자 수정 중 오류가 발생했습니다.' : '실무자 추가 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDeleteWorker = async (worker?: Worker) => {
-    const targetWorker = worker || selectedWorker
-    if (!targetWorker?.id) return
-    
-    if (!window.confirm('정말 삭제하시겠습니까?')) return
+    if (!worker?.id) return
 
     try {
       setLoading(true)
       toast.loading('삭제 중...')
 
       // 1. 삭제할 실무자의 이름이 넘버링된 이름인지 확인
-      const nameMatch = targetWorker.name.match(/^(.+)_(\d+)$/)
+      const nameMatch = worker.name.match(/^(.+)_(\d+)$/)
       if (nameMatch) {
         const baseName = nameMatch[1]  // 기본 이름
         
@@ -199,7 +216,7 @@ export default function WorkersManagementPage() {
           .select('id, name, created_at')
           .like('name', `${baseName}_%`)
           .is('deleted_at', null)
-          .neq('id', targetWorker.id)  // 삭제할 실무자 제외
+          .neq('id', worker.id)  // 삭제할 실무자 제외
           .order('created_at', { ascending: true })
 
         if (searchError) {
@@ -232,7 +249,7 @@ export default function WorkersManagementPage() {
         const { error: mmDeleteError } = await supabase
           .from('worker_mm_records')
           .delete()
-          .eq('worker_id', targetWorker.id)
+          .eq('worker_id', worker.id)
 
         if (mmDeleteError) {
           // 로그만 남기고 진행 (차단하지 않음)
@@ -247,7 +264,7 @@ export default function WorkersManagementPage() {
       const { error: deleteError } = await supabase
         .from('workers')
         .delete()
-        .eq('id', targetWorker.id)
+        .eq('id', worker.id)
 
       if (deleteError) {
         console.error('Error deleting worker:', deleteError)
