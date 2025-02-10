@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { X, Home, Users, Settings, LogOut, Calendar, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
@@ -20,6 +20,7 @@ export default function Sidebar({
   setIsCollapsed 
 }: SidebarProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const supabase = createClientComponentClient()
 
   const handleLogout = async () => {
@@ -29,6 +30,10 @@ export default function Sidebar({
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed)
+  }
+
+  const isActive = (href: string) => {
+    return pathname.startsWith(href)
   }
 
   return (
@@ -47,8 +52,10 @@ export default function Sidebar({
               href={href} 
               className="flex flex-col items-center"
             >
-              <Icon className="w-6 h-6 text-gray-500" />
-              <span className="mt-1 text-[10px] text-gray-500">{label}</span>
+              <Icon className={`w-6 h-6 ${isActive(href) ? 'text-[#4E49E7]' : 'text-gray-500'}`} />
+              <span className={`mt-1 text-[10px] ${isActive(href) ? 'text-[#4E49E7] font-bold' : 'text-gray-500'}`}>
+                {label}
+              </span>
             </Link>
           ))}
         </div>
@@ -57,7 +64,7 @@ export default function Sidebar({
       {/* 데스크톱 사이드바 */}
       <aside className={`hidden sm:block fixed top-14 left-0 z-50 h-[calc(100vh-3.5rem)] transition-all duration-300 ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } ${isCollapsed ? 'w-16' : 'w-64'}`}>
+      } ${isCollapsed ? 'w-16' : 'w-60'}`}>
         <div className="h-full flex flex-col px-3 py-4 bg-white border-r border-gray-200 relative shadow-[2px_0_5px_rgba(0,0,0,0.1)]">
           <div className="flex justify-end mb-6">
             <button 
@@ -82,15 +89,17 @@ export default function Sidebar({
               <Link 
                 key={href}
                 href={href} 
-                className="flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+                className={`flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors ${
+                  isActive(href) ? 'bg-gray-50' : ''
+                }`}
                 title={label}
               >
-                <Icon className="w-5 h-5 shrink-0" />
+                <Icon className={`w-5 h-5 shrink-0 ${isActive(href) ? 'text-[#4E49E7]' : ''}`} />
                 <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 text-[14px] ${
                   isCollapsed 
                     ? 'w-0 opacity-0' 
                     : 'w-auto opacity-100 delay-[50ms]'
-                }`}>
+                } ${isActive(href) ? 'font-bold text-[#4E49E7]' : ''}`}>
                   {label}
                 </span>
               </Link>
@@ -101,45 +110,51 @@ export default function Sidebar({
           <div className="flex-none space-y-1 pt-4 border-t border-gray-200">
             <Link 
               href="/dashboard/users"
-              className="flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+              className={`flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors ${
+                isActive('/dashboard/users') ? 'bg-gray-50' : ''
+              }`}
               title="사용자 관리"
             >
-              <Users className="w-5 h-5 shrink-0" />
+              <Users className={`w-5 h-5 shrink-0 ${isActive('/dashboard/users') ? 'text-[#4E49E7]' : ''}`} />
               <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 text-[14px] ${
                 isCollapsed 
                   ? 'w-0 opacity-0' 
                   : 'w-auto opacity-100 delay-[50ms]'
-              }`}>
+              } ${isActive('/dashboard/users') ? 'font-bold text-[#4E49E7]' : ''}`}>
                 사용자 관리
               </span>
             </Link>
 
             <Link 
               href="/dashboard/settings"
-              className="flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+              className={`flex items-center h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors ${
+                isActive('/dashboard/settings') ? 'bg-gray-50' : ''
+              }`}
               title="설정"
             >
-              <Settings className="w-5 h-5 shrink-0" />
+              <Settings className={`w-5 h-5 shrink-0 ${isActive('/dashboard/settings') ? 'text-[#4E49E7]' : ''}`} />
               <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 text-[14px] ${
                 isCollapsed 
                   ? 'w-0 opacity-0' 
                   : 'w-auto opacity-100 delay-[50ms]'
-              }`}>
+              } ${isActive('/dashboard/settings') ? 'font-bold text-[#4E49E7]' : ''}`}>
                 설정
               </span>
             </Link>
 
             <button
               onClick={handleLogout}
-              className="flex items-center w-full h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors"
+              className={`flex items-center w-full h-10 px-3 rounded-lg hover:bg-gray-100 transition-colors ${
+                isActive('/auth/login') ? 'bg-gray-50' : ''
+              }`}
               title="로그아웃"
             >
-              <LogOut className="w-5 h-5 shrink-0" />
+              <LogOut className={`w-5 h-5 shrink-0 ${isActive('/auth/login') ? 'text-[#4E49E7]' : ''}`} />
               <span className={`ml-3 whitespace-nowrap overflow-hidden transition-[width,opacity] duration-300 text-[14px] ${
                 isCollapsed 
                   ? 'w-0 opacity-0' 
                   : 'w-auto opacity-100 delay-[50ms]'
-              }`}>
+              } ${isActive('/auth/login') ? 'font-bold text-[#4E49E7]' : ''}`}>
                 로그아웃
               </span>
             </button>

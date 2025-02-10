@@ -47,7 +47,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 메인 콘텐츠 */}
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 md:p-8 lg:p-10">
         {/* 상단 헤더 */}
         <div className="mb-8 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">매출조회</h1>

@@ -205,3 +205,10 @@ body {
 .lock {
   overflow: hidden;
 }
+
+/* 기존 Tailwind 클래스를 오버라이드 */
+@media (min-width: 1024px) {
+  .lg\:ml-64 {
+    margin-left: 15rem !important;
+  }
+}
