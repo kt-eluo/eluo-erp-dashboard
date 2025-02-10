@@ -23,6 +23,8 @@ interface WorkerInput {
   job_type: WorkerJobType | '';
 }
 
+const ITEMS_PER_PAGE = 20  // 한 페이지당 표시할 항목 수
+
 export default function WorkersManagementPage() {
   const [workers, setWorkers] = useState<Worker[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,8 +38,6 @@ export default function WorkersManagementPage() {
   const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 40 // 양쪽 20개씩, 총 40개
-  const totalPages = Math.ceil(workers.length / itemsPerPage)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -55,7 +55,8 @@ export default function WorkersManagementPage() {
           level,
           price,
           is_dispatched,
-          created_at
+          created_at,
+          mmRecords: worker_mm_records(mm_value)
         `)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
@@ -100,117 +101,48 @@ export default function WorkersManagementPage() {
     fetchWorkers()
   }, [selectedJobType, searchTerm])
 
-  const handleAddWorker = async (data: { worker: WorkerFormData, mmRecords: WorkerMMRecord[] }) => {
-    if (loading) return
-
+  const handleAddWorker = async (data: { 
+    worker: {
+      name: string;
+      worker_type: WorkerType | null;
+      job_type: WorkerJobType | null;
+      level: WorkerLevelType | null;
+      price: number | null;
+      is_dispatched: boolean | null;
+    }, 
+    mmRecords: WorkerMMRecord[] 
+  }) => {
     try {
       setLoading(true)
-      toast.loading(selectedWorker ? '실무자 수정 중...' : '실무자 추가 중...')
+      
+      // 1. 실무자 정보 저장
+      const { data: workerData, error: workerError } = await supabase
+        .from('workers')
+        .insert([{
+          name: data.worker.name,
+          worker_type: data.worker.worker_type,
+          job_type: data.worker.job_type,
+          level: data.worker.level,
+          price: data.worker.price ? parseInt(String(data.worker.price).replace(/,/g, '')) : null,
+          is_dispatched: data.worker.is_dispatched
+        }])
+        .select()
+        .single()
 
-      let finalName = data.worker.name
-      let hasNameConflict = false
-
-      // 1. 수정 모드이고 이름이 변경된 경우에만 동명이인 체크
-      if (selectedWorker && data.worker.name !== selectedWorker.name) {
-        // 1.1 동일한 이름의 실무자들 조회 (기본 이름 + 넘버링된 이름 모두 검색)
-        const { data: existingWorkers, error: searchError } = await supabase
-          .from('workers')
-          .select('id, name, created_at')
-          .or(`name.eq.${data.worker.name},name.like.${data.worker.name}_%`)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: true })
-
-        if (searchError) {
-          console.error('Error searching workers:', searchError)
-          toast.dismiss()
-          toast.error('실무자 확인 중 오류가 발생했습니다.')
-          return
-        }
-
-        // 1.2 동명이인이 있는 경우 처리
-        if (existingWorkers && existingWorkers.length > 0) {
-          hasNameConflict = true  // 동명이인 발생 표시
-          // 1.2.1 현재 사용 중인 가장 큰 넘버링 찾기
-          let maxNumber = 0
-          existingWorkers.forEach(worker => {
-            const match = worker.name.match(new RegExp(`${data.worker.name}_(\\d+)$`))
-            if (match) {
-              const num = parseInt(match[1])
-              maxNumber = Math.max(maxNumber, num)
-            }
-          })
-
-          // 1.2.2 기존 넘버링이 없는 이름이 있다면 먼저 처리
-          const originalName = existingWorkers.find(w => w.name === data.worker.name)
-          if (originalName) {
-            const { error: updateError } = await supabase
-              .from('workers')
-              .update({ name: `${data.worker.name}_1` })
-              .eq('id', originalName.id)
-
-            if (updateError) {
-              console.error('Error updating existing worker:', updateError)
-              toast.dismiss()
-              toast.error('실무자 정보 업데이트 중 오류가 발생했습니다.')
-              return
-            }
-            maxNumber = Math.max(maxNumber, 1)
-          }
-
-          // 1.2.3 새로운 실무자는 다음 번호 부여
-          finalName = `${data.worker.name}_${maxNumber + 1}`
-        }
-      }
-
-      // 2. 실무자 정보 업데이트 또는 추가
-      const workerData = {
-        name: finalName,
-        job_type: data.worker.job_type || null,
-        level: data.worker.level || null,
-        price: data.worker.price || null,
-        is_dispatched: data.worker.is_dispatched ?? false
-      }
-
-      let error;
-
-      if (selectedWorker?.id) {
-        // 수정 모드: UPDATE 쿼리 실행
-        const { error: updateError } = await supabase
-          .from('workers')
-          .update(workerData)
-          .eq('id', selectedWorker.id)
-        
-        error = updateError
-      } else {
-        // 추가 모드: INSERT 쿼리 실행
-        const { error: insertError } = await supabase
-          .from('workers')
-          .insert(workerData)
-        
-        error = insertError
-      }
-
-      if (error) {
-        console.error('Error:', error)
-        toast.dismiss()
-        toast.error(selectedWorker ? '실무자 수정 중 오류가 발생했습니다.' : '실무자 추가 중 오류가 발생했습니다.')
+      if (workerError) {
+        console.error('Error adding worker:', workerError)
+        toast.error('실무자 추가에 실패했습니다.')
         return
       }
 
-      // 3. 목록 새로고침
-      await fetchWorkers()
+      // 2. 실무자 추가 성공
+      toast.success('실무자가 추가되었습니다.')
       setIsAddSlideOverOpen(false)
-      
-      toast.dismiss()
-      if (hasNameConflict) {
-        toast.success('목록에 동명이인이 있어 넘버링이 추가 되었습니다.')
-      } else {
-        toast.success(selectedWorker ? '실무자 정보가 수정되었습니다.' : '실무자 추가가 완료되었습니다.')
-      }
+      fetchWorkers()  // 목록 새로고침
+
     } catch (error) {
       console.error('Error:', error)
-      toast.dismiss()
-      toast.error(selectedWorker ? '실무자 수정 중 오류가 발생했습니다.' : '실무자 추가 중 오류가 발생했습니다.')
+      toast.error('실무자 추가 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
@@ -456,9 +388,25 @@ export default function WorkersManagementPage() {
 
   // 현재 페이지의 데이터만 가져오는 함수
   const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    return workers.slice(startIndex, startIndex + itemsPerPage)
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const endIndex = startIndex + ITEMS_PER_PAGE
+    return workers.filter(worker => {
+      if (selectedJobType === 'all') return true
+      return worker.job_type === selectedJobType
+    }).slice(startIndex, endIndex)
   }
+
+  // totalPages 계산 로직 수정
+  const filteredWorkers = workers.filter(worker => {
+    if (selectedJobType === 'all') return true
+    return worker.job_type === selectedJobType
+  })
+  const totalPages = Math.ceil(filteredWorkers.length / ITEMS_PER_PAGE)
+
+  // 필터나 검색이 변경될 때 페이지를 1로 리셋
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedJobType, searchTerm])
 
   if (loading) {
     return (
@@ -511,7 +459,7 @@ export default function WorkersManagementPage() {
           </button>
         </form>
 
-        <button
+        <button 
           onClick={() => setViewType(viewType === 'table' ? 'card' : 'table')}
           className="flex items-center gap-2 px-4 py-2 text-[13px] text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
         >
@@ -581,181 +529,127 @@ export default function WorkersManagementPage() {
       </div>
 
       {viewType === 'table' ? (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr className="bg-gray-50/50">
-                      <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                        이름
-                      </th>
-                      <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                        직무
-                      </th>
-                      <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                        등급
-                      </th>
-                      <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                        단가
-                      </th>
-                      <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                        파견여부
-                      </th>
-                      <th className="px-6 py-4 text-right text-[13px] font-medium text-gray-500">
-                        관리
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {getCurrentPageData().slice(0, 20).map((worker) => (
-                      <tr 
-                        key={worker.id}
-                        className="hover:bg-gray-50/50 transition-colors duration-150"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="text-[15px] font-medium text-gray-900">{worker.name}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {worker.job_type ? (
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[13px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
-                              {worker.job_type}
-                            </span>
-                          ) : (
-                            <span className="text-[13px] text-gray-400">미지정</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-[15px] text-gray-700">
-                            {worker.level || <span className="text-[13px] text-gray-400">미지정</span>}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-[15px] text-gray-700">
-                            {worker.price 
-                              ? `${new Intl.NumberFormat('ko-KR').format(worker.price)}원`
-                              : <span className="text-[13px] text-gray-400">미지정</span>
-                            }
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-[12px] font-medium ${
-                            worker.is_dispatched 
-                              ? 'bg-green-50 text-green-700' 
-                              : 'bg-gray-50 text-gray-600'
-                          }`}>
-                            {worker.is_dispatched ? '파견중' : '파견안함'}
+        <div>
+          {/* 단일 테이블 */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      번호
+                    </th>
+                    <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      이름
+                    </th>
+                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      직무
+                    </th>
+                    <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      등급
+                    </th>
+                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      단가
+                    </th>
+                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      직원여부
+                    </th>
+                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      파견여부
+                    </th>
+                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      월간 M/M
+                    </th>
+                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
+                      연간 M/M 추이
+                    </th>
+                    <th className="w-[150px] px-6 py-4 text-right text-[13px] font-medium text-gray-500">
+                      관리
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {getCurrentPageData().map((worker, index) => (
+                    <tr 
+                      key={worker.id}
+                      className="hover:bg-gray-50/50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-500">
+                          {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-900">{worker.name}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {worker.job_type ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
+                            {worker.job_type}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          <button 
-                            onClick={() => handleEditWorker(worker)}
-                            className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
-                          >
-                            수정
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteClick(worker)}
-                            className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {getCurrentPageData().length > 20 && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr className="bg-gray-50/50">
-                        <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                          이름
-                        </th>
-                        <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                          직무
-                        </th>
-                        <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                          등급
-                        </th>
-                        <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                          단가
-                        </th>
-                        <th className="px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                          파견여부
-                        </th>
-                        <th className="px-6 py-4 text-right text-[13px] font-medium text-gray-500">
-                          관리
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {getCurrentPageData().slice(20, 40).map((worker) => (
-                        <tr 
-                          key={worker.id}
-                          className="hover:bg-gray-50/50 transition-colors duration-150"
+                        ) : (
+                          <span className="text-[14px] text-gray-400">미지정</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-900">{worker.level || '미지정'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-900">
+                          {worker.price 
+                            ? `${new Intl.NumberFormat('ko-KR').format(worker.price)}원`
+                            : '미지정'
+                          }
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-900">{worker.worker_type || '미지정'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                          worker.is_dispatched 
+                            ? 'bg-green-50 text-green-700' 
+                            : 'bg-gray-50 text-gray-600'
+                        }`}>
+                          {worker.is_dispatched ? '파견중' : '파견안함'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-900">
+                          {worker.mmRecords?.reduce((sum, record) => sum + (record.mm_value || 0), 0).toLocaleString()}만원
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="w-full h-2">
+                          <div className="w-full h-full bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-[#4E49E7]/60 rounded-full transition-all"
+                              style={{ 
+                                width: `${(worker.mmRecords?.reduce((sum, record) => sum + (record.mm_value || 0), 0) / (12 * 100)) * 100}%` 
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right space-x-2">
+                        <button 
+                          onClick={() => handleEditWorker(worker)}
+                          className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
                         >
-                          <td className="px-6 py-4">
-                            <div className="text-[15px] font-medium text-gray-900">{worker.name}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {worker.job_type ? (
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[13px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
-                                {worker.job_type}
-                              </span>
-                            ) : (
-                              <span className="text-[13px] text-gray-400">미지정</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-[15px] text-gray-700">
-                              {worker.level || <span className="text-[13px] text-gray-400">미지정</span>}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-[15px] text-gray-700">
-                              {worker.price 
-                                ? `${new Intl.NumberFormat('ko-KR').format(worker.price)}원`
-                                : <span className="text-[13px] text-gray-400">미지정</span>
-                              }
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-[12px] font-medium ${
-                              worker.is_dispatched 
-                                ? 'bg-green-50 text-green-700' 
-                                : 'bg-gray-50 text-gray-600'
-                            }`}>
-                              {worker.is_dispatched ? '파견중' : '파견안함'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right space-x-2">
-                            <button 
-                              onClick={() => handleEditWorker(worker)}
-                              className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
-                            >
-                              수정
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteClick(worker)}
-                              className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                          수정
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteClick(worker)}
+                          className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          삭제
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* 페이지네이션 */}
@@ -782,67 +676,98 @@ export default function WorkersManagementPage() {
               </nav>
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-          {workers.map((worker) => (
-            <div 
-              key={worker.id}
-              className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200"
-            >
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-[15px] font-medium text-gray-900">{worker.name}</h3>
-                  {worker.job_type && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
-                      {worker.job_type}
-                    </span>
-                  )}
-                </div>
+        <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+            {getCurrentPageData().map((worker) => (
+              <div 
+                key={worker.id}
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200"
+              >
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-[15px] font-medium text-gray-900">{worker.name}</h3>
+                    {worker.job_type && (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
+                        {worker.job_type}
+                      </span>
+                    )}
+                  </div>
 
-                <div className="space-y-1.5 mb-4">
-                  <div className="flex items-center text-[13px] text-gray-500">
-                    <span className="w-16">등급</span>
-                    <span className="text-gray-900">{worker.level || '미지정'}</span>
+                  <div className="space-y-1.5 mb-4">
+                    <div className="flex items-center text-[13px] text-gray-500">
+                      <span className="w-16">등급</span>
+                      <span className="text-gray-900">{worker.level || '미지정'}</span>
+                    </div>
+                    <div className="flex items-center text-[13px] text-gray-500">
+                      <span className="w-16">단가</span>
+                      <span className="text-gray-900">
+                        {worker.price 
+                          ? `${new Intl.NumberFormat('ko-KR').format(worker.price)}원`
+                          : '미지정'
+                        }
+                      </span>
+                    </div>
+                    <div className="flex items-center text-[13px] text-gray-500">
+                      <span className="w-16">직원여부</span>
+                      <span className="text-gray-900">{worker.worker_type || '미지정'}</span>
+                    </div>
+                    <div className="flex items-center text-[13px] text-gray-500">
+                      <span className="w-16">파견여부</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        worker.is_dispatched 
+                          ? 'bg-green-50 text-green-700' 
+                          : 'bg-gray-50 text-gray-600'
+                      }`}>
+                        {worker.is_dispatched ? '파견중' : '파견안함'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center text-[13px] text-gray-500">
-                    <span className="w-16">단가</span>
-                    <span className="text-gray-900">
-                      {worker.price 
-                        ? `${new Intl.NumberFormat('ko-KR').format(worker.price)}원`
-                        : '미지정'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center text-[13px] text-gray-500">
-                    <span className="w-16">파견여부</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                      worker.is_dispatched 
-                        ? 'bg-green-50 text-green-700' 
-                        : 'bg-gray-50 text-gray-600'
-                    }`}>
-                      {worker.is_dispatched ? '파견중' : '파견안함'}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex gap-1">
-                  <button 
-                    onClick={() => handleEditWorker(worker)}
-                    className="flex-1 py-1.5 text-[12px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
-                  >
-                    수정
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteClick(worker)}
-                    className="flex-1 py-1.5 text-[12px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    삭제
-                  </button>
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => handleEditWorker(worker)}
+                      className="flex-1 py-1.5 text-[12px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
+                    >
+                      수정
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClick(worker)}
+                      className="flex-1 py-1.5 text-[12px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+
+          {/* 페이지네이션 - 카드 뷰에도 동일하게 적용 */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex justify-center">
+              <nav className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 rounded-md border border-gray-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  이전
+                </button>
+                <span className="text-sm text-gray-600">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 rounded-md border border-gray-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  다음
+                </button>
+              </nav>
             </div>
-          ))}
+          )}
         </div>
       )}
 

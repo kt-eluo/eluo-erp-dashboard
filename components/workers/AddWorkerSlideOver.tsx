@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, ArrowLeft, Trash2 } from 'lucide-react'
-import type { Worker, WorkerJobType, WorkerLevelType, WorkerMMRecord } from '@/types/worker'
+import { X, ArrowLeft, Trash2, ChevronDown, HelpCircle } from 'lucide-react'
+import type { Worker, WorkerJobType, WorkerLevelType, WorkerMMRecord, WorkerType } from '@/types/worker'
 import { Line, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -47,6 +47,14 @@ interface AddWorkerSlideOverProps {
   worker?: Worker | null
 }
 
+// 상단에 기본 단가 설정을 위한 객체 추가
+const DEFAULT_PRICES = {
+  '특급': 9_500_000,
+  '고급': 8_500_000,
+  '중급': 7_500_000,
+  '초급': 6_500_000,
+} as const
+
 export default function AddWorkerSlideOver({ 
   isOpen, 
   onClose, 
@@ -60,7 +68,7 @@ export default function AddWorkerSlideOver({
   const [jobType, setJobType] = useState<WorkerJobType | ''>(worker?.job_type || '')
   const [level, setLevel] = useState<WorkerLevelType | ''>(worker?.level || '')
   const [price, setPrice] = useState(worker?.price ? worker.price.toLocaleString() : '')
-  const [isDispatched, setIsDispatched] = useState<boolean | null>(worker?.is_dispatched ?? null)
+  const [isDispatched, setIsDispatched] = useState<boolean | null>(null)
   const [isJobTypeOpen, setIsJobTypeOpen] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
   const [isPriceOpen, setIsPriceOpen] = useState(false)
@@ -69,15 +77,21 @@ export default function AddWorkerSlideOver({
   const [mmRecords, setMMRecords] = useState<WorkerMMRecord[]>([])
   const currentYear = new Date().getFullYear()
   const [loading, setLoading] = useState(false)
+  const [isDispatchedOpen, setIsDispatchedOpen] = useState(false)
+  const [workerType, setWorkerType] = useState<WorkerType | ''>(worker?.worker_type || '')
+  const [isWorkerTypeOpen, setIsWorkerTypeOpen] = useState(false)
 
-  const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
-  const levels: WorkerLevelType[] = ['초급', '중급', '고급']
+  const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발', '기타']
+  const levelTypes: WorkerLevelType[] = ['특급', '고급', '중급', '초급']
+  const workerTypes: WorkerType[] = ['임직원', '협력사임직원', '프리랜서(기업)', '프리랜서(개인)']
 
-  // 드롭박스 ref 추가
+  // ref 추가
   const jobTypeRef = useRef<HTMLDivElement>(null)
   const levelRef = useRef<HTMLDivElement>(null)
   const priceRef = useRef<HTMLDivElement>(null)
   const dispatchRef = useRef<HTMLDivElement>(null)
+  const workerTypeRef = useRef<HTMLDivElement>(null)
+  const dispatchedRef = useRef<HTMLDivElement>(null)
 
   // body 스크롤 제어
   useEffect(() => {
@@ -93,7 +107,7 @@ export default function AddWorkerSlideOver({
     };
   }, [isOpen]);
 
-  // 외부 클릭 감지
+  // 외부 클릭 감지 useEffect 수정
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (jobTypeRef.current && !jobTypeRef.current.contains(event.target as Node)) {
@@ -107,6 +121,12 @@ export default function AddWorkerSlideOver({
       }
       if (dispatchRef.current && !dispatchRef.current.contains(event.target as Node)) {
         setIsDispatchOpen(false)
+      }
+      if (workerTypeRef.current && !workerTypeRef.current.contains(event.target as Node)) {
+        setIsWorkerTypeOpen(false)
+      }
+      if (dispatchedRef.current && !dispatchedRef.current.contains(event.target as Node)) {
+        setIsDispatchedOpen(false)
       }
     }
 
@@ -124,13 +144,15 @@ export default function AddWorkerSlideOver({
       setLevel(worker.level || '')
       setPrice(worker.price ? worker.price.toLocaleString() : '')
       setIsDispatched(worker.is_dispatched)
+      setWorkerType(worker.worker_type || '')
     } else {
       // 새로운 실무자 추가 시 초기화
       setName('')
       setJobType('')
       setLevel('')
       setPrice('')
-      setIsDispatched(false)
+      setIsDispatched(null)
+      setWorkerType('')
     }
   }, [worker])
 
@@ -154,6 +176,17 @@ export default function AddWorkerSlideOver({
 
     fetchMMRecords()
   }, [workerId])
+
+  // useEffect 수정 - price 존재 여부와 관계없이 항상 업데이트
+  useEffect(() => {
+    if (level) {  // level이 있을 때만 실행
+      const defaultPrice = DEFAULT_PRICES[level as keyof typeof DEFAULT_PRICES]
+      if (defaultPrice) {
+        setPrice(defaultPrice.toLocaleString())
+        setTempPrice(defaultPrice.toLocaleString())
+      }
+    }
+  }, [level])  // level이 변경될 때마다 실행
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -231,18 +264,19 @@ export default function AddWorkerSlideOver({
       }
 
       // 3. 실무자 정보 업데이트
-      const workerData = {
-        name: finalName,
-        job_type: jobType as WorkerJobType || null,
-        level: level as WorkerLevelType || null,
-        price: price ? parseInt(price.replace(/,/g, '')) : null,
-        is_dispatched: isDispatched ?? false
+      const data = {
+        worker: {
+          name: finalName,
+          worker_type: workerType || null,
+          job_type: jobType || null,
+          level: level || null,
+          price: price || null,
+          is_dispatched: isDispatched
+        },
+        mmRecords: mmRecords
       }
 
-      onSubmit({ 
-        worker: workerData,
-        mmRecords 
-      })
+      onSubmit(data)
 
       // 4. 성공 메시지
       if (hasNameConflict) {
@@ -434,35 +468,38 @@ export default function AddWorkerSlideOver({
                               <span className={jobType ? 'text-gray-900' : 'text-gray-400'}>
                                 {jobType || '직무'}
                               </span>
-                              <svg
-                                className={`w-5 h-5 transition-transform duration-200 ${isJobTypeOpen ? 'transform rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
+                              <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isJobTypeOpen ? 'rotate-180' : ''}`} />
                             </button>
-
+                            
                             {isJobTypeOpen && (
-                              <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200">
-                                <div className="py-1">
-                                  {jobTypes.map(type => (
-                                    <button
-                                      key={type}
-                                      type="button"
-                                      onClick={() => {
-                                        setJobType(type)
-                                        setIsJobTypeOpen(false)
-                                      }}
-                                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                                        jobType === type ? 'text-[#4E49E7] font-medium' : 'text-gray-900'
-                                      }`}
-                                    >
-                                      {type}
-                                    </button>
-                                  ))}
-                                </div>
+                              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setJobType('')
+                                    setIsJobTypeOpen(false)
+                                  }}
+                                  className={`${
+                                    !jobType ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  미지정
+                                </button>
+                                {jobTypes.map((type) => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      setJobType(type)
+                                      setIsJobTypeOpen(false)
+                                    }}
+                                    className={`${
+                                      jobType === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                    } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                  >
+                                    {type}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -478,35 +515,38 @@ export default function AddWorkerSlideOver({
                               <span className={level ? 'text-gray-900' : 'text-gray-400'}>
                                 {level || '등급'}
                               </span>
-                              <svg
-                                className={`w-5 h-5 transition-transform duration-200 ${isLevelOpen ? 'transform rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
+                              <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isLevelOpen ? 'rotate-180' : ''}`} />
                             </button>
-
+                            
                             {isLevelOpen && (
-                              <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200">
-                                <div className="py-1">
-                                  {levels.map(type => (
-                                    <button
-                                      key={type}
-                                      type="button"
-                                      onClick={() => {
-                                        setLevel(type)
-                                        setIsLevelOpen(false)
-                                      }}
-                                      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                                        level === type ? 'text-[#4E49E7] font-medium' : 'text-gray-900'
-                                      }`}
-                                    >
-                                      {type}
-                                    </button>
-                                  ))}
-                                </div>
+                              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLevel('')
+                                    setIsLevelOpen(false)
+                                  }}
+                                  className={`${
+                                    !level ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  미지정
+                                </button>
+                                {levelTypes.map((type) => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      setLevel(type)
+                                      setIsLevelOpen(false)
+                                    }}
+                                    className={`${
+                                      level === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                    } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                  >
+                                    {type}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
@@ -522,14 +562,34 @@ export default function AddWorkerSlideOver({
                               <span className={price ? 'text-gray-900' : 'text-gray-400'}>
                                 {price ? `${price}원` : '단가'}
                               </span>
-                              <svg
-                                className={`w-5 h-5 transition-transform duration-200 ${isPriceOpen ? 'transform rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
+                              <div className="flex items-center gap-2">
+                                <div className="group relative">
+                                  <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-medium text-gray-400 bg-gray-100 rounded-full border border-gray-300 hover:text-gray-600 hover:bg-gray-50 cursor-help transition-colors">?</span>
+                                  <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute right-0 bottom-full mb-3 w-[300px] bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm text-gray-600" style={{ zIndex: 99999 }}>
+                                    정해진 단가표에 의해 금액은 자동입력됩니다. <br></br>다만 금액 수정은 가능합니다.
+                                    <div className="mt-3 overflow-x-auto">
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="border-b">
+                                            <th className="py-1 text-left font-medium">등급</th>
+                                            <th className="py-1 text-right font-medium">기본 단가</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {Object.entries(DEFAULT_PRICES).map(([level, price]) => (
+                                            <tr key={level} className="border-b last:border-0">
+                                              <td className="py-1 text-left">{level}</td>
+                                              <td className="py-1 text-right">{price.toLocaleString()}원</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                    <div className="absolute right-4 -bottom-2 w-3 h-3 bg-white border-r border-b border-gray-200 transform rotate-45"></div>
+                                  </div>
+                                </div>
+                                <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isPriceOpen ? 'rotate-180' : ''}`} />
+                              </div>
                             </button>
 
                             {isPriceOpen && (
@@ -594,53 +654,103 @@ export default function AddWorkerSlideOver({
                         </div>
 
                         <div>
-                          <div className="relative" ref={dispatchRef}>
+                          <div className="relative" ref={workerTypeRef}>
                             <button
                               type="button"
-                              onClick={() => setIsDispatchOpen(!isDispatchOpen)}
+                              onClick={() => setIsWorkerTypeOpen(!isWorkerTypeOpen)}
                               className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                             >
-                              <span className={isDispatched !== null ? 'text-gray-900' : 'text-gray-400'}>
-                                {isDispatched === true ? '파견중' : isDispatched === false ? '파견안함' : '파견 여부'}
+                              <span className={workerType ? 'text-gray-900' : 'text-gray-400'}>
+                                {workerType || '직원여부'}
                               </span>
-                              <svg
-                                className={`w-5 h-5 transition-transform duration-200 ${isDispatchOpen ? 'transform rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
+                              <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isWorkerTypeOpen ? 'rotate-180' : ''}`} />
                             </button>
+                            
+                            {isWorkerTypeOpen && (
+                              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setWorkerType('')
+                                    setIsWorkerTypeOpen(false)
+                                  }}
+                                  className={`${
+                                    !workerType ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  미지정
+                                </button>
+                                {workerTypes.map((type) => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      setWorkerType(type)
+                                      setIsWorkerTypeOpen(false)
+                                    }}
+                                    className={`${
+                                      workerType === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                    } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                  >
+                                    {type}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-                            {isDispatchOpen && (
-                              <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg border border-gray-200">
-                                <div className="py-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setIsDispatched(true)
-                                      setIsDispatchOpen(false)
-                                    }}
-                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                                      isDispatched === true ? 'text-[#4E49E7] font-medium' : 'text-gray-900'
-                                    }`}
-                                  >
-                                    파견중
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setIsDispatched(false)
-                                      setIsDispatchOpen(false)
-                                    }}
-                                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                                      isDispatched === false ? 'text-[#4E49E7] font-medium' : 'text-gray-900'
-                                    }`}
-                                  >
-                                    파견안함
-                                  </button>
-                                </div>
+                        <div>
+                          <div className="relative" ref={dispatchedRef}>
+                            <button
+                              type="button"
+                              onClick={() => setIsDispatchedOpen(!isDispatchedOpen)}
+                              className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
+                            >
+                              <span className={isDispatched === null ? 'text-gray-400' : 'text-gray-900'}>
+                                {isDispatched === null ? '파견여부' : isDispatched ? '파견중' : '파견안함'}
+                              </span>
+                              <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isDispatchedOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {isDispatchedOpen && (
+                              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsDispatched(null)
+                                    setIsDispatchedOpen(false)
+                                  }}
+                                  className={`${
+                                    isDispatched === null ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  미지정
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsDispatched(true)
+                                    setIsDispatchedOpen(false)
+                                  }}
+                                  className={`${
+                                    isDispatched === true ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  파견중
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsDispatched(false)
+                                    setIsDispatchedOpen(false)
+                                  }}
+                                  className={`${
+                                    isDispatched === false ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  파견안함
+                                </button>
                               </div>
                             )}
                           </div>
