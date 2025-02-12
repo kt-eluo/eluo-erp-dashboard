@@ -16,7 +16,7 @@ export default function ProjectsManagementPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all')
-  const [viewType, setViewType] = useState<'table' | 'card'>('table')
+  const [viewType, setViewType] = useState<'table' | 'card'>('card')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -150,18 +150,18 @@ export default function ProjectsManagementPage() {
 
             {/* 뷰 타입 전환 버튼 수정 */}
             <button 
-              onClick={() => setViewType(viewType === 'table' ? 'card' : 'table')}
+              onClick={() => setViewType(viewType === 'card' ? 'table' : 'card')}
               className="flex items-center gap-2 px-4 py-2 text-[13px] text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              {viewType === 'table' ? (
-                <>
-                  <LayoutGrid className="w-4 h-4" />
-                  카드 형식
-                </>
-              ) : (
+              {viewType === 'card' ? (
                 <>
                   <Table className="w-4 h-4" />
                   테이블 형식
+                </>
+              ) : (
+                <>
+                  <LayoutGrid className="w-4 h-4" />
+                  카드 형식
                 </>
               )}
             </button>
@@ -222,7 +222,64 @@ export default function ProjectsManagementPage() {
         </div>
 
         {/* 프로젝트 목록 */}
-        {viewType === 'table' ? (
+        {viewType === 'card' ? (
+          <div>
+            {/* 카드 뷰 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+              {getCurrentPageData().map((project) => (
+                <div 
+                  key={project.id}
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200"
+                >
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-medium text-gray-900">{project.name}</h3>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium
+                        ${project.status === '진행중' ? 'bg-green-50 text-green-700' :
+                          project.status === '완료' ? 'bg-blue-50 text-blue-700' :
+                          project.status === '보류' ? 'bg-yellow-50 text-yellow-700' :
+                          'bg-gray-50 text-gray-700'}`}>
+                        {project.status}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center text-[13px] text-gray-500">
+                        <span className="w-16">고객사</span>
+                        <span className="text-gray-900">{project.client}</span>
+                      </div>
+                      <div className="flex items-center text-[13px] text-gray-500">
+                        <span className="w-16">시작일</span>
+                        <span className="text-gray-900">
+                          {project.start_date ? new Date(project.start_date).toLocaleDateString() : '-'}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-[13px] text-gray-500">
+                        <span className="w-16">종료일</span>
+                        <span className="text-gray-900">
+                          {project.end_date ? new Date(project.end_date).toLocaleDateString() : '-'}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-[13px] text-gray-500">
+                        <span className="w-16">예산</span>
+                        <span className="text-gray-900">
+                          {project.budget ? `${project.budget.toLocaleString()}원` : '-'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button 
+                        onClick={() => router.push(`/business/projects/${project.id}`)}
+                        className="flex-1 py-1.5 text-[12px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
+                      >
+                        상세보기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
           <div>
             {/* 테이블 뷰 */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -294,63 +351,6 @@ export default function ProjectsManagementPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-        ) : (
-          <div>
-            {/* 카드 뷰 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-              {getCurrentPageData().map((project) => (
-                <div 
-                  key={project.id}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200"
-                >
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-medium text-gray-900">{project.name}</h3>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium
-                        ${project.status === '진행중' ? 'bg-green-50 text-green-700' :
-                          project.status === '완료' ? 'bg-blue-50 text-blue-700' :
-                          project.status === '보류' ? 'bg-yellow-50 text-yellow-700' :
-                          'bg-gray-50 text-gray-700'}`}>
-                        {project.status}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center text-[13px] text-gray-500">
-                        <span className="w-16">고객사</span>
-                        <span className="text-gray-900">{project.client}</span>
-                      </div>
-                      <div className="flex items-center text-[13px] text-gray-500">
-                        <span className="w-16">시작일</span>
-                        <span className="text-gray-900">
-                          {project.start_date ? new Date(project.start_date).toLocaleDateString() : '-'}
-                        </span>
-                      </div>
-                      <div className="flex items-center text-[13px] text-gray-500">
-                        <span className="w-16">종료일</span>
-                        <span className="text-gray-900">
-                          {project.end_date ? new Date(project.end_date).toLocaleDateString() : '-'}
-                        </span>
-                      </div>
-                      <div className="flex items-center text-[13px] text-gray-500">
-                        <span className="w-16">예산</span>
-                        <span className="text-gray-900">
-                          {project.budget ? `${project.budget.toLocaleString()}원` : '-'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={() => router.push(`/business/projects/${project.id}`)}
-                        className="flex-1 py-1.5 text-[12px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
-                      >
-                        상세보기
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}
