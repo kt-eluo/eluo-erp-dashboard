@@ -51,6 +51,8 @@ export default function WorkersManagementPage() {
         .select(`
           id,
           name,
+          worker_type,
+          grade,
           job_type,
           level,
           price,
@@ -77,6 +79,7 @@ export default function WorkersManagementPage() {
         return
       }
 
+      console.log('Fetched workers:', data) // 디버깅용 로그
       setWorkers(data || [])
     } catch (error) {
       console.error('Error:', error)
@@ -102,46 +105,65 @@ export default function WorkersManagementPage() {
   }, [selectedJobType, searchTerm])
 
   const handleAddWorker = async (data: { 
-    worker: {
+    type?: 'update';  // 수정 모드를 위한 타입 추가
+    worker?: {
       name: string;
       worker_type: WorkerType | null;
+      grade: WorkerGradeType | null;
       job_type: WorkerJobType | null;
       level: WorkerLevelType | null;
       price: number | null;
       is_dispatched: boolean | null;
-    }, 
-    mmRecords: WorkerMMRecord[] 
+    }; 
+    mmRecords?: WorkerMMRecord[] 
   }) => {
     try {
       setLoading(true)
+
+      // 수정 모드일 경우 바로 fetchWorkers 실행
+      if (data.type === 'update') {
+        await fetchWorkers()
+        return
+      }
       
-      // 1. 실무자 정보 저장
-      const { data: workerData, error: workerError } = await supabase
+      // 새로운 실무자 추가 로직 (기존 코드)
+      const workerData = {
+        name: data.worker!.name,
+        worker_type: data.worker!.worker_type,
+        grade: data.worker!.grade,
+        job_type: data.worker!.job_type,
+        level: data.worker!.level,
+        price: data.worker!.price,
+        is_dispatched: data.worker!.is_dispatched
+      }
+      
+      console.log('Formatted worker data:', workerData)
+
+      const { data: insertedData, error: workerError } = await supabase
         .from('workers')
-        .insert([{
-          name: data.worker.name,
-          worker_type: data.worker.worker_type,
-          job_type: data.worker.job_type,
-          level: data.worker.level,
-          price: data.worker.price ? parseInt(String(data.worker.price).replace(/,/g, '')) : null,
-          is_dispatched: data.worker.is_dispatched
-        }])
+        .insert([workerData])
         .select()
         .single()
 
       if (workerError) {
-        console.error('Error adding worker:', workerError)
-        toast.error('실무자 추가에 실패했습니다.')
+        console.error('Supabase error details:', workerError)
+        toast.error(`실무자 추가 실패: ${workerError.message}`)
         return
       }
 
-      // 2. 실무자 추가 성공
+      if (!insertedData) {
+        console.error('No data returned after insert')
+        toast.error('실무자 데이터 추가 실패')
+        return
+      }
+
+      console.log('Successfully inserted worker:', insertedData)
       toast.success('실무자가 추가되었습니다.')
       setIsAddSlideOverOpen(false)
-      fetchWorkers()  // 목록 새로고침
+      fetchWorkers()
 
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Detailed error:', error)
       toast.error('실무자 추가 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -241,9 +263,59 @@ export default function WorkersManagementPage() {
     }
   }
 
-  const handleEditWorker = (worker: Worker) => {
-    setSelectedWorker(worker)
-    setIsAddSlideOverOpen(true)
+  const handleEditWorker = async (worker: Worker) => {
+    try {
+      // 1. 현재 수정하려는 실무자의 이름이 다른 실무자와 중복되는지 확인
+      const { data: existingWorkers, error: searchError } = await supabase
+        .from('workers')
+        .select('name')
+        .eq('name', worker.name)
+        .neq('id', worker.id)  // 현재 실무자는 제외
+        .is('deleted_at', null)
+
+      if (searchError) {
+        console.error('Error checking existing workers:', searchError)
+        toast.error('실무자 조회에 실패했습니다.')
+        return
+      }
+
+      // 2. 동명이인이 있는 경우 넘버링 추가
+      let finalName = worker.name
+      if (existingWorkers && existingWorkers.length > 0) {
+        finalName = `${worker.name}_${existingWorkers.length + 1}`
+        worker.name = finalName
+      }
+
+      // 3. 최신 데이터 조회
+      const { data: freshWorker, error } = await supabase
+        .from('workers')
+        .select(`
+          id,
+          name,
+          worker_type,
+          grade,
+          job_type,
+          level,
+          price,
+          is_dispatched,
+          created_at
+        `)
+        .eq('id', worker.id)
+        .single()
+
+      if (error) {
+        console.error('Error fetching worker:', error)
+        return
+      }
+
+      // 4. 수정을 위해 선택된 실무자 설정
+      setSelectedWorker(freshWorker)
+      setIsAddSlideOverOpen(true)
+
+    } catch (error) {
+      console.error('Error editing worker:', error)
+      toast.error('실무자 수정 중 오류가 발생했습니다.')
+    }
   }
 
   const handleAddMultipleWorkers = async (workers: WorkerInput[]) => {
@@ -536,36 +608,15 @@ export default function WorkersManagementPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead>
                   <tr className="bg-gray-50/50">
-                    <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      번호
-                    </th>
-                    <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      이름
-                    </th>
-                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      직무
-                    </th>
-                    <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      등급
-                    </th>
-                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      단가
-                    </th>
-                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      직원여부
-                    </th>
-                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      파견여부
-                    </th>
-                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      월간 M/M
-                    </th>
-                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">
-                      연간 M/M 추이
-                    </th>
-                    <th className="w-[150px] px-6 py-4 text-right text-[13px] font-medium text-gray-500">
-                      관리
-                    </th>
+                    <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">번호</th>
+                    <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">이름</th>
+                    <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">직무등급</th>
+                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">직무</th>
+                    <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">기술등급</th>
+                    <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">단가</th>
+                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">직원여부</th>
+                    <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">파견여부</th>
+                    <th className="w-[150px] px-6 py-4 text-right text-[13px] font-medium text-gray-500">관리</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -583,16 +634,13 @@ export default function WorkersManagementPage() {
                         <span className="text-[14px] text-gray-900">{worker.name}</span>
                       </td>
                       <td className="px-6 py-4">
-                        {worker.job_type ? (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
-                            {worker.job_type}
-                          </span>
-                        ) : (
-                          <span className="text-[14px] text-gray-400">미지정</span>
-                        )}
+                        <span className="text-[14px] text-gray-900">{worker.grade || '-'}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-[14px] text-gray-900">{worker.level || '미지정'}</span>
+                        <span className="text-[14px] text-gray-900">{worker.job_type || '-'}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[14px] text-gray-900">{worker.level || '-'}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-[14px] text-gray-900">
@@ -613,23 +661,6 @@ export default function WorkersManagementPage() {
                         }`}>
                           {worker.is_dispatched ? '파견중' : '파견안함'}
                         </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-[14px] text-gray-900">
-                          {worker.mmRecords?.reduce((sum, record) => sum + (record.mm_value || 0), 0).toLocaleString()}만원
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="w-full h-2">
-                          <div className="w-full h-full bg-gray-100 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-[#4E49E7]/60 rounded-full transition-all"
-                              style={{ 
-                                width: `${(worker.mmRecords?.reduce((sum, record) => sum + (record.mm_value || 0), 0) / (12 * 100)) * 100}%` 
-                              }}
-                            />
-                          </div>
-                        </div>
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
                         <button 
@@ -685,33 +716,35 @@ export default function WorkersManagementPage() {
                 key={worker.id}
                 className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200"
               >
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-[15px] font-medium text-gray-900">{worker.name}</h3>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">{worker.name}</h3>
                     {worker.job_type && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
                         {worker.job_type}
                       </span>
                     )}
                   </div>
-
-                  <div className="space-y-1.5 mb-4">
+                  <div className="space-y-2">
                     <div className="flex items-center text-[13px] text-gray-500">
-                      <span className="w-16">등급</span>
-                      <span className="text-gray-900">{worker.level || '미지정'}</span>
+                      <span className="w-16">직무등급</span>
+                      <span className="text-gray-900">{worker.grade || '-'}</span>
+                    </div>
+                    <div className="flex items-center text-[13px] text-gray-500">
+                      <span className="w-16">직무</span>
+                      <span className="text-gray-900">{worker.job_type || '-'}</span>
+                    </div>
+                    <div className="flex items-center text-[13px] text-gray-500">
+                      <span className="w-16">기술등급</span>
+                      <span className="text-gray-900">{worker.level || '-'}</span>
                     </div>
                     <div className="flex items-center text-[13px] text-gray-500">
                       <span className="w-16">단가</span>
-                      <span className="text-gray-900">
-                        {worker.price 
-                          ? `${new Intl.NumberFormat('ko-KR').format(worker.price)}원`
-                          : '미지정'
-                        }
-                      </span>
+                      <span className="text-gray-900">{worker.price ? `${worker.price.toLocaleString()}원` : '-'}</span>
                     </div>
                     <div className="flex items-center text-[13px] text-gray-500">
                       <span className="w-16">직원여부</span>
-                      <span className="text-gray-900">{worker.worker_type || '미지정'}</span>
+                      <span className="text-gray-900">{worker.worker_type || '-'}</span>
                     </div>
                     <div className="flex items-center text-[13px] text-gray-500">
                       <span className="w-16">파견여부</span>
@@ -724,7 +757,6 @@ export default function WorkersManagementPage() {
                       </span>
                     </div>
                   </div>
-
                   <div className="flex gap-1">
                     <button 
                       onClick={() => handleEditWorker(worker)}

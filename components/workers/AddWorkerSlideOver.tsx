@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, ArrowLeft, Trash2, ChevronDown, HelpCircle } from 'lucide-react'
-import type { Worker, WorkerJobType, WorkerLevelType, WorkerMMRecord, WorkerType } from '@/types/worker'
+import type { Worker, WorkerJobType, WorkerLevelType, WorkerMMRecord, WorkerType, WorkerGradeType } from '@/types/worker'
 import { Line, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -55,6 +55,9 @@ const DEFAULT_PRICES = {
   '초급': 6_500_000,
 } as const
 
+// 상단에 gradeTypes 배열 추가
+const gradeTypes: WorkerGradeType[] = ['BD', 'BM', 'PM', 'PL', 'PA']
+
 export default function AddWorkerSlideOver({ 
   isOpen, 
   onClose, 
@@ -67,7 +70,7 @@ export default function AddWorkerSlideOver({
   const [name, setName] = useState(worker?.name || '')
   const [jobType, setJobType] = useState<WorkerJobType | ''>(worker?.job_type || '')
   const [level, setLevel] = useState<WorkerLevelType | ''>(worker?.level || '')
-  const [price, setPrice] = useState(worker?.price ? worker.price.toLocaleString() : '')
+  const [price, setPrice] = useState('')
   const [isDispatched, setIsDispatched] = useState<boolean | null>(null)
   const [isJobTypeOpen, setIsJobTypeOpen] = useState(false)
   const [isLevelOpen, setIsLevelOpen] = useState(false)
@@ -80,6 +83,8 @@ export default function AddWorkerSlideOver({
   const [isDispatchedOpen, setIsDispatchedOpen] = useState(false)
   const [workerType, setWorkerType] = useState<WorkerType | ''>(worker?.worker_type || '')
   const [isWorkerTypeOpen, setIsWorkerTypeOpen] = useState(false)
+  const [grade, setGrade] = useState<WorkerGradeType | ''>(worker?.grade || '')
+  const [isGradeOpen, setIsGradeOpen] = useState(false)
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발', '기타']
   const levelTypes: WorkerLevelType[] = ['특급', '고급', '중급', '초급']
@@ -92,6 +97,7 @@ export default function AddWorkerSlideOver({
   const dispatchRef = useRef<HTMLDivElement>(null)
   const workerTypeRef = useRef<HTMLDivElement>(null)
   const dispatchedRef = useRef<HTMLDivElement>(null)
+  const gradeRef = useRef<HTMLDivElement>(null)
 
   // body 스크롤 제어
   useEffect(() => {
@@ -128,6 +134,9 @@ export default function AddWorkerSlideOver({
       if (dispatchedRef.current && !dispatchedRef.current.contains(event.target as Node)) {
         setIsDispatchedOpen(false)
       }
+      if (gradeRef.current && !gradeRef.current.contains(event.target as Node)) {
+        setIsGradeOpen(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -139,22 +148,50 @@ export default function AddWorkerSlideOver({
   // worker 데이터가 변경될 때마다 form 값 업데이트
   useEffect(() => {
     if (worker) {
-      setName(worker.name)
+      console.log('Worker data received:', worker)
+      setName(worker.name || '')
+      setWorkerType(worker.worker_type || '')
+      setGrade(worker.grade || '')
       setJobType(worker.job_type || '')
       setLevel(worker.level || '')
-      setPrice(worker.price ? worker.price.toLocaleString() : '')
+      
+      // price 처리 수정
+      if (typeof worker.price === 'number') {
+        const formattedPrice = worker.price.toLocaleString('ko-KR')
+        console.log('Setting price:', worker.price, 'Formatted:', formattedPrice)
+        setPrice(formattedPrice)
+        setTempPrice(formattedPrice)
+      } else {
+        setPrice('')
+        setTempPrice('')
+      }
+      
       setIsDispatched(worker.is_dispatched)
-      setWorkerType(worker.worker_type || '')
     } else {
       // 새로운 실무자 추가 시 초기화
       setName('')
+      setWorkerType('')
+      setGrade('')
       setJobType('')
       setLevel('')
       setPrice('')
+      setTempPrice('')
       setIsDispatched(null)
-      setWorkerType('')
     }
   }, [worker])
+
+  // level에 따른 기본 단가 설정
+  useEffect(() => {
+    // 수정 모드가 아니고 level이 있을 때만 실행
+    if (!isEdit && level && !worker) {
+      const defaultPrice = DEFAULT_PRICES[level as keyof typeof DEFAULT_PRICES]
+      if (defaultPrice) {
+        const formattedPrice = defaultPrice.toLocaleString('ko-KR')
+        setPrice(formattedPrice)
+        setTempPrice(formattedPrice)
+      }
+    }
+  }, [level, isEdit])
 
   // M/M 기록 가져오기
   useEffect(() => {
@@ -177,100 +214,52 @@ export default function AddWorkerSlideOver({
     fetchMMRecords()
   }, [workerId])
 
-  // useEffect 수정 - price 존재 여부와 관계없이 항상 업데이트
-  useEffect(() => {
-    if (level) {  // level이 있을 때만 실행
-      const defaultPrice = DEFAULT_PRICES[level as keyof typeof DEFAULT_PRICES]
-      if (defaultPrice) {
-        setPrice(defaultPrice.toLocaleString())
-        setTempPrice(defaultPrice.toLocaleString())
-      }
-    }
-  }, [level])  // level이 변경될 때마다 실행
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
-      // 1. 기본 유효성 검사 (기존 코드 유지)
-      if (!name) {
+      if (!name.trim()) {
         toast.error('이름을 입력해주세요.')
         return
       }
 
-      if (name.length > 100) {
-        toast.error('이름은 최대 100자까지 입력 가능합니다.')
-        return
-      }
-
-      const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]+$/
-      if (!nameRegex.test(name)) {
-        toast.error('특수문자는 입력할 수 없습니다.')
-        return
-      }
-
-      let finalName = name
-      let hasNameConflict = false
-
-      // 동명이인 체크 (수정 모드이거나 새로 추가할 때)
-      if (!isEdit || (isEdit && worker && name !== worker.name)) {
-        // 동일한 이름의 실무자들 조회 (기본 이름 + 넘버링된 이름 모두 검색)
-        const { data: existingWorkers, error: searchError } = await supabase
+      // 수정 모드일 때
+      if (isEdit && worker?.id) {
+        const { error: updateError } = await supabase
           .from('workers')
-          .select('id, name, created_at')
-          .or(`name.eq.${name},name.like.${name}_%`)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: true })
+          .update({
+            name: name,
+            worker_type: workerType || null,
+            grade: grade || null,
+            job_type: jobType || null,
+            level: level || null,
+            price: price ? parseInt(price.replace(/,/g, '')) : null,
+            is_dispatched: isDispatched,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', worker.id)
 
-        if (searchError) {
-          console.error('Error searching workers:', searchError)
-          toast.error('실무자 정보 확인 중 오류가 발생했습니다.')
+        if (updateError) {
+          console.error('Update error:', updateError)
+          toast.error('실무자 수정에 실패했습니다.')
           return
         }
 
-        // 동명이인이 있는 경우 처리
-        if (existingWorkers && existingWorkers.length > 0) {
-          hasNameConflict = true
-          
-          // 현재 사용 중인 가장 큰 넘버링 찾기
-          let maxNumber = 0
-          existingWorkers.forEach(worker => {
-            const match = worker.name.match(new RegExp(`${name}_(\\d+)$`))
-            if (match) {
-              const num = parseInt(match[1])
-              maxNumber = Math.max(maxNumber, num)
-            }
-          })
-
-          // 기존 넘버링이 없는 이름이 있다면 먼저 처리
-          const originalName = existingWorkers.find(w => w.name === name)
-          if (originalName) {
-            const { error: updateError } = await supabase
-              .from('workers')
-              .update({ name: `${name}_1` })
-              .eq('id', originalName.id)
-
-            if (updateError) {
-              console.error('Error updating existing worker:', updateError)
-              toast.error('실무자 정보 업데이트 중 오류가 발생했습니다.')
-              return
-            }
-            maxNumber = Math.max(maxNumber, 1)
-          }
-
-          // 새로운 이름에 다음 번호 부여
-          finalName = `${name}_${maxNumber + 1}`
-        }
+        toast.success('실무자 정보가 수정되었습니다.')
+        onSubmit({ type: 'update' }) // fetchWorkers 트리거를 위해 호출
+        onClose()
+        return
       }
 
-      // 3. 실무자 정보 업데이트
+      // 새로운 실무자 추가일 때
       const data = {
         worker: {
-          name: finalName,
+          name: name,
           worker_type: workerType || null,
+          grade: grade || null,
           job_type: jobType || null,
           level: level || null,
-          price: price || null,
+          price: price ? parseInt(price.replace(/,/g, '')) : null,
           is_dispatched: isDispatched
         },
         mmRecords: mmRecords
@@ -278,12 +267,6 @@ export default function AddWorkerSlideOver({
 
       onSubmit(data)
 
-      // 4. 성공 메시지
-      if (hasNameConflict) {
-        toast.success('목록에 동명이인이 있어 넘버링이 추가 되었습니다.')
-      }
-
-      onClose()
     } catch (error: unknown) {
       console.error('Error:', error)
       const customError = error as CustomError
@@ -361,6 +344,26 @@ export default function AddWorkerSlideOver({
       }
       return [...prev, { year: currentYear, month, mm_value: value, worker_id: workerId || '' }]
     })
+  }
+
+  // price 변경 핸들러 추가
+  const handlePriceChange = (value: string) => {
+    // 숫자와 쉼표만 허용
+    const cleanValue = value.replace(/[^\d,]/g, '')
+    
+    if (cleanValue === '') {
+      setPrice('')
+      setTempPrice('')
+      return
+    }
+
+    // 쉼표 제거 후 숫자로 변환
+    const numericValue = parseInt(cleanValue.replace(/,/g, ''))
+    if (!isNaN(numericValue)) {
+      const formattedValue = numericValue.toLocaleString('ko-KR')
+      setPrice(formattedValue)
+      setTempPrice(formattedValue)
+    }
   }
 
   return (
@@ -459,6 +462,53 @@ export default function AddWorkerSlideOver({
                         </div>
 
                         <div>
+                          <div className="relative" ref={gradeRef}>
+                            <button
+                              type="button"
+                              onClick={() => setIsGradeOpen(!isGradeOpen)}
+                              className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
+                            >
+                              <span className={grade ? 'text-gray-900' : 'text-gray-400'}>
+                                {grade || '직무 등급'}
+                              </span>
+                              <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isGradeOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {isGradeOpen && (
+                              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setGrade('')
+                                    setIsGradeOpen(false)
+                                  }}
+                                  className={`${
+                                    !grade ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                  } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                >
+                                  미지정
+                                </button>
+                                {gradeTypes.map((type) => (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      setGrade(type)
+                                      setIsGradeOpen(false)
+                                    }}
+                                    className={`${
+                                      grade === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                    } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                  >
+                                    {type}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
                           <div className="relative" ref={jobTypeRef}>
                             <button
                               type="button"
@@ -513,7 +563,7 @@ export default function AddWorkerSlideOver({
                               className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                             >
                               <span className={level ? 'text-gray-900' : 'text-gray-400'}>
-                                {level || '등급'}
+                                {level || '기술 등급'}
                               </span>
                               <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isLevelOpen ? 'rotate-180' : ''}`} />
                             </button>
