@@ -1,16 +1,42 @@
 'use client'
 
-import { useState, Fragment, useRef } from 'react'
+import { useState, Fragment, useRef, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { X, ArrowLeft, ChevronDown } from 'lucide-react'
+import { X, ArrowLeft, ChevronDown, Calendar } from 'lucide-react'
 import { ProjectStatus } from '@/types/project'
 import { toast } from 'react-hot-toast'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { ko } from 'date-fns/locale'
 
 interface AddProjectSlideOverProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (projectData: any) => void
 }
+
+// 스타일 추가
+const datePickerWrapperStyles = `
+  .react-datepicker-wrapper {
+    width: 100%;
+  }
+`
+
+// 모든 input에 적용할 공통 스타일 (프로젝트명 입력 제외)
+const commonInputStyles = `
+  .form-input:not([placeholder="프로젝트명을 입력하세요"]) {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  input:not([placeholder="프로젝트명을 입력하세요"]):focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .react-datepicker__input-container input {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+`
 
 export default function AddProjectSlideOver({
   isOpen,
@@ -22,8 +48,8 @@ export default function AddProjectSlideOver({
   const [status, setStatus] = useState<ProjectStatus | ''>('')
   const [majorCategory, setMajorCategory] = useState('')
   const [category, setCategory] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [endDate, setEndDate] = useState<Date | null>(null)
   
   // 계약 정보
   const [contractAmount, setContractAmount] = useState('')
@@ -55,9 +81,39 @@ export default function AddProjectSlideOver({
   const contractTypeRef = useRef<HTMLDivElement>(null)
   const periodicUnitRef = useRef<HTMLDivElement>(null)
 
+  // 달력 표시 상태 추가
+  const [isStartDateOpen, setIsStartDateOpen] = useState(false)
+  const [isEndDateOpen, setIsEndDateOpen] = useState(false)
+
   const majorCategories = ['운영', '구축', '개발', '기타']
   const categories = ['금융', '커머스', 'AI', '기타'] // 예시 카테고리
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
+
+  // 외부 클릭 감지 useEffect 추가
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
+        setIsStatusOpen(false)
+      }
+      if (majorCategoryRef.current && !majorCategoryRef.current.contains(event.target as Node)) {
+        setIsMajorCategoryOpen(false)
+      }
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setIsCategoryOpen(false)
+      }
+      if (contractTypeRef.current && !contractTypeRef.current.contains(event.target as Node)) {
+        setIsContractTypeOpen(false)
+      }
+      if (periodicUnitRef.current && !periodicUnitRef.current.contains(event.target as Node)) {
+        setIsPeriodicUnitOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,8 +131,8 @@ export default function AddProjectSlideOver({
         status,
         major_category: majorCategory,
         category,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: startDate ? startDate.toISOString().split('T')[0] : null,
+        end_date: endDate ? endDate.toISOString().split('T')[0] : null,
         contract_amount: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : null,
         is_vat_included: isVatIncluded,
         common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : null,
@@ -112,6 +168,12 @@ export default function AddProjectSlideOver({
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
+      {/* 스타일 태그 추가 */}
+      <style>
+        {datePickerWrapperStyles}
+        {commonInputStyles}
+      </style>
+      
       <Dialog as="div" className="relative z-50" onClose={onClose}>
         <Transition.Child
           as={Fragment}
@@ -307,23 +369,67 @@ export default function AddProjectSlideOver({
                                   )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-6">
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700">시작일</label>
-                                    <input
-                                      type="date"
-                                      value={startDate}
-                                      onChange={(e) => setStartDate(e.target.value)}
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
+                                <div className="space-y-6">
+                                  {/* 시작일 선택 */}
+                                  <div className="relative w-full">
+                                    <DatePicker
+                                      selected={startDate}
+                                      onChange={(date: Date) => setStartDate(date)}
+                                      locale={ko}
+                                      dateFormat="yyyy년 MM월 dd일"
+                                      placeholderText="시작일"
+                                      showMonthDropdown
+                                      showYearDropdown
+                                      dropdownMode="select"
+                                      popperPlacement="bottom-end"
+                                      customInput={
+                                        <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
+                                          <input
+                                            type="text"
+                                            value={startDate ? startDate.toLocaleDateString('ko-KR', {
+                                              year: 'numeric',
+                                              month: 'long',
+                                              day: 'numeric'
+                                            }) : ''}
+                                            readOnly
+                                            className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                            placeholder="시작일"
+                                          />
+                                          <Calendar className="w-5 h-5 text-gray-400 ml-auto cursor-pointer" />
+                                        </div>
+                                      }
                                     />
                                   </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700">종료일</label>
-                                    <input
-                                      type="date"
-                                      value={endDate}
-                                      onChange={(e) => setEndDate(e.target.value)}
-                                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
+
+                                  {/* 종료일 선택 */}
+                                  <div className="relative w-full">
+                                    <DatePicker
+                                      selected={endDate}
+                                      onChange={(date: Date) => setEndDate(date)}
+                                      locale={ko}
+                                      dateFormat="yyyy년 MM월 dd일"
+                                      placeholderText="종료일"
+                                      minDate={startDate}
+                                      showMonthDropdown
+                                      showYearDropdown
+                                      dropdownMode="select"
+                                      popperPlacement="bottom-end"
+                                      customInput={
+                                        <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
+                                          <input
+                                            type="text"
+                                            value={endDate ? endDate.toLocaleDateString('ko-KR', {
+                                              year: 'numeric',
+                                              month: 'long',
+                                              day: 'numeric'
+                                            }) : ''}
+                                            readOnly
+                                            className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                            placeholder="종료일"
+                                          />
+                                          <Calendar className="w-5 h-5 text-gray-400 ml-auto cursor-pointer" />
+                                        </div>
+                                      }
                                     />
                                   </div>
                                 </div>
@@ -331,42 +437,63 @@ export default function AddProjectSlideOver({
                             </div>
 
                             {/* 계약 정보 섹션 */}
-                            <div className="pt-6 border-t border-gray-200">
-                              <h3 className="text-lg font-medium text-gray-900">계약 정보</h3>
-                              <div className="mt-6 space-y-6">
+                            <div className="pt-8 border-t border-gray-200">
+                              <div className="flex items-center text-[14px] text-[#4E49E7] mb-6">
+                                <svg 
+                                  className="w-5 h-5 mr-2" 
+                                  fill="none" 
+                                  viewBox="0 0 24 24" 
+                                  stroke="currentColor"
+                                >
+                                  <path 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                    strokeWidth={2} 
+                                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" 
+                                  />
+                                </svg>
+                                계약 정보
+                              </div>
+
+                              <div className="space-y-8">
                                 {/* 계약 금액 */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700">계약 금액</label>
-                                  <div className="mt-1 flex items-center space-x-4">
-                                    <div className="flex-1 relative rounded-md shadow-sm">
-                                      <input
-                                        type="text"
-                                        value={contractAmount}
-                                        onChange={(e) => {
-                                          const value = e.target.value.replace(/[^\d,]/g, '')
-                                          const number = parseInt(value.replace(/,/g, ''))
-                                          if (!isNaN(number)) {
-                                            setContractAmount(number.toLocaleString())
-                                          } else {
-                                            setContractAmount('')
+                                <div className="relative">
+                                  <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
+                                    <input
+                                      type="text"
+                                      value={contractAmount}
+                                      onChange={(e) => {
+                                        // 숫자와 쉼표를 제외한 모든 문자 제거
+                                        let value = e.target.value.replace(/[^\d,]/g, '')
+                                        
+                                        // 쉼표 제거
+                                        value = value.replace(/,/g, '')
+                                        
+                                        if (value) {
+                                          try {
+                                            // 천단위 쉼표 추가
+                                            const formattedValue = Number(value).toLocaleString()
+                                            setContractAmount(formattedValue)
+                                          } catch (error) {
+                                            setContractAmount(value)
                                           }
-                                        }}
-                                        className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
-                                        placeholder="0"
-                                      />
-                                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                        <span className="text-gray-500 sm:text-sm">원</span>
-                                      </div>
-                                    </div>
-                                    <label className="flex items-center">
+                                        } else {
+                                          setContractAmount('')
+                                        }
+                                      }}
+                                      className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                      placeholder="계약 금액"
+                                    />
+                                    <span className="text-gray-400 ml-2 flex-shrink-0">원</span>
+                                    <div className="ml-4 flex items-center gap-1.5 flex-shrink-0">
                                       <input
                                         type="checkbox"
                                         checked={isVatIncluded}
                                         onChange={(e) => setIsVatIncluded(e.target.checked)}
-                                        className="rounded border-gray-300 text-[#4E49E7] focus:ring-[#4E49E7]"
+                                        className="rounded border-gray-300 text-[#4E49E7] focus:ring-0 w-4 h-4"
                                       />
-                                      <span className="ml-2 text-sm text-gray-500">VAT 포함</span>
-                                    </label>
+                                      <span className="text-[13px] text-gray-500 whitespace-nowrap">VAT 포함</span>
+                                    </div>
                                   </div>
                                 </div>
 
@@ -377,8 +504,8 @@ export default function AddProjectSlideOver({
                                     onClick={() => setIsContractTypeOpen(!isContractTypeOpen)}
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
-                                    <span className={contractType ? 'text-gray-900' : 'text-gray-400'}>
-                                      {contractType ? '회차 정산형' : '정기 결제형'}
+                                    <span className="text-gray-400">
+                                      {contractType === 'milestone' ? '회차 정산형' : '정기 결제형'}
                                     </span>
                                     <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isContractTypeOpen ? 'rotate-180' : ''}`} />
                                   </button>
@@ -415,11 +542,10 @@ export default function AddProjectSlideOver({
 
                                 {/* 계약 유형별 추가 필드 */}
                                 {contractType === 'milestone' ? (
-                                  <div className="space-y-4">
+                                  <div className="space-y-8">
                                     {/* 착수금 */}
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700">착수금</label>
-                                      <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="relative">
+                                      <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
                                         <input
                                           type="text"
                                           value={downPayment}
@@ -432,19 +558,17 @@ export default function AddProjectSlideOver({
                                               setDownPayment('')
                                             }
                                           }}
-                                          className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
-                                          placeholder="0"
+                                          className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder="착수금"
                                         />
-                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                          <span className="text-gray-500 sm:text-sm">원</span>
-                                        </div>
+                                        <span className="text-gray-400 ml-2">원</span>
                                       </div>
                                     </div>
 
                                     {/* 중도금 */}
-                                    <div>
+                                    <div className="space-y-3">
                                       <div className="flex items-center justify-between">
-                                        <label className="block text-sm font-medium text-gray-700">중도금</label>
+                                        <span className="text-gray-400">중도금</span>
                                         <button
                                           type="button"
                                           onClick={handleAddIntermediatePayment}
@@ -453,43 +577,38 @@ export default function AddProjectSlideOver({
                                           + 차수 추가
                                         </button>
                                       </div>
-                                      <div className="mt-2 space-y-3">
-                                        {intermediatePayments.map((payment, index) => (
-                                          <div key={index} className="flex items-center space-x-2">
-                                            <div className="flex-1 relative rounded-md shadow-sm">
-                                              <input
-                                                type="text"
-                                                value={payment}
-                                                onChange={(e) => {
-                                                  const value = e.target.value.replace(/[^\d,]/g, '')
-                                                  const number = parseInt(value.replace(/,/g, ''))
-                                                  const newPayments = [...intermediatePayments]
-                                                  newPayments[index] = !isNaN(number) ? number.toLocaleString() : ''
-                                                  setIntermediatePayments(newPayments)
-                                                }}
-                                                className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
-                                                placeholder="0"
-                                              />
-                                              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                                <span className="text-gray-500 sm:text-sm">원</span>
-                                              </div>
-                                            </div>
+                                      {intermediatePayments.map((payment, index) => (
+                                        <div key={index} className="relative">
+                                          <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
+                                            <input
+                                              type="text"
+                                              value={payment}
+                                              onChange={(e) => {
+                                                const value = e.target.value.replace(/[^\d,]/g, '')
+                                                const number = parseInt(value.replace(/,/g, ''))
+                                                const newPayments = [...intermediatePayments]
+                                                newPayments[index] = !isNaN(number) ? number.toLocaleString() : ''
+                                                setIntermediatePayments(newPayments)
+                                              }}
+                                              className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                              placeholder={`${index + 1}차 중도금`}
+                                            />
+                                            <span className="text-gray-400 ml-2">원</span>
                                             <button
                                               type="button"
                                               onClick={() => handleRemoveIntermediatePayment(index)}
-                                              className="text-gray-400 hover:text-gray-500"
+                                              className="ml-2 text-gray-400 hover:text-gray-500"
                                             >
                                               <X className="h-5 w-5" />
                                             </button>
                                           </div>
-                                        ))}
-                                      </div>
+                                        </div>
+                                      ))}
                                     </div>
 
                                     {/* 잔금 */}
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700">잔금</label>
-                                      <div className="mt-1 relative rounded-md shadow-sm">
+                                    <div className="relative">
+                                      <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
                                         <input
                                           type="text"
                                           value={finalPayment}
@@ -502,17 +621,15 @@ export default function AddProjectSlideOver({
                                               setFinalPayment('')
                                             }
                                           }}
-                                          className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
-                                          placeholder="0"
+                                          className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder="잔금"
                                         />
-                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                          <span className="text-gray-500 sm:text-sm">원</span>
-                                        </div>
+                                        <span className="text-gray-400 ml-2">원</span>
                                       </div>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="space-y-4">
+                                  <div className="space-y-8">
                                     {/* 정기 결제형 필드들 */}
                                     <div className="grid grid-cols-2 gap-4">
                                       <div>
@@ -598,27 +715,24 @@ export default function AddProjectSlideOver({
                                 )}
 
                                 {/* 공통 경비 */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700">공통 경비</label>
-                                  <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="relative">
+                                  <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
                                     <input
                                       type="text"
                                       value={commonExpense}
                                       onChange={(e) => {
-                                        const value = e.target.value.replace(/[^\d,]/g, '')
-                                        const number = parseInt(value.replace(/,/g, ''))
-                                        if (!isNaN(number)) {
+                                        const value = e.target.value.replace(/[^\d]/g, '')
+                                        if (value) {
+                                          const number = parseInt(value)
                                           setCommonExpense(number.toLocaleString())
                                         } else {
                                           setCommonExpense('')
                                         }
                                       }}
-                                      className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
-                                      placeholder="0"
+                                      className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                      placeholder="공통 경비"
                                     />
-                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                      <span className="text-gray-500 sm:text-sm">원</span>
-                                    </div>
+                                    <span className="text-gray-400 ml-2">원</span>
                                   </div>
                                 </div>
                               </div>
