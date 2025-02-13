@@ -229,7 +229,7 @@ export default function AddProjectSlideOver({
                     {/* 본문 */}
                     <div className="flex flex-1">
                       {/* 왼쪽: 입력 폼 */}
-                      <div className="w-2/3 border-r border-gray-200">
+                      <div className="w-2/3 border-r border-gray-200 relative">
                         <form id="projectForm" onSubmit={handleSubmit}>
                           {/* 프로젝트 아이콘과 텍스트 */}
                           <div className="px-6 pt-6">
@@ -251,7 +251,7 @@ export default function AddProjectSlideOver({
                             </div>
                           </div>
 
-                          <div className="px-4 py-6 sm:px-6 space-y-6">
+                          <div className="px-4 pb-[150px] pt-6 sm:px-6 space-y-6">
                             {/* 프로젝트명 입력 */}
                             <div>
                               <input
@@ -740,15 +740,17 @@ export default function AddProjectSlideOver({
                           </div>
 
                           {/* 하단 버튼 */}
-                          <div className="flex-none px-4 py-4 bg-white border-t border-gray-200">
-                            <div className="flex gap-2">
-                              <button
-                                type="submit"
-                                form="projectForm"
-                                className="flex-1 py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] rounded-lg"
-                              >
-                                추가
-                              </button>
+                          <div className="fixed bottom-0 right-0 w-screen max-w-6xl bg-white border-t border-gray-200">
+                            <div className="px-4 py-4">
+                              <div className="flex gap-2">
+                                <button
+                                  type="submit"
+                                  form="projectForm"
+                                  className="flex-1 py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] rounded-lg"
+                                >
+                                  추가
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </form>

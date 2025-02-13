@@ -448,7 +448,7 @@ export default function AddWorkerSlideOver({
                       </div>
                     </div>
 
-                    <div className="flex-1 px-8 space-y-8">
+                    <div className="flex-1 px-8 space-y-8 pb-[100px]">
                       <div className="space-y-8">
                         <div>
                           <input
