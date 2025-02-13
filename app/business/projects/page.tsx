@@ -12,7 +12,7 @@ const ITEMS_PER_PAGE = 20
 
 export default function ProjectsManagementPage() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -28,7 +28,7 @@ export default function ProjectsManagementPage() {
 
   const fetchProjects = async () => {
     try {
-      setLoading(true)
+      setIsLoading(true)
       let query = supabase
         .from('projects')
         .select(`
@@ -54,7 +54,7 @@ export default function ProjectsManagementPage() {
       console.error('Error fetching projects:', error.message || error)
       toast.error('프로젝트 목록을 불러오는데 실패했습니다.')
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -71,7 +71,7 @@ export default function ProjectsManagementPage() {
 
   const handleAddProject = async (projectData: any) => {
     try {
-      setLoading(true)
+      setIsLoading(true)
       const { error } = await supabase
         .from('projects')
         .insert([projectData])
@@ -85,7 +85,7 @@ export default function ProjectsManagementPage() {
       console.error('Error:', error)
       toast.error('프로젝트 추가 중 오류가 발생했습니다.')
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -103,12 +103,10 @@ export default function ProjectsManagementPage() {
   // 총 페이지 수 계산
   const totalPages = Math.ceil(projects.length / ITEMS_PER_PAGE)
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50/30 p-8">
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 border-t-[#4E49E7] animate-spin" />
       </div>
     )
   }

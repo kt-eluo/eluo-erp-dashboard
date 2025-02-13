@@ -480,6 +480,7 @@ export default function WorkersManagementPage() {
     setCurrentPage(1)
   }, [selectedJobType, searchTerm])
 
+  // 로딩 스피너
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
