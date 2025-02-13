@@ -112,11 +112,11 @@ export default function ProjectsManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white p-8">
-      <div className="max-w-screen-2xl mx-auto">
+    <div className="">
+      <div className="p-4 sm:p-6 bg-white min-h-screen">
         {/* 헤더 영역 */}
         <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">프로젝트 관리</h1>
+          <h1 className="text-[18px] sm:text-[20px] font-semibold">프로젝트 관리</h1>
           <div className="flex items-center gap-3">
             {/* 엑셀 파일 버튼 */}
             <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
