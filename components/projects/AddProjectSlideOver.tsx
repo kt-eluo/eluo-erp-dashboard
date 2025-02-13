@@ -232,7 +232,7 @@ export default function AddProjectSlideOver({
                       <div className="w-2/3 border-r border-gray-200">
                         <form id="projectForm" onSubmit={handleSubmit}>
                           {/* 프로젝트 아이콘과 텍스트 */}
-                          <div className="px-8 pt-6 pb-4">
+                          <div className="px-6 pt-6">
                             <div className="flex items-center text-[14px] text-[#4E49E7]">
                               <svg 
                                 className="w-5 h-5 mr-2" 

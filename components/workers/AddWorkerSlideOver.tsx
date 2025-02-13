@@ -370,13 +370,13 @@ export default function AddWorkerSlideOver({
     <div className={`fixed inset-0 overflow-hidden z-50 ${!isOpen && 'pointer-events-none'}`}>
       <div className="absolute inset-0 overflow-hidden">
         <div 
-          className={`absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity duration-300 ${
+          className={`absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity duration-500 ${
             isOpen ? 'opacity-100' : 'opacity-0'
           }`} 
           onClick={onClose}
         />
 
-        <div className={`fixed inset-y-0 right-0 max-w-full flex transform transition-transform duration-300 ease-in-out ${
+        <div className={`fixed inset-y-0 right-0 max-w-full flex transform transition-transform duration-500 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}>
           <div className="w-screen max-w-[1200px]">
