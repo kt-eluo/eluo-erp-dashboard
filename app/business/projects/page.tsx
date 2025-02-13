@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import type { Project, ProjectStatus } from '@/types/project'
 import { Search, Plus, LayoutGrid, Table, FileSpreadsheet, Filter } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import AddProjectSlideOver from '@/components/projects/AddProjectSlideOver'
 
 const ITEMS_PER_PAGE = 20
 
@@ -18,6 +19,7 @@ export default function ProjectsManagementPage() {
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all')
   const [viewType, setViewType] = useState<'table' | 'card'>('card')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -37,30 +39,19 @@ export default function ProjectsManagementPage() {
           end_date,
           status,
           budget,
-          description,
-          created_at
+          category,
+          major_category
         `)
-        .order('created_at', { ascending: false })
-        
-      if (selectedStatus !== 'all') {
-        query = query.eq('status', selectedStatus)
-      }
-
-      if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,client.ilike.%${searchTerm}%`)
-      }
 
       const { data, error } = await query
 
-      if (error) {
-        console.error('Error fetching projects:', error)
-        toast.error('프로젝트 목록을 불러오는데 실패했습니다.')
-        return
-      }
+      if (error) throw error
 
-      setProjects(data || [])
-    } catch (error) {
-      console.error('Error:', error)
+      if (data) {
+        setProjects(data)
+      }
+    } catch (error: any) {
+      console.error('Error fetching projects:', error.message || error)
       toast.error('프로젝트 목록을 불러오는데 실패했습니다.')
     } finally {
       setLoading(false)
@@ -75,6 +66,26 @@ export default function ProjectsManagementPage() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleSearch()
+    }
+  }
+
+  const handleAddProject = async (projectData: any) => {
+    try {
+      setLoading(true)
+      const { error } = await supabase
+        .from('projects')
+        .insert([projectData])
+
+      if (error) throw error
+
+      toast.success('프로젝트가 추가되었습니다.')
+      setIsAddSlideOverOpen(false)
+      fetchProjects()
+    } catch (error) {
+      console.error('Error:', error)
+      toast.error('프로젝트 추가 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -123,7 +134,7 @@ export default function ProjectsManagementPage() {
 
             {/* 추가 버튼 */}
             <button
-              onClick={() => router.push('/business/projects/new')}
+              onClick={() => setIsAddSlideOverOpen(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -379,6 +390,13 @@ export default function ProjectsManagementPage() {
             </nav>
           </div>
         )}
+
+        {/* 프로젝트 추가 슬라이드오버 */}
+        <AddProjectSlideOver
+          isOpen={isAddSlideOverOpen}
+          onClose={() => setIsAddSlideOverOpen(false)}
+          onSubmit={handleAddProject}
+        />
       </div>
     </div>
   )
