@@ -189,7 +189,7 @@ export default function AddProjectSlideOver({
 
             <div className="fixed inset-0 overflow-hidden">
               <div className="absolute inset-0 overflow-hidden">
-                <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
+                <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-0 lg:pl-10">
                   <Transition.Child
                     as={Fragment}
                     enter="transform transition ease-in-out duration-500"
@@ -199,7 +199,7 @@ export default function AddProjectSlideOver({
                     leaveFrom="translate-x-0"
                     leaveTo="translate-x-full"
                   >
-                    <Dialog.Panel className="pointer-events-auto w-screen max-w-6xl">
+                    <Dialog.Panel className="pointer-events-auto w-screen max-w-[100vw] lg:max-w-6xl">
                       <div className="flex h-full flex-col overflow-y-scroll bg-white">
                         {/* 헤더 */}
                         <div className="fixed top-0 right-0 w-screen max-w-6xl bg-gray-50 border-b border-gray-200 z-10">
@@ -573,9 +573,10 @@ export default function AddProjectSlideOver({
                                         <button
                                           type="button"
                                           onClick={handleAddIntermediatePayment}
-                                          className="text-sm text-[#4E49E7] hover:text-[#3F3ABE]"
+                                          className="px-1 py-1 text-[11px] font-medium text-[#4E49E7] rounded-md flex items-center gap-1"
                                         >
-                                          + 차수 추가
+                                          <span className="text-lg leading-none">+</span>
+                                          차수 추가
                                         </button>
                                       </div>
                                       {intermediatePayments.map((payment, index) => (
