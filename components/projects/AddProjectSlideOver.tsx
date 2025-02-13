@@ -202,32 +202,33 @@ export default function AddProjectSlideOver({
                     <Dialog.Panel className="pointer-events-auto w-screen max-w-6xl">
                       <div className="flex h-full flex-col overflow-y-scroll bg-white">
                         {/* 헤더 */}
-                        <div className="hidden sm:block flex-none px-2 py-2 bg-gray-50 sm:px-6 border-b border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <button
-                                type="button"
-                                onClick={onClose}
-                                className="text-gray-500 hover:text-gray-700 mr-4"
-                              >
-                                <ArrowLeft className="h-5 w-5" />
-                              </button>
-
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <button
-                                type="button"
-                                onClick={onClose}
-                                className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-gray-600 transition-colors duration-200"
-                              >
-                                닫기
-                              </button>
+                        <div className="fixed top-0 right-0 w-screen max-w-6xl bg-gray-50 border-b border-gray-200 z-10">
+                          <div className="hidden sm:block flex-none px-2 py-2 sm:px-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={onClose}
+                                  className="text-gray-500 hover:text-gray-700 mr-4"
+                                >
+                                  <ArrowLeft className="h-5 w-5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <button
+                                  type="button"
+                                  onClick={onClose}
+                                  className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-gray-600 transition-colors duration-200"
+                                >
+                                  닫기
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                    {/* 본문 */}
-                    <div className="flex flex-1">
+                    {/* 본문에 상단 헤더 높이만큼 패딩 추가 */}
+                    <div className="flex flex-1 pt-[49px]">
                       {/* 왼쪽: 입력 폼 */}
                       <div className="w-2/3 border-r border-gray-200 relative">
                         <form id="projectForm" onSubmit={handleSubmit}>
