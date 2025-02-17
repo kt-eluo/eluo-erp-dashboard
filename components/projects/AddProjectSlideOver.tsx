@@ -172,6 +172,15 @@ export default function AddProjectSlideOver({
     setIntermediatePayments(intermediatePayments.filter((_, i) => i !== index))
   }
 
+  // 월 차이 계산 함수
+  const getMonthDiff = (startDate: Date, endDate: Date) => {
+    return (
+      endDate.getMonth() -
+      startDate.getMonth() +
+      12 * (endDate.getFullYear() - startDate.getFullYear())
+    )
+  }
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
       {/* 스타일 태그 추가 */}
@@ -929,6 +938,84 @@ export default function AddProjectSlideOver({
                                       placeholder="공통 경비"
                                     />
                                     <span className="text-gray-400 ml-2">원</span>
+                                  </div>
+                                </div>
+
+                                {/* 프로젝트 진행 기간 */}
+                                <div className="space-y-6 mt-8">
+                                  <div className="flex items-center text-[14px] text-[#4E49E7] mb-6">
+                                    <svg 
+                                      className="w-5 h-5 mr-2" 
+                                      fill="none" 
+                                      viewBox="0 0 24 24" 
+                                      stroke="currentColor"
+                                    >
+                                      <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={2} 
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" 
+                                      />
+                                    </svg>
+                                    프로젝트 진행 기간
+                                  </div>
+
+                                  {/* 그래프 영역 */}
+                                  <div className="relative">
+                                    {/* 왼쪽 직무 라벨 */}
+                                    <div className="absolute left-0 top-0 space-y-[22px] text-[13px] text-gray-500">
+                                      <div>개발</div>
+                                      <div>퍼블리싱</div>
+                                      <div>디자인</div>
+                                      <div>기획</div>
+                                    </div>
+
+                                    {/* 그래프 영역 */}
+                                    <div className="ml-[56px]">
+                                      {/* 그래프 라인들 */}
+                                      <div className="relative h-[130px]">
+                                        {/* 수평 구분선 */}
+                                        <div className="absolute w-full border-t border-[#E5E5E5] top-0"></div>
+                                        <div className="absolute w-full border-t border-[#E5E5E5] top-[25%]"></div>
+                                        <div className="absolute w-full border-t border-[#E5E5E5] top-[50%]"></div>
+                                        <div className="absolute w-full border-t border-[#E5E5E5] top-[75%]"></div>
+                                        <div className="absolute w-full border-t border-[#E5E5E5] top-[100%]"></div>
+
+                                        {/* 수직 구분선 */}
+                                        {startDate && endDate && (
+                                          <div className="absolute inset-0 flex justify-between w-full h-full">
+                                            {Array.from({ length: getMonthDiff(startDate, endDate) + 1 }).map((_, index) => (
+                                              <div 
+                                                key={index} 
+                                                className="border-l border-[#E5E5E5] h-full"
+                                              ></div>
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        {/* 여기에 실제 데이터 라인이 들어갈 공간 */}
+                                        <div className="relative h-full">
+                                          {/* 데이터 라인은 나중에 실제 데이터에 따라 동적으로 생성 */}
+                                        </div>
+                                      </div>
+
+                                      {/* 월 표시 */}
+                                      <div className="flex justify-between mt-2 text-[13px] text-gray-500">
+                                        {startDate && endDate && (
+                                          <div className="flex justify-between w-full">
+                                            {Array.from({ length: getMonthDiff(startDate, endDate) + 1 }).map((_, index) => {
+                                              const currentDate = new Date(startDate)
+                                              currentDate.setMonth(startDate.getMonth() + index)
+                                              return (
+                                                <div key={index}>
+                                                  {currentDate.toLocaleDateString('ko-KR', { month: 'long' })}
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
