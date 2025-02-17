@@ -583,9 +583,9 @@ export default function AddProjectSlideOver({
                                 <div className="text-black text-[16px] font-normal leading-[19.09px]">직무별 실무자</div>
                                 <div className="space-y-[11px]">
                                   {/* BD(BM) */}
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex items-center">
                                     <div className="text-[13px] text-gray-500 w-[56px]">BD(BM)</div>
-                                    <div className="relative w-[139px]">
+                                    <div className="relative w-[139px] mr-[8px]">
                                       <input
                                         type="text"
                                         placeholder="이름을 입력하세요"
