@@ -39,6 +39,11 @@ const commonInputStyles = `
   }
 `
 
+// DatePicker minDate 타입 에러 수정을 위한 타입 가드 함수 추가
+const getMinDate = (date: Date | null): Date | undefined => {
+  return date || undefined
+}
+
 export default function AddProjectSlideOver({
   isOpen,
   onClose,
@@ -456,7 +461,7 @@ export default function AddProjectSlideOver({
                                       locale={ko}
                                       dateFormat="yyyy년 MM월 dd일"
                                       placeholderText="종료일"
-                                      minDate={startDate}
+                                      minDate={getMinDate(startDate)}
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
@@ -1141,6 +1146,79 @@ export default function AddProjectSlideOver({
                                 </button>
                               </div>
                             )}
+                          </div>
+
+                          {/* 테이블 추가 */}
+                          <div className="mt-6 overflow-x-auto">
+                            <table className="w-full text-[14px]">
+                              <thead>
+                                <tr className="bg-gray-50">
+                                  <th className="px-4 py-2 border text-left">프로젝트명</th>
+                                  <th className="px-4 py-2 border text-left">계약 기간</th>
+                                  <th className="px-4 py-2 border text-left">상태</th>
+                                  <th className="px-4 py-2 border text-right">계약금액</th>
+                                  <th className="px-4 py-2 border text-center">공수</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {[
+                                  {
+                                    name: 'KT Shop (UI/UX) 기획 및 운영 유지보수',
+                                    period: '2025. 01. 31 ~ 2025. 12. 31',
+                                    status: '진행중',
+                                    amount: '30,000,000'
+                                  },
+                                  {
+                                    name: 'SK 하이닉스 채용 사이트 구축',
+                                    period: '2025. 02. 01 ~ 2025. 08. 31',
+                                    status: '준비중',
+                                    amount: '25,000,000'
+                                  },
+                                  {
+                                    name: '현대자동차 딜러 관리 시스템 개발',
+                                    period: '2025. 03. 15 ~ 2025. 12. 31',
+                                    status: '진행중',
+                                    amount: '40,000,000'
+                                  },
+                                  {
+                                    name: '삼성전자 글로벌 마케팅 플랫폼 구축',
+                                    period: '2025. 04. 01 ~ 2025. 10. 31',
+                                    status: '보류',
+                                    amount: '35,000,000'
+                                  }
+                                ].map((project, index) => (
+                                  <tr key={index} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 border">
+                                      <div className="font-medium">{project.name}</div>
+                                    </td>
+                                    <td className="px-4 py-2 border">
+                                      <div className="text-gray-600">{project.period}</div>
+                                    </td>
+                                    <td className="px-4 py-2 border">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        ${project.status === '진행중' ? 'bg-green-100 text-green-800' : 
+                                          project.status === '준비중' ? 'bg-yellow-100 text-yellow-800' :
+                                          project.status === '완료' ? 'bg-blue-100 text-blue-800' :
+                                          'bg-gray-100 text-gray-800'}`}
+                                      >
+                                        {project.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 border text-right">
+                                      <div className="font-medium">{project.amount}원</div>
+                                    </td>
+                                    <td className="px-4 py-2 border text-center">
+                                      <button
+                                        onClick={() => handleManpowerClick()}
+                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                                      >
+                                        공수 관리
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       </div>

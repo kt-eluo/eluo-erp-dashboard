@@ -391,15 +391,50 @@ export default function ProjectsManagementPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {getCurrentPageData().map((project, index) => (
+                    {[
+                      {
+                        id: 1,
+                        name: 'KT Shop (UI/UX) 기획 및 운영 유지보수',
+                        client: 'KT',
+                        start_date: '2025-01-31',
+                        end_date: '2025-12-31',
+                        status: '진행중',
+                        budget: 30000000
+                      },
+                      {
+                        id: 2,
+                        name: 'SK 하이닉스 채용 사이트 구축',
+                        client: 'SK 하이닉스',
+                        start_date: '2025-02-01',
+                        end_date: '2025-08-31',
+                        status: '준비중',
+                        budget: 25000000
+                      },
+                      {
+                        id: 3,
+                        name: '현대자동차 딜러 관리 시스템 개발',
+                        client: '현대자동차',
+                        start_date: '2025-03-15',
+                        end_date: '2025-12-31',
+                        status: '진행중',
+                        budget: 40000000
+                      },
+                      {
+                        id: 4,
+                        name: '삼성전자 글로벌 마케팅 플랫폼 구축',
+                        client: '삼성전자',
+                        start_date: '2025-04-01',
+                        end_date: '2025-10-31',
+                        status: '보류',
+                        budget: 35000000
+                      }
+                    ].map((project, index) => (
                       <tr 
                         key={project.id}
                         className="hover:bg-gray-50/50 transition-colors duration-150"
                       >
                         <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-500">
-                            {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
-                          </span>
+                          <span className="text-[14px] text-gray-500">{index + 1}</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">{project.name}</span>
@@ -409,31 +444,30 @@ export default function ProjectsManagementPage() {
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">
-                            {project.start_date ? new Date(project.start_date).toLocaleDateString() : '-'}
+                            {new Date(project.start_date).toLocaleDateString()}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">
-                            {project.end_date ? new Date(project.end_date).toLocaleDateString() : '-'}
+                            {new Date(project.end_date).toLocaleDateString()}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium
                             ${project.status === '진행중' ? 'bg-green-50 text-green-700' :
-                              project.status === '완료' ? 'bg-blue-50 text-blue-700' :
-                              project.status === '보류' ? 'bg-yellow-50 text-yellow-700' :
-                              'bg-gray-50 text-gray-700'}`}>
+                              project.status === '준비중' ? 'bg-yellow-50 text-yellow-700' :
+                              project.status === '보류' ? 'bg-gray-50 text-gray-700' :
+                              'bg-blue-50 text-blue-700'}`}>
                             {project.status}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">
-                            {project.budget ? `${new Intl.NumberFormat('ko-KR').format(project.budget)}원` : '-'}
+                            {project.budget.toLocaleString()}원
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
                           <button 
-                            onClick={() => router.push(`/business/projects/${project.id}`)}
                             className="text-[13px] text-[#4E49E7] hover:text-[#3F3ABE]"
                           >
                             상세보기
