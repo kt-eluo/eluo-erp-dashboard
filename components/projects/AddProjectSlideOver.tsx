@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { ko } from 'date-fns/locale'
+import AddManpowerModal from './AddManpowerModal'
 
 interface AddProjectSlideOverProps {
   isOpen: boolean
@@ -91,13 +92,21 @@ export default function AddProjectSlideOver({
   const [manpowerPublishing, setManpowerPublishing] = useState<number | null>(null)
   const [manpowerDevelopment, setManpowerDevelopment] = useState<number | null>(null)
 
+  // 새로운 state 추가
+  const [showManpowerButtons, setShowManpowerButtons] = useState(false)
+  const [showManpowerModal, setShowManpowerModal] = useState(false)
+
   const majorCategories = ['운영', '구축', '개발', '기타']
   const categories = ['금융', '커머스', 'AI', '기타'] // 예시 카테고리
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
 
-  // 외부 클릭 감지 useEffect 추가
+  // 외부 클릭 감지 useEffect 수정
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // 모달이 열려있을 때는 외부 클릭 감지를 하지 않음
+      if (showManpowerModal) return;
+
+      // 각 ref에 대한 클릭 감지 확인
       if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
         setIsStatusOpen(false)
       }
@@ -119,7 +128,7 @@ export default function AddProjectSlideOver({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [])
+  }, [showManpowerModal]) // showManpowerModal을 의존성 배열에 추가
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -181,6 +190,19 @@ export default function AddProjectSlideOver({
     )
   }
 
+  // 공수 관리 버튼 클릭 핸들러
+  const handleManpowerClick = () => {
+    setShowManpowerButtons(!showManpowerButtons)
+    if (!showManpowerButtons) {
+      setShowManpowerModal(false)  // 버튼들이 닫힐 때 모달도 닫기
+    }
+  }
+
+  // 공수 추가 버튼 클릭 핸들러
+  const handleAddManpowerClick = () => {
+    setShowManpowerModal(true)
+  }
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
       {/* 스타일 태그 추가 */}
@@ -189,7 +211,16 @@ export default function AddProjectSlideOver({
         {commonInputStyles}
       </style>
       
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog 
+        as="div" 
+        className="relative z-50" 
+        onClose={(event) => {
+          // 모달이 열려있을 때는 Dialog의 onClose를 실행하지 않음
+          if (!showManpowerModal) {
+            onClose()
+          }
+        }}
+      >
         <Transition.Child
           as={Fragment}
           enter="ease-in-out duration-500"
@@ -473,9 +504,9 @@ export default function AddProjectSlideOver({
                                       직무 정보
                                     </div>
 
-                                {/* 직무별 공수 */}
+                                {/* 직무별 전체 공수 */}
                                 <div className="space-y-6">
-                                  <div className="text-black mb-4 text-[16px]">직무별 공수</div>
+                                  <div className="text-black mb-4 text-[16px]">직무별 전체 공수</div>
                                   <div className="grid grid-cols-4 gap-4 pb-5">
                                     {/* 기획 */}
                                     <div className="w-full flex items-center">
@@ -1054,7 +1085,7 @@ export default function AddProjectSlideOver({
                           {/* 하단 버튼 */}
                           <div className="fixed bottom-0 right-0 w-screen max-w-6xl bg-white border-t border-gray-200">
                             <div className="px-4 py-4">
-                              <div className="flex gap-2">
+                              <div className="flex flex-row gap-2">
                                 <button
                                   type="submit"
                                   form="projectForm"
@@ -1071,15 +1102,45 @@ export default function AddProjectSlideOver({
                       {/* 오른쪽: 프로젝트 정보 */}
                       <div className="w-1/3 bg-white">
                         <div className="px-4 py-6 sm:px-6">
-                          <div className="border-b border-gray-200">
-                            <nav className="flex space-x-8">
-                              <button className="border-b-2 border-[#4E49E7] py-4 px-1 text-sm font-medium text-[#4E49E7]">
-                                프로젝트 정보
+                          {/* 버튼 컨테이너 */}
+                          <div>
+                            <div className="flex flex-row gap-2">
+                              {/* 실무자 공수 관리 버튼 */}
+                              <button
+                                type="button"
+                                className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black"
+                                onClick={handleManpowerClick}
+                              >
+                                실무자 공수 관리
                               </button>
-                            </nav>
-                          </div>
-                          <div className="mt-6">
-                            {/* 프로젝트 요약 정보 표시 */}
+
+                              {/* 마일스톤 등록 및 확인 버튼 */}
+                              <button
+                                type="button"
+                                className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white"
+                              >
+                                마일스톤 등록 및 확인
+                              </button>
+                            </div>
+
+                            {/* 공수 관리 하위 버튼들 */}
+                            {showManpowerButtons && (
+                              <div className="flex gap-2 mt-2 justify-end">
+                                <button
+                                  type="button"
+                                  className="h-[32px] px-4 bg-white border border-[#4E49E7] rounded-[6px] font-pretendard font-medium text-[14px] leading-[16.71px] text-[#4E49E7]"
+                                  onClick={handleAddManpowerClick}
+                                >
+                                  공수 추가
+                                </button>
+                                <button
+                                  type="button"
+                                  className="h-[32px] px-4 bg-white border border-[#4E49E7] rounded-[6px] font-pretendard font-medium text-[14px] leading-[16.71px] text-[#4E49E7]"
+                                >
+                                  공수 수정
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1091,6 +1152,16 @@ export default function AddProjectSlideOver({
           </div>
         </div>
       </Dialog>
+
+      {/* 모달 추가 */}
+      {showManpowerModal && (
+        <AddManpowerModal
+          isOpen={showManpowerModal}
+          onClose={() => setShowManpowerModal(false)}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      )}
     </Transition.Root>
   )
 } 
