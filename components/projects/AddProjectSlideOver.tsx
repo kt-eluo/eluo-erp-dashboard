@@ -298,7 +298,7 @@ export default function AddProjectSlideOver({
                             </div>
                           </div>
 
-                          <div className="px-4 pb-[150px] pt-6 sm:px-6 space-y-6">
+                          <div className="px-4 pb-[50px] pt-6 sm:px-6 space-y-6">
                             {/* 프로젝트명 입력 */}
                             <div>
                               <input
@@ -1083,7 +1083,7 @@ export default function AddProjectSlideOver({
                           </div>
 
                           {/* 하단 버튼 */}
-                          <div className="fixed bottom-0 right-0 w-screen max-w-6xl bg-white border-t border-gray-200">
+                          <div className="bottom-0 left-0 w-[100%] bg-white border-t border-gray-200">
                             <div className="px-4 py-4">
                               <div className="flex flex-row gap-2">
                                 <button
@@ -1091,7 +1091,7 @@ export default function AddProjectSlideOver({
                                   form="projectForm"
                                   className="flex-1 py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] rounded-lg"
                                 >
-                                  추가
+                                  프로젝트 저장
                                 </button>
                               </div>
                             </div>
