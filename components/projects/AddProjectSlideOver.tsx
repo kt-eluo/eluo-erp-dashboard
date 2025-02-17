@@ -2,7 +2,7 @@
 
 import { useState, Fragment, useRef, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { X, ArrowLeft, ChevronDown, Calendar } from 'lucide-react'
+import { X, ArrowLeft, ChevronDown, Calendar, Search } from 'lucide-react'
 import { ProjectStatus } from '@/types/project'
 import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
@@ -84,6 +84,12 @@ export default function AddProjectSlideOver({
   // 달력 표시 상태 추가
   const [isStartDateOpen, setIsStartDateOpen] = useState(false)
   const [isEndDateOpen, setIsEndDateOpen] = useState(false)
+
+  // 새로운 state 추가
+  const [manpowerPlanning, setManpowerPlanning] = useState<number | null>(null)
+  const [manpowerDesign, setManpowerDesign] = useState<number | null>(null)
+  const [manpowerPublishing, setManpowerPublishing] = useState<number | null>(null)
+  const [manpowerDevelopment, setManpowerDevelopment] = useState<number | null>(null)
 
   const majorCategories = ['운영', '구축', '개발', '기타']
   const categories = ['금융', '커머스', 'AI', '기타'] // 예시 카테고리
@@ -433,6 +439,194 @@ export default function AddProjectSlideOver({
                                       }
                                     />
                                   </div>
+
+                                  {/* 직무별 공수 */}
+                                  <div className="space-y-6">
+                                    <div className="text-black mb-4 text-[16px]">직무별 공수</div>
+                                    <div className="grid grid-cols-4 gap-4 pb-5">
+                                      {/* 기획 */}
+                                      <div className="w-full">
+                                        <div className="text-[13px] text-gray-500 mb-1">기획</div>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.1"
+                                          value={manpowerPlanning ?? ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            setManpowerPlanning(value === '' ? null : Number(value))
+                                          }}
+                                          className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder=""
+                                        />
+                                      </div>
+
+                                      {/* 디자인 */}
+                                      <div className="w-full">
+                                        <div className="text-[13px] text-gray-500 mb-1">디자인</div>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.1"
+                                          value={manpowerDesign ?? ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            setManpowerDesign(value === '' ? null : Number(value))
+                                          }}
+                                          className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder=""
+                                        />
+                                      </div>
+
+                                      {/* 퍼블리싱 */}
+                                      <div className="w-full">
+                                        <div className="text-[13px] text-gray-500 mb-1">퍼블리싱</div>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.1"
+                                          value={manpowerPublishing ?? ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            setManpowerPublishing(value === '' ? null : Number(value))
+                                          }}
+                                          className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder=""
+                                        />
+                                      </div>
+
+                                      {/* 개발 */}
+                                      <div className="w-full">
+                                        <div className="text-[13px] text-gray-500 mb-1">개발</div>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="0.1"
+                                          value={manpowerDevelopment ?? ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            setManpowerDevelopment(value === '' ? null : Number(value))
+                                          }}
+                                          className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder=""
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 직무별 실무자 */}
+                            <div className="space-y-6 mt-[40px]">
+                              <div className="text-black text-[16px] font-normal leading-[19.09px]">직무별 실무자</div>
+                              <div className="space-y-[11px]">
+                                {/* BD(BM) */}
+                                <div className="flex items-center">
+                                  <div className="text-[13px] text-gray-500 w-[56px]">BD(BM)</div>
+                                  <div className="relative w-[139px] mr-[8px]">
+                                    <input
+                                      type="text"
+                                      placeholder="이름을 입력하세요"
+                                      className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                    />
+                                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
+                                  />
+                                </div>
+
+                                {/* PM(PL) */}
+                                <div className="flex items-center">
+                                  <div className="text-[13px] text-gray-500 w-[56px] ">PM(PL)</div>
+                                  <div className="relative w-[139px] mr-[8px]">
+                                    <input
+                                      type="text"
+                                      placeholder="이름을 입력하세요"
+                                      className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                    />
+                                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
+                                  />
+                                </div>
+
+                                {/* 기획 */}
+                                <div className="flex items-center">
+                                  <div className="text-[13px] text-gray-500 w-[56px] ">기획</div>
+                                  <div className="relative w-[139px] mr-[8px]">
+                                    <input
+                                      type="text"
+                                      placeholder="이름을 입력하세요"
+                                      className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                    />
+                                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
+                                  />
+                                </div>
+
+                                {/* 디자이너 */}
+                                <div className="flex items-center">
+                                  <div className="text-[13px] text-gray-500 w-[56px] ">디자이너</div>
+                                  <div className="relative w-[139px] mr-[8px]">
+                                    <input
+                                      type="text"
+                                      placeholder="이름을 입력하세요"
+                                      className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                    />
+                                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
+                                  />
+                                </div>
+
+                                {/* 퍼블리셔 */}
+                                <div className="flex items-center">
+                                  <div className="text-[13px] text-gray-500 w-[56px] ">퍼블리셔</div>
+                                  <div className="relative w-[139px] mr-[8px]">
+                                    <input
+                                      type="text"
+                                      placeholder="이름을 입력하세요"
+                                      className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                    />
+                                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
+                                  />
+                                </div>
+
+                                {/* 개발 */}
+                                <div className="flex items-center">
+                                  <div className="text-[13px] text-gray-500 w-[56px] ">개발</div>
+                                  <div className="relative w-[139px] mr-[8px]">
+                                    <input
+                                      type="text"
+                                      placeholder="이름을 입력하세요"
+                                      className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                    />
+                                    <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
+                                  />
                                 </div>
                               </div>
                             </div>
