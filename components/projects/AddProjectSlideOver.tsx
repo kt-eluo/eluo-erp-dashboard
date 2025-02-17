@@ -421,7 +421,7 @@ export default function AddProjectSlideOver({
                                   <div className="relative w-full">
                                     <DatePicker
                                       selected={startDate}
-                                      onChange={(date: Date) => setStartDate(date)}
+                                      onChange={(date: Date | null) => setStartDate(date)}
                                       locale={ko}
                                       dateFormat="yyyy년 MM월 dd일"
                                       placeholderText="시작일"
@@ -452,7 +452,7 @@ export default function AddProjectSlideOver({
                                   <div className="relative w-full">
                                     <DatePicker
                                       selected={endDate}
-                                      onChange={(date: Date) => setEndDate(date)}
+                                      onChange={(date: Date | null) => setEndDate(date)}
                                       locale={ko}
                                       dateFormat="yyyy년 MM월 dd일"
                                       placeholderText="종료일"
