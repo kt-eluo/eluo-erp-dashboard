@@ -3,7 +3,7 @@
 import { useState, Fragment, useRef, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { X, ArrowLeft, ChevronDown, Calendar, Search } from 'lucide-react'
-import type { Project, ProjectStatus, ProjectCategory, ProjectMajorCategory, ContractType, PeriodicUnit } from '@/types/project'
+import type { Project, ProjectStatus, ProjectCategory, ProjectMajorCategory, ContractType, PeriodicUnit, ProjectRole, ManpowerSummary } from '@/types/project'
 import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -45,6 +45,13 @@ const commonInputStyles = `
 // DatePicker minDate 타입 에러 수정을 위한 타입 가드 함수 추가
 const getMinDate = (date: Date | null): Date | undefined => {
   return date || undefined
+}
+
+// 상단에 Worker 타입 정의 추가
+interface Worker {
+  id: string
+  name: string
+  job_type: string
 }
 
 export default function AddProjectSlideOver({
@@ -114,6 +121,27 @@ export default function AddProjectSlideOver({
   // 상단에 state 추가
   const [isDuplicateName, setIsDuplicateName] = useState(false)
 
+  // 컴포넌트 내부에 state 추가
+  const [searchTerms, setSearchTerms] = useState<{[key: string]: string}>({
+    'BD(BM)': '',
+    'PM(PL)': '',
+    '기획': '',
+    '디자이너': '',
+    '퍼블리셔': '',
+    '개발': ''
+  })
+
+  const [selectedWorkers, setSelectedWorkers] = useState<{[key: string]: Array<{id: string, name: string}>}>({
+    'BD(BM)': [],
+    'PM(PL)': [],
+    '기획': [],
+    '디자이너': [],
+    '퍼블리셔': [],
+    '개발': []
+  })
+
+  const [workers, setWorkers] = useState<Worker[]>([])
+
   const majorCategories: ProjectMajorCategory[] = ['금융', '커머스', 'AI', '기타']
   const categories: ProjectCategory[] = ['운영', '구축', '개발', '기타']
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
@@ -166,11 +194,36 @@ export default function AddProjectSlideOver({
       setCategory(project.category || '')
       
       // 직무별 전체 공수 정보 설정
+      setManpowerPlanning(project.planning_manpower || null);
+      setManpowerDesign(project.design_manpower || null);
+      setManpowerPublishing(project.publishing_manpower || null);
+      setManpowerDevelopment(project.development_manpower || null);
+
+      // 직무별 실무자 정보 설정
       if (project.manpower) {
-        setManpowerPlanning(project.manpower.planning || null)
-        setManpowerDesign(project.manpower.design || null)
-        setManpowerPublishing(project.manpower.publishing || null)
-        setManpowerDevelopment(project.manpower.development || null)
+        const workersByRole: {[key: string]: Array<{id: string, name: string}>} = {
+          'BD(BM)': [],
+          'PM(PL)': [],
+          '기획': [],
+          '디자이너': [],
+          '퍼블리셔': [],
+          '개발': []
+        };
+
+        project.manpower.forEach(mp => {
+          if (mp.worker_id && mp.role) {
+            // workers 배열에서 해당 worker_id를 가진 worker 찾기
+            const worker = workers.find(w => w.id === mp.worker_id);
+            if (worker) {
+              workersByRole[mp.role].push({
+                id: worker.id,
+                name: worker.name
+              });
+            }
+          }
+        });
+
+        setSelectedWorkers(workersByRole);
       }
 
       // 계약 정보 설정
@@ -191,7 +244,54 @@ export default function AddProjectSlideOver({
         }
       }
     }
-  }, [project, mode])
+  }, [project, mode, workers]) // workers를 의존성 배열에 추가
+
+  // 실무자 데이터 가져오기
+  useEffect(() => {
+    const fetchWorkers = async () => {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('id, name, job_type')
+        .is('deleted_at', null)
+      
+      if (error) {
+        console.error('Error fetching workers:', error)
+        return
+      }
+      
+      if (data) setWorkers(data)
+    }
+    
+    fetchWorkers()
+  }, [])
+
+  // 검색어에 맞는 실무자 필터링
+  const getFilteredWorkers = (jobType: string) => {
+    const searchTerm = searchTerms[jobType]
+    return workers.filter(worker => 
+      worker.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }
+
+  // 실무자 선택 핸들러
+  const handleWorkerSelect = (jobType: string, worker: { id: string, name: string }) => {
+    setSelectedWorkers(prev => ({
+      ...prev,
+      [jobType]: [...prev[jobType], worker]
+    }))
+    setSearchTerms(prev => ({
+      ...prev,
+      [jobType]: ''
+    }))
+  }
+
+  // 실무자 제거 핸들러
+  const handleWorkerRemove = (jobType: string, workerId: string) => {
+    setSelectedWorkers(prev => ({
+      ...prev,
+      [jobType]: prev[jobType].filter(w => w.id !== workerId)
+    }))
+  }
 
   // 중복 체크 함수 추가
   const checkDuplicateName = async (name: string) => {
@@ -260,66 +360,108 @@ export default function AddProjectSlideOver({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // 중복 체크 먼저 수행
-    if (isDuplicateName) {
-      toast.error('중복된 프로젝트명입니다. 수정 해주세요.')
-      return
-    }
-
-    // 유효성 검사
-    const errors = validateForm()
-    if (errors.length > 0) {
-      toast.error(errors[0])
-      return
-    }
-
+    
     try {
+      // 프로젝트 데이터 준비
       const projectData = {
-        id: project?.id,
         name: title,
-        client: client || undefined,
-        start_date: startDate ? startDate.toISOString().split('T')[0] : undefined,
-        end_date: endDate ? endDate.toISOString().split('T')[0] : undefined,
-        status: status as ProjectStatus || undefined,
-        budget: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : undefined,
-        category: (category as ProjectCategory) || undefined,
-        major_category: (majorCategory as ProjectMajorCategory) || undefined,
-        description: description || undefined,
+        client,
+        description,
+        start_date: startDate?.toISOString().split('T')[0],
+        end_date: endDate?.toISOString().split('T')[0],
+        status: status || null,
+        category: category || null,
+        major_category: majorCategory || null,
+        contract_type: contractType || null,
+        is_vat_included: isVatIncluded,
+        common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : null,
+        budget: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : null,
         
-        contract_type: contractType || undefined,
-        is_vat_included: Boolean(contractType && isVatIncluded),
-        common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : undefined,
-
+        // 직무별 전체 공수 정보 추가
+        planning_manpower: manpowerPlanning,
+        design_manpower: manpowerDesign,
+        publishing_manpower: manpowerPublishing,
+        development_manpower: manpowerDevelopment,
+        
         // 회차 정산형 정보
         down_payment: contractType === '회차 정산형' && downPayment ? 
-          parseInt(downPayment.replace(/,/g, '')) : undefined,
+          parseInt(downPayment.replace(/,/g, '')) : null,
         intermediate_payments: contractType === '회차 정산형' && intermediatePayments.length > 0 ? 
-          intermediatePayments.map(payment => payment ? parseInt(payment.replace(/,/g, '')) : 0) : undefined,
+          intermediatePayments.map(payment => payment ? parseInt(payment.replace(/,/g, '')) : 0) : null,
         final_payment: contractType === '회차 정산형' && finalPayment ? 
-          parseInt(finalPayment.replace(/,/g, '')) : undefined,
-
+          parseInt(finalPayment.replace(/,/g, '')) : null,
+        
         // 정기 결제형 정보
-        periodic_unit: contractType === '정기 결제형' ? periodicUnit : undefined,
+        periodic_unit: contractType === '정기 결제형' ? periodicUnit : null,
         periodic_interval: contractType === '정기 결제형' && periodicInterval ? 
-          parseInt(periodicInterval) : undefined,
+          parseInt(periodicInterval) : null,
         periodic_amount: contractType === '정기 결제형' && periodicAmount ? 
-          parseInt(periodicAmount.replace(/,/g, '')) : undefined,
-
-        // 직무별 전체 공수 정보 - 직접 각 필드로 전달
-        planning_manpower: manpowerPlanning,    // state에서 직접 값 사용
-        design_manpower: manpowerDesign,        // state에서 직접 값 사용
-        publishing_manpower: manpowerPublishing, // state에서 직접 값 사용
-        development_manpower: manpowerDevelopment, // state에서 직접 값 사용
-
-        // manpower 객체는 제거 (DB에 없는 구조이므로)
-        manpower: undefined
+          parseInt(periodicAmount.replace(/,/g, '')) : null
       }
 
-      await onSubmit(projectData)
-    } catch (error) {
-      console.error('Error:', error)
-      toast.error('프로젝트 저장 중 오류가 발생했습니다.')
+      let projectId: string | undefined;
+      let successMessage = '';  // 성공 메시지 변수 추가
+
+      if (mode === 'create') {
+        // 새 프로젝트 생성
+        const { data: newProject, error: createError } = await supabase
+          .from('projects')
+          .insert([projectData])
+          .select('id')
+          .single()
+
+        if (createError) throw createError
+        projectId = newProject.id
+        successMessage = '프로젝트가 추가되었습니다.'  // 생성 시 메시지
+      } else if (mode === 'edit' && project?.id) {
+        // 기존 프로젝트 수정
+        const { error: updateError } = await supabase
+          .from('projects')
+          .update(projectData)
+          .eq('id', project.id)
+
+        if (updateError) throw updateError
+        projectId = project.id
+        successMessage = '프로젝트가 수정되었습니다.'  // 수정 시 메시지
+      }
+
+      // 실무자 정보 업데이트
+      if (projectId) {
+        // 기존 실무자 정보 삭제
+        const { error: deleteError } = await supabase
+          .from('project_manpower')
+          .delete()
+          .eq('project_id', projectId)
+
+        if (deleteError) throw deleteError
+
+        // 새로운 실무자 정보 추가
+        if (Object.values(selectedWorkers).some(workers => workers.length > 0)) {
+          const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
+            workers.map(worker => ({
+              project_id: projectId,
+              worker_id: worker.id,
+              role: role as ProjectRole,
+              mm_value: 0
+            }))
+          )
+
+          if (manpowerData.length > 0) {
+            const { error: insertError } = await supabase
+              .from('project_manpower')
+              .insert(manpowerData)
+
+            if (insertError) throw insertError
+          }
+        }
+      }
+
+      toast.success(successMessage)  // 하나의 메시지만 표시
+      onClose()
+      onSubmit({ ...projectData, id: projectId })
+    } catch (error: any) {
+      console.error('Error saving project:', error.message || error)
+      toast.error(error.message || '프로젝트 저장 중 오류가 발생했습니다.')
     }
   }
 
@@ -370,13 +512,38 @@ export default function AddProjectSlideOver({
     return '프로젝트 추가'
   }
 
-  // 삭제 버튼 클릭 핸들러 추가
-  const handleDeleteClick = () => {
+  // 삭제 버튼 클릭 핸들러 수정
+  const handleDeleteClick = async () => {
     if (window.confirm('정말 삭제하시겠습니까?')) {
       if (project?.id) {
-        onSubmit({ ...project, id: project.id, _action: 'delete' })
-        onClose()
+        try {
+          // 프로젝트 삭제
+          const { error: deleteError } = await supabase
+            .from('projects')
+            .delete()
+            .eq('id', project.id)
+
+          if (deleteError) throw deleteError
+
+          // toast 메시지 제거 (page.tsx에서 표시)
+          onClose()
+          onSubmit({ ...project, _action: 'delete' })
+        } catch (error: any) {
+          console.error('Error deleting project:', error)
+          toast.error('프로젝트 삭제 중 오류가 발생했습니다.')
+        }
       }
+    }
+  }
+
+  // 검색 결과에서 첫 번째 실무자 선택하는 함수 추가
+  const handleSearchEnter = (jobType: string) => {
+    const filteredWorkers = getFilteredWorkers(jobType)
+      .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
+    
+    if (filteredWorkers.length > 0) {
+      const firstWorker = filteredWorkers[0]
+      handleWorkerSelect(jobType, { id: firstWorker.id, name: firstWorker.name })
     }
   }
 
@@ -768,113 +935,65 @@ export default function AddProjectSlideOver({
                               <div className="space-y-6 mt-[25px] pb-[15px]">
                                 <div className="text-black text-[16px] font-normal leading-[19.09px]">직무별 실무자</div>
                                 <div className="space-y-[11px]">
-                                  {/* BD(BM) */}
-                                  <div className="flex items-center">
-                                    <div className="text-[13px] text-gray-500 w-[56px]">BD(BM)</div>
-                                    <div className="relative w-[139px] mr-[8px]">
-                                      <input
-                                        type="text"
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
-                                      />
-                                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                  {Object.keys(searchTerms).map((jobType) => (
+                                    <div key={jobType} className="flex items-center">
+                                      <div className="text-[13px] text-gray-500 w-[56px]">{jobType}</div>
+                                      <div className="relative w-[139px] mr-[8px]">
+                                        <input
+                                          type="text"
+                                          value={searchTerms[jobType]}
+                                          onChange={(e) => {
+                                            setSearchTerms(prev => ({
+                                              ...prev,
+                                              [jobType]: e.target.value
+                                            }))
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault()
+                                              handleSearchEnter(jobType)
+                                            }
+                                          }}
+                                          placeholder="이름을 입력하세요"
+                                          className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                        />
+                                        <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                        
+                                        {/* 검색 결과 드롭다운 */}
+                                        {searchTerms[jobType] && (
+                                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                                            {getFilteredWorkers(jobType)
+                                              .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
+                                              .map(worker => (
+                                                <div
+                                                  key={worker.id}
+                                                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
+                                                  onClick={() => handleWorkerSelect(jobType, { id: worker.id, name: worker.name })}
+                                                >
+                                                  {worker.name}
+                                                </div>
+                                              ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex-1 min-h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] bg-white flex items-center flex-wrap gap-2">
+                                        {selectedWorkers[jobType].map((worker) => (
+                                          <span 
+                                            key={worker.id} 
+                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[12px] bg-gray-100 border border-gray-300"
+                                          >
+                                            {worker.name}
+                                            <button
+                                              onClick={() => handleWorkerRemove(jobType, worker.id)}
+                                              className="ml-1 text-gray-400 hover:text-gray-600"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
                                     </div>
-                                    <input
-                                      type="text"
-                                      readOnly
-                                      className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
-                                    />
-                                  </div>
-
-                                  {/* PM(PL) */}
-                                  <div className="flex items-center">
-                                    <div className="text-[13px] text-gray-500 w-[56px] ">PM(PL)</div>
-                                    <div className="relative w-[139px] mr-[8px]">
-                                      <input
-                                        type="text"
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
-                                      />
-                                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
-                                    </div>
-                                    <input
-                                      type="text"
-                                      readOnly
-                                      className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
-                                    />
-                                  </div>
-
-                                  {/* 기획 */}
-                                  <div className="flex items-center">
-                                    <div className="text-[13px] text-gray-500 w-[56px] ">기획</div>
-                                    <div className="relative w-[139px] mr-[8px]">
-                                      <input
-                                        type="text"
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
-                                      />
-                                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
-                                    </div>
-                                    <input
-                                      type="text"
-                                      readOnly
-                                      className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
-                                    />
-                                  </div>
-
-                                  {/* 디자이너 */}
-                                  <div className="flex items-center">
-                                    <div className="text-[13px] text-gray-500 w-[56px] ">디자이너</div>
-                                    <div className="relative w-[139px] mr-[8px]">
-                                      <input
-                                        type="text"
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
-                                      />
-                                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
-                                    </div>
-                                    <input
-                                      type="text"
-                                      readOnly
-                                      className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
-                                    />
-                                  </div>
-
-                                  {/* 퍼블리셔 */}
-                                  <div className="flex items-center">
-                                    <div className="text-[13px] text-gray-500 w-[56px] ">퍼블리셔</div>
-                                    <div className="relative w-[139px] mr-[8px]">
-                                      <input
-                                        type="text"
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
-                                      />
-                                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
-                                    </div>
-                                    <input
-                                      type="text"
-                                      readOnly
-                                      className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
-                                    />
-                                  </div>
-
-                                  {/* 개발 */}
-                                  <div className="flex items-center">
-                                    <div className="text-[13px] text-gray-500 w-[56px] ">개발</div>
-                                    <div className="relative w-[139px] mr-[8px]">
-                                      <input
-                                        type="text"
-                                        placeholder="이름을 입력하세요"
-                                        className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
-                                      />
-                                      <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
-                                    </div>
-                                    <input
-                                      type="text"
-                                      readOnly
-                                      className="flex-1 h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] bg-white"
-                                    />
-                                  </div>
+                                  ))}
                                 </div>
                               </div>
 
@@ -1134,6 +1253,29 @@ export default function AddProjectSlideOver({
                                           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
                                           placeholder="1"
                                         />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700">결제 금액</label>
+                                      <div className="mt-1 relative rounded-md shadow-sm">
+                                        <input
+                                          type="text"
+                                          value={periodicAmount}
+                                          onChange={(e) => {
+                                            const value = e.target.value.replace(/[^\d,]/g, '')
+                                            const number = parseInt(value.replace(/,/g, ''))
+                                            if (!isNaN(number)) {
+                                              setPeriodicAmount(number.toLocaleString())
+                                            } else {
+                                              setPeriodicAmount('')
+                                            }
+                                          }}
+                                          className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
+                                          placeholder="0"
+                                        />
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                          <span className="text-gray-500 sm:text-sm">원</span>
+                                        </div>
                                       </div>
                                     </div>
                                     <div>

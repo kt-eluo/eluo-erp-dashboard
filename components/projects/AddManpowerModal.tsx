@@ -71,11 +71,9 @@ export default function AddManpowerModal({ isOpen, onClose, startDate, endDate }
   }
 
   // 투입소계 계산 함수
-  const calculateTotalEffort = (role: Role) => {
-    const efforts = monthlyEfforts[role]
-    if (!efforts) return 0
-    
-    return Object.values(efforts).reduce((sum, value) => {
+  const calculateTotalEffort = (role: string) => {
+    const efforts = monthlyEfforts[role] || {}
+    return Object.values(efforts).reduce((sum: number, value) => {
       return sum + (value || 0)
     }, 0)
   }
@@ -102,12 +100,12 @@ export default function AddManpowerModal({ isOpen, onClose, startDate, endDate }
   }
 
   // 투입비용 계산 함수
-  const calculateTotalCost = (role: Role) => {
-    const totalEffort = calculateTotalEffort(role)
+  const calculateTotalCost = (role: string) => {
+    const effort = calculateTotalEffort(role)
     const unitPrice = unitPrices[role]
     
     if (!unitPrice) return 0
-    return totalEffort * unitPrice
+    return effort * unitPrice
   }
 
   return (
@@ -258,7 +256,9 @@ export default function AddManpowerModal({ isOpen, onClose, startDate, endDate }
           <div className="flex items-center gap-8 mt-4">
             <div className="flex items-center gap-2">
               <span className="w-20 text-[13px] text-gray-500">투입소계</span>
-              <span className="text-[14px]">{calculateTotalEffort(selectedTab).toFixed(1)}</span>
+              <span className="text-[14px]">
+                {(calculateTotalEffort(selectedTab) || 0).toFixed(1)}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-20 text-[13px] text-gray-500">투입비용</span>

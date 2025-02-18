@@ -4,18 +4,23 @@ export type ProjectMajorCategory = '금융' | '커머스' | 'AI' | '기타'
 export type ContractType = '회차 정산형' | '정기 결제형'
 export type PeriodicUnit = 'month' | 'week'
 
+export type ProjectRole = 'BD(BM)' | 'PM(PL)' | '기획' | '디자이너' | '퍼블리셔' | '개발'
+
 export interface ProjectManpower {
-  id?: string
+  id: string
   project_id: string
-  role: '기획' | '디자인' | '퍼블리싱' | '개발'
-  grade?: string
-  position?: string
-  unit_price?: number
-  monthly_efforts: { [key: string]: number }
-  total_effort: number
-  total_cost: number
+  worker_id: string
+  role: ProjectRole
+  mm_value: number
   created_at?: string
   updated_at?: string
+}
+
+export interface ManpowerSummary {
+  planning?: number | null
+  design?: number | null
+  publishing?: number | null
+  development?: number | null
 }
 
 export interface Project {
@@ -30,10 +35,10 @@ export interface Project {
   major_category?: ProjectMajorCategory
   budget?: number
   
-  // 계약 정보 추가
+  // 계약 정보
+  contract_type?: ContractType
   is_vat_included?: boolean
   common_expense?: number
-  contract_type?: ContractType
   
   // 회차 정산형 정보
   down_payment?: number
@@ -45,19 +50,16 @@ export interface Project {
   periodic_interval?: number
   periodic_amount?: number
   
-  // 직무별 전체 공수 정보 - DB 컬럼명과 일치하도록 수정
-  planning_manpower?: number | null
-  design_manpower?: number | null
-  publishing_manpower?: number | null
-  development_manpower?: number | null
+  // 실무자 정보 추가
+  manpower?: ProjectManpower[]
+  // 공수 요약 정보 추가
+  manpower_summary?: ManpowerSummary
   
-  // 프론트엔드용 변환 데이터 구조
-  manpower?: {
-    planning?: number | null
-    design?: number | null
-    publishing?: number | null
-    development?: number | null
-  }
+  // 직무별 전체 공수 정보
+  planning_manpower?: number | null;
+  design_manpower?: number | null;
+  publishing_manpower?: number | null;
+  development_manpower?: number | null;
   
   created_at?: string
   updated_at?: string

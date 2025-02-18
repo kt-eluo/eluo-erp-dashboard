@@ -44,30 +44,13 @@ export default function ProjectsManagementPage() {
       let query = supabase
         .from('projects')
         .select(`
-          id,
-          name,
-          client,
-          start_date,
-          end_date,
-          status,
-          budget,
-          category,
-          major_category,
-          description,
-          contract_type,
-          is_vat_included,
-          common_expense,
-          down_payment,
-          intermediate_payments,
-          final_payment,
-          periodic_unit,
-          periodic_interval,
-          periodic_amount,
-          planning_manpower,
-          design_manpower,
-          publishing_manpower,
-          development_manpower,
-          created_at
+          *,
+          project_manpower (
+            id,
+            worker_id,
+            role,
+            mm_value
+          )
         `)
         .order('created_at', { ascending: false })
 
@@ -90,12 +73,7 @@ export default function ProjectsManagementPage() {
       if (data) {
         const transformedData = data.map(project => ({
           ...project,
-          manpower: {
-            planning: project.planning_manpower,
-            design: project.design_manpower,
-            publishing: project.publishing_manpower,
-            development: project.development_manpower
-          }
+          manpower: project.project_manpower || []
         }))
         setProjects(transformedData as Project[])
       }
@@ -118,131 +96,26 @@ export default function ProjectsManagementPage() {
     }
   }
 
-  const handleAddProject = async (projectData: Project) => {
+  const handleProjectSubmit = async (projectData: Project & { _action?: 'delete' }) => {
     try {
-      setIsLoading(true)
-      
-      // 1. 프로젝트 기본 정보 저장
-      const { data: newProject, error: projectError } = await supabase
-        .from('projects')
-        .insert([{
-          name: projectData.name,  // 필수 필드
-          client: projectData.client || null,
-          start_date: projectData.start_date || null,
-          end_date: projectData.end_date || null,
-          status: projectData.status || null,
-          budget: projectData.budget || null,
-          category: projectData.category || null,
-          major_category: projectData.major_category || null,
-          description: projectData.description || null,
-          
-          // 계약 관련 정보
-          contract_type: projectData.contract_type || null,
-          is_vat_included: projectData.is_vat_included || false,
-          common_expense: projectData.common_expense || null,
-          
-          // 회차 정산형 정보
-          down_payment: projectData.down_payment || null,
-          intermediate_payments: projectData.intermediate_payments || null,
-          final_payment: projectData.final_payment || null,
-          
-          // 정기 결제형 정보
-          periodic_unit: projectData.periodic_unit || null,
-          periodic_interval: projectData.periodic_interval || null,
-          periodic_amount: projectData.periodic_amount || null,
-          
-          // 직무별 전체 공수 정보
-          planning_manpower: projectData.manpower?.planning || null,
-          design_manpower: projectData.manpower?.design || null,
-          publishing_manpower: projectData.manpower?.publishing || null,
-          development_manpower: projectData.manpower?.development || null,
-          
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }])
-        .select()
-
-      if (projectError) throw projectError
-
-      toast.success('프로젝트가 추가되었습니다.')
-      setIsAddSlideOverOpen(false)
-      fetchProjects()
-    } catch (error: any) {
-      console.error('Error:', error.message || error)
-      toast.error('프로젝트 추가 중 오류가 발생했습니다.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleUpdateProject = async (projectData: Project & { _action?: 'delete' }) => {
-    try {
-      setIsLoading(true)
-
-      // 삭제 액션 처리
       if (projectData._action === 'delete') {
-        const { error: deleteError } = await supabase
+        // 삭제 로직
+        const { error } = await supabase
           .from('projects')
           .delete()
           .eq('id', projectData.id)
 
-        if (deleteError) throw deleteError
-
+        if (error) throw error
         toast.success('프로젝트가 삭제되었습니다.')
-        setIsDetailSlideOverOpen(false)
-        await fetchProjects()
+        fetchProjects()
         return
       }
-      
-      // 기존 업데이트 로직...
-      const { error: updateError } = await supabase
-        .from('projects')
-        .update({
-          name: projectData.name,
-          client: projectData.client || null,
-          start_date: projectData.start_date || null,
-          end_date: projectData.end_date || null,
-          status: projectData.status || null,
-          budget: projectData.budget || null,
-          category: projectData.category || null,
-          major_category: projectData.major_category || null,
-          description: projectData.description || null,
-          
-          // 계약 관련 정보
-          contract_type: projectData.contract_type || null,
-          is_vat_included: projectData.is_vat_included || false,
-          common_expense: projectData.common_expense || null,
-          
-          // 회차 정산형 정보
-          down_payment: projectData.down_payment || null,
-          intermediate_payments: projectData.intermediate_payments || null,
-          final_payment: projectData.final_payment || null,
-          
-          // 정기 결제형 정보
-          periodic_unit: projectData.periodic_unit || null,
-          periodic_interval: projectData.periodic_interval || null,
-          periodic_amount: projectData.periodic_amount || null,
-          
-          // 직무별 전체 공수 정보 - 직접 전달된 값 사용
-          planning_manpower: projectData.planning_manpower,
-          design_manpower: projectData.design_manpower,
-          publishing_manpower: projectData.publishing_manpower,
-          development_manpower: projectData.development_manpower,
-          
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', projectData.id)
 
-      if (updateError) throw updateError
-
-      toast.success('프로젝트가 수정되었습니다.')
-      setIsDetailSlideOverOpen(false)
+      // 프로젝트 목록 새로고침만 수행
       await fetchProjects()
     } catch (error: any) {
-      console.error('Error:', error.message || error)
-      toast.error('프로젝트 수정/삭제 중 오류가 발생했습니다.')
-    } finally {
-      setIsLoading(false)
+      console.error('Error:', error)
+      toast.error('프로젝트 저장 중 오류가 발생했습니다.')
     }
   }
 
@@ -719,7 +592,7 @@ export default function ProjectsManagementPage() {
         <AddProjectSlideOver
           isOpen={isAddSlideOverOpen}
           onClose={() => setIsAddSlideOverOpen(false)}
-          onSubmit={handleAddProject}
+          onSubmit={handleProjectSubmit}
         />
 
         {/* 프로젝트 상세 슬라이드오버 */}
@@ -729,7 +602,7 @@ export default function ProjectsManagementPage() {
             setIsDetailSlideOverOpen(false)
             setSelectedProject(null)
           }}
-          onSubmit={handleUpdateProject}
+          onSubmit={handleProjectSubmit}
           project={selectedProject}
           mode="edit"
         />
