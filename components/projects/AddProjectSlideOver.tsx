@@ -1148,77 +1148,111 @@ export default function AddProjectSlideOver({
                             )}
                           </div>
 
-                          {/* 테이블 추가 */}
-                          <div className="mt-6 overflow-x-auto">
-                            <table className="w-full text-[14px]">
-                              <thead>
-                                <tr className="bg-gray-50">
-                                  <th className="px-4 py-2 border text-left">프로젝트명</th>
-                                  <th className="px-4 py-2 border text-left">계약 기간</th>
-                                  <th className="px-4 py-2 border text-left">상태</th>
-                                  <th className="px-4 py-2 border text-right">계약금액</th>
-                                  <th className="px-4 py-2 border text-center">공수</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {[
-                                  {
-                                    name: 'KT Shop (UI/UX) 기획 및 운영 유지보수',
-                                    period: '2025. 01. 31 ~ 2025. 12. 31',
-                                    status: '진행중',
-                                    amount: '30,000,000'
-                                  },
-                                  {
-                                    name: 'SK 하이닉스 채용 사이트 구축',
-                                    period: '2025. 02. 01 ~ 2025. 08. 31',
-                                    status: '준비중',
-                                    amount: '25,000,000'
-                                  },
-                                  {
-                                    name: '현대자동차 딜러 관리 시스템 개발',
-                                    period: '2025. 03. 15 ~ 2025. 12. 31',
-                                    status: '진행중',
-                                    amount: '40,000,000'
-                                  },
-                                  {
-                                    name: '삼성전자 글로벌 마케팅 플랫폼 구축',
-                                    period: '2025. 04. 01 ~ 2025. 10. 31',
-                                    status: '보류',
-                                    amount: '35,000,000'
-                                  }
-                                ].map((project, index) => (
-                                  <tr key={index} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2 border">
-                                      <div className="font-medium">{project.name}</div>
-                                    </td>
-                                    <td className="px-4 py-2 border">
-                                      <div className="text-gray-600">{project.period}</div>
-                                    </td>
-                                    <td className="px-4 py-2 border">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        ${project.status === '진행중' ? 'bg-green-100 text-green-800' : 
-                                          project.status === '준비중' ? 'bg-yellow-100 text-yellow-800' :
-                                          project.status === '완료' ? 'bg-blue-100 text-blue-800' :
-                                          'bg-gray-100 text-gray-800'}`}
-                                      >
-                                        {project.status}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-2 border text-right">
-                                      <div className="font-medium">{project.amount}원</div>
-                                    </td>
-                                    <td className="px-4 py-2 border text-center">
-                                      <button
-                                        onClick={() => handleManpowerClick()}
-                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
-                                      >
-                                        공수 관리
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          {/* 해당월 공수진행 섹션 */}
+                          <div className="mt-8">
+                            {/* 타이틀 */}
+                            <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-4">
+                              2월 진행 공수
+                            </h4>
+
+                            {/* 직무별 공수 목록 */}
+                            <div className="space-y-4 flex flex-row items-baseline gap-2 flex-wrap">
+                              {/* 기획 */}
+                              <div className="w-[48.5%]">
+                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  기획
+                                </span>
+                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <li className="flex justify-between relative pl-3">
+                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                      홍길동A
+                                    </span>
+                                    <div className="flex items-baseline">
+                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                    </div>
+                                  </li>
+                                  <li className="flex justify-between relative pl-3">
+                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                      홍길동B
+                                    </span>
+                                    <div className="flex items-baseline">
+                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.5</span>
+                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                    </div>
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* 디자이너 */}
+                              <div className="w-[48.5%]">
+                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  디자이너
+                                </span>
+                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <li className="flex justify-between relative pl-3">
+                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                      홍길동C
+                                    </span>
+                                    <div className="flex items-baseline">
+                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                    </div>
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* 퍼블리셔 */}
+                              <div className="w-[48.5%]">
+                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  퍼블리셔
+                                </span>
+                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <li className="flex justify-between relative pl-3">
+                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                      홍길동D
+                                    </span>
+                                    <div className="flex items-baseline">
+                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                    </div>
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* 개발 */}
+                              <div className="w-[48.5%]">
+                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  개발
+                                </span>
+                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <li className="flex justify-between relative pl-3">
+                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                      홍길동E
+                                    </span>
+                                    <div className="flex items-baseline">
+                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                    </div>
+                                  </li>
+                                  <li className="flex justify-between relative pl-3">
+                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                      홍길동F
+                                    </span>
+                                    <div className="flex items-baseline">
+                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.8</span>
+                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                    </div>
+                                  </li>
+                                </ul>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
