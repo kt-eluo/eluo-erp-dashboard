@@ -104,311 +104,194 @@ export default function WorkersManagementPage() {
     fetchWorkers()
   }, [selectedJobType, searchTerm])
 
-  const handleAddWorker = async (data: { 
-    type?: 'update';  // 수정 모드를 위한 타입 추가
-    worker?: {
-      name: string;
-      worker_type: WorkerType | null;
-      grade: WorkerGradeType | null;
-      job_type: WorkerJobType | null;
-      level: WorkerLevelType | null;
-      price: number | null;
-      is_dispatched: boolean | null;
-    }; 
-    mmRecords?: WorkerMMRecord[] 
-  }) => {
+  const handleWorkerSubmit = async (data: { type: string; worker: any }) => {
     try {
       setLoading(true)
 
-      // 수정 모드일 경우 바로 fetchWorkers 실행
+      // 수정 모드일 때
       if (data.type === 'update') {
-        await fetchWorkers()
-        return
-      }
-      
-      // 새로운 실무자 추가 로직 (기존 코드)
-      const workerData = {
-        name: data.worker!.name,
-        worker_type: data.worker!.worker_type,
-        grade: data.worker!.grade,
-        job_type: data.worker!.job_type,
-        level: data.worker!.level,
-        price: data.worker!.price,
-        is_dispatched: data.worker!.is_dispatched
-      }
-      
-      console.log('Formatted worker data:', workerData)
+        const { error: updateError } = await supabase
+          .from('workers')
+          .update({
+            name: data.worker.name,
+            worker_type: data.worker.worker_type,
+            grade: data.worker.grade,
+            job_type: data.worker.job_type,
+            level: data.worker.level,
+            price: data.worker.price,
+            is_dispatched: data.worker.is_dispatched,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.worker.id)
 
-      const { data: insertedData, error: workerError } = await supabase
-        .from('workers')
-        .insert([workerData])
-        .select()
-        .single()
+        if (updateError) {
+          console.error('Error updating worker:', updateError)
+          toast.error('실무자 수정에 실패했습니다.')
+          return
+        }
 
-      if (workerError) {
-        console.error('Supabase error details:', workerError)
-        toast.error(`실무자 추가 실패: ${workerError.message}`)
-        return
+        toast.success('실무자 정보가 수정되었습니다.')
+      } 
+      // 추가 모드일 때
+      else if (data.type === 'create') {
+        const { error: insertError } = await supabase
+          .from('workers')
+          .insert({
+            name: data.worker.name,
+            worker_type: data.worker.worker_type,
+            grade: data.worker.grade,
+            job_type: data.worker.job_type,
+            level: data.worker.level,
+            price: data.worker.price,
+            is_dispatched: data.worker.is_dispatched,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+
+        if (insertError) {
+          console.error('Error inserting worker:', insertError)
+          toast.error('실무자 추가에 실패했습니다.')
+          return
+        }
+
+        toast.success('실무자가 추가되었습니다.')
       }
 
-      if (!insertedData) {
-        console.error('No data returned after insert')
-        toast.error('실무자 데이터 추가 실패')
-        return
-      }
-
-      console.log('Successfully inserted worker:', insertedData)
-      toast.success('실무자가 추가되었습니다.')
       setIsAddSlideOverOpen(false)
       fetchWorkers()
 
     } catch (error) {
-      console.error('Detailed error:', error)
-      toast.error('실무자 추가 중 오류가 발생했습니다.')
+      console.error('Error:', error)
+      toast.error('작업 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleDeleteWorker = async (worker?: Worker) => {
-    if (!worker?.id) return
-
+  const handleDeleteWorker = async (worker: Worker | undefined) => {
+    if (!worker?.id) {
+      console.error('Worker ID is missing')
+      return
+    }
+    
     try {
       setLoading(true)
       toast.loading('삭제 중...')
 
-      // 1. 삭제할 실무자의 이름이 넘버링된 이름인지 확인
-      const nameMatch = worker.name.match(/^(.+)_(\d+)$/)
-      if (nameMatch) {
-        const baseName = nameMatch[1]  // 기본 이름
-        
-        // 2. 동일한 기본 이름을 가진 다른 실무자들 조회
-        const { data: sameNameWorkers, error: searchError } = await supabase
-          .from('workers')
-          .select('id, name, created_at')
-          .like('name', `${baseName}_%`)
-          .is('deleted_at', null)
-          .neq('id', worker.id)  // 삭제할 실무자 제외
-          .order('created_at', { ascending: true })
+      console.log('Deleting worker:', worker.id) // 디버깅용
 
-        if (searchError) {
-          console.error('Error searching workers:', searchError)
-          toast.dismiss()
-          toast.error('실무자 조회 중 오류가 발생했습니다.')
-          return
-        }
+      // M/M 기록 삭제
+      const { error: mmError } = await supabase
+        .from('worker_mm_records')
+        .delete()
+        .eq('worker_id', worker.id)
 
-        // 3. 남은 실무자들의 넘버링 재정렬
-        if (sameNameWorkers && sameNameWorkers.length > 0) {
-          for (let i = 0; i < sameNameWorkers.length; i++) {
-            const { error: updateError } = await supabase
-              .from('workers')
-              .update({ name: `${baseName}_${i + 1}` })
-              .eq('id', sameNameWorkers[i].id)
-
-            if (updateError) {
-              console.error('Error updating worker name:', updateError)
-              toast.dismiss()
-              toast.error('실무자 이름 업데이트 중 오류가 발생했습니다.')
-              return
-            }
-          }
-        }
+      if (mmError) {
+        console.error('Error deleting MM records:', mmError)
+        toast.error('M/M 기록 삭제 중 오류가 발생했습니다.')
+        return
       }
 
-      try {
-        // 2. M/M 기록 삭제 시도
-        const { error: mmDeleteError } = await supabase
-          .from('worker_mm_records')
-          .delete()
-          .eq('worker_id', worker.id)
-
-        if (mmDeleteError) {
-          // 로그만 남기고 진행 (차단하지 않음)
-          console.warn('Warning: M/M records deletion skipped:', mmDeleteError)
-        }
-      } catch (mmError) {
-        // 로그만 남기고 진행
-        console.warn('Warning: Error with M/M records:', mmError)
-      }
-
-      // 3. 실무자 삭제
+      // 실무자 소프트 삭제
       const { error: deleteError } = await supabase
         .from('workers')
-        .delete()
+        .update({
+          deleted_at: new Date().toISOString()
+        })
         .eq('id', worker.id)
 
       if (deleteError) {
         console.error('Error deleting worker:', deleteError)
-        toast.dismiss()
         toast.error('실무자 삭제 중 오류가 발생했습니다.')
         return
       }
 
-      // 4. 목록 새로고침 및 UI 정리
-      await fetchWorkers()
-      setSelectedWorker(null)
-      if (isAddSlideOverOpen) {
-        setIsAddSlideOverOpen(false)
-      }
-      
-      toast.dismiss()
       toast.success('실무자가 삭제되었습니다.')
+      fetchWorkers()
+      setIsDeleteModalOpen(false)
+      setWorkerToDelete(null)
+
     } catch (error) {
       console.error('Error:', error)
-      toast.dismiss()
       toast.error('삭제 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      toast.dismiss()
     }
   }
 
-  const handleEditWorker = async (worker: Worker) => {
+  // 수정 버튼 클릭 시 호출되는 함수 (SlideOver를 여는 함수)
+  const handleEditClick = (worker: Worker) => {
+    setSelectedWorker(worker)
+    setIsAddSlideOverOpen(true)
+  }
+
+  // SlideOver에서 실제 수정 처리하는 함수
+  const handleEditWorker = async (data: { type: string, worker: Worker }) => {
     try {
-      // 1. 현재 수정하려는 실무자의 이름이 다른 실무자와 중복되는지 확인
-      const { data: existingWorkers, error: searchError } = await supabase
+      // 수정일 때만 처리
+      if (data.type !== 'update') return
+
+      const { error } = await supabase
         .from('workers')
-        .select('name')
-        .eq('name', worker.name)
-        .neq('id', worker.id)  // 현재 실무자는 제외
-        .is('deleted_at', null)
-
-      if (searchError) {
-        console.error('Error checking existing workers:', searchError)
-        toast.error('실무자 조회에 실패했습니다.')
-        return
-      }
-
-      // 2. 동명이인이 있는 경우 넘버링 추가
-      let finalName = worker.name
-      if (existingWorkers && existingWorkers.length > 0) {
-        finalName = `${worker.name}_${existingWorkers.length + 1}`
-        worker.name = finalName
-      }
-
-      // 3. 최신 데이터 조회
-      const { data: freshWorker, error } = await supabase
-        .from('workers')
-        .select(`
-          id,
-          name,
-          worker_type,
-          grade,
-          job_type,
-          level,
-          price,
-          is_dispatched,
-          created_at
-        `)
-        .eq('id', worker.id)
-        .single()
+        .update({
+          name: data.worker.name,
+          worker_type: data.worker.worker_type,
+          grade: data.worker.grade,
+          job_type: data.worker.job_type,
+          level: data.worker.level,
+          price: data.worker.price,
+          is_dispatched: data.worker.is_dispatched,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data.worker.id)
 
       if (error) {
-        console.error('Error fetching worker:', error)
+        console.error('Error updating worker:', error)
+        toast.error('실무자 수정에 실패했습니다.')
         return
       }
 
-      // 4. 수정을 위해 선택된 실무자 설정
-      setSelectedWorker(freshWorker)
-      setIsAddSlideOverOpen(true)
-
+      toast.success('실무자 정보가 수정되었습니다.')
+      fetchWorkers()
     } catch (error) {
-      console.error('Error editing worker:', error)
+      console.error('Error:', error)
       toast.error('실무자 수정 중 오류가 발생했습니다.')
     }
   }
 
   const handleAddMultipleWorkers = async (workers: WorkerInput[]) => {
-    if (loading) return
-
     try {
       setLoading(true)
-      toast.loading('실무자 추가 중...')
 
-      let hasNameConflict = false  // 동명이인 발생 여부 체크
-
-      // 각 실무자별로 처리
-      for (const workerInput of workers) {
-        // 1. 동일한 이름의 실무자들 조회 (기본 이름 + 넘버링된 이름 모두 검색)
-        const { data: existingWorkers, error: searchError } = await supabase
-          .from('workers')
-          .select('id, name, created_at')
-          .or(`name.eq.${workerInput.name},name.like.${workerInput.name}_%`)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: true })
-
-        if (searchError) {
-          console.error('Error searching workers:', searchError)
-          toast.dismiss()
-          toast.error('실무자 확인 중 오류가 발생했습니다.')
-          return
-        }
-
-        let finalName = workerInput.name
-
-        // 2. 동명이인이 있는 경우 처리
-        if (existingWorkers && existingWorkers.length > 0) {
-          hasNameConflict = true  // 동명이인 발생 표시
-          // 2-1. 현재 사용 중인 가장 큰 넘버링 찾기
-          let maxNumber = 0
-          existingWorkers.forEach(worker => {
-            const match = worker.name.match(new RegExp(`${workerInput.name}_(\\d+)$`))
-            if (match) {
-              const num = parseInt(match[1])
-              maxNumber = Math.max(maxNumber, num)
-            }
-          })
-
-          // 2-2. 기존 넘버링이 없는 이름이 있다면 먼저 처리
-          const originalName = existingWorkers.find(w => w.name === workerInput.name)
-          if (originalName) {
-            const { error: updateError } = await supabase
-              .from('workers')
-              .update({ name: `${workerInput.name}_1` })
-              .eq('id', originalName.id)
-
-            if (updateError) {
-              console.error('Error updating existing worker:', updateError)
-              toast.dismiss()
-              toast.error('실무자 정보 업데이트 중 오류가 발생했습니다.')
-              return
-            }
-            maxNumber = Math.max(maxNumber, 1)
-          }
-
-          // 2-3. 새로운 실무자는 다음 번호 부여
-          finalName = `${workerInput.name}_${maxNumber + 1}`
-        }
-
-        // 3. 새로운 실무자 추가
-        const { error: insertError } = await supabase
+      for (const worker of workers) {
+        const { error } = await supabase
           .from('workers')
           .insert({
-            name: finalName,
-            job_type: workerInput.job_type || null,
-            is_dispatched: false
+            name: worker.name.trim(),
+            job_type: worker.job_type || null,
+            worker_type: null,
+            grade: null,
+            level: null,
+            price: null,
+            is_dispatched: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           })
 
-        if (insertError) {
-          console.error('Worker Insert Error:', insertError)
-          toast.dismiss()
-          toast.error(`${workerInput.name} 추가 중 오류가 발생했습니다.`)
-          return
+        if (error) {
+          console.error('Error adding worker:', error)
+          toast.error(`${worker.name} 추가 중 오류가 발생했습니다.`)
         }
       }
 
-      await fetchWorkers()
+      // 모든 작업이 완료된 후
       setIsMultipleAddModalOpen(false)
-      
-      toast.dismiss()
-      if (hasNameConflict) {
-        toast.success('실무자 추가가 완료되었습니다. 동명이인이 있어 자동으로 넘버가 추가됩니다.')
-      } else {
-        toast.success('실무자 추가가 완료되었습니다.')
-      }
+      await fetchWorkers() // 목록 새로고침
+      toast.success('실무자가 추가되었습니다.')
+
     } catch (error) {
       console.error('Error:', error)
-      toast.dismiss()
       toast.error('실무자 추가 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -451,11 +334,39 @@ export default function WorkersManagementPage() {
   }
 
   const handleDeleteConfirm = async () => {
-    if (!workerToDelete) return
+    if (!workerToDelete?.id) {
+      console.error('No worker to delete')
+      return
+    }
     
-    await handleDeleteWorker(workerToDelete)
-    setIsDeleteModalOpen(false)
-    setWorkerToDelete(null)
+    try {
+      setLoading(true)
+      toast.loading('삭제 중...')
+
+      // 실무자 삭제 (하드 삭제)
+      const { error: deleteError } = await supabase
+        .from('workers')
+        .delete()  // update 대신 delete 사용
+        .eq('id', workerToDelete.id)
+
+      if (deleteError) {
+        console.error('Error deleting worker:', deleteError)
+        toast.error('실무자 삭제 중 오류가 발생했습니다.')
+        return
+      }
+
+      toast.success('실무자가 삭제되었습니다.')
+      setIsDeleteModalOpen(false)
+      setWorkerToDelete(null)
+      await fetchWorkers()
+
+    } catch (error) {
+      console.error('Error:', error)
+      toast.error('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+      toast.dismiss()
+    }
   }
 
   // 현재 페이지의 데이터만 가져오는 함수
@@ -665,7 +576,7 @@ export default function WorkersManagementPage() {
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
                         <button 
-                          onClick={() => handleEditWorker(worker)}
+                          onClick={() => handleEditClick(worker)}
                           className="inline-flex items-center px-3 py-1.5 text-[13px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
                         >
                           수정
@@ -760,7 +671,7 @@ export default function WorkersManagementPage() {
                   </div>
                   <div className="flex gap-1">
                     <button 
-                      onClick={() => handleEditWorker(worker)}
+                      onClick={() => handleEditClick(worker)}
                       className="flex-1 py-1.5 text-[12px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
                     >
                       수정
@@ -806,15 +717,12 @@ export default function WorkersManagementPage() {
 
       <AddWorkerSlideOver
         isOpen={isAddSlideOverOpen}
-        onClose={() => {
-          setIsAddSlideOverOpen(false)
-          setSelectedWorker(null)
-        }}
-        onSubmit={handleAddWorker}
+        onClose={() => setIsAddSlideOverOpen(false)}
+        onSubmit={handleWorkerSubmit}
         onDelete={handleDeleteWorker}
         isEdit={!!selectedWorker}
-        workerId={selectedWorker?.id}
         worker={selectedWorker}
+        workerId={selectedWorker?.id}
       />
 
       <AddMultipleWorkersModal
@@ -831,18 +739,13 @@ export default function WorkersManagementPage() {
             <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all w-full max-w-lg">
               <div className="bg-white px-4 pb-4 pt-5 sm:p-6">
                 <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0">
-                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                    </svg>
-                  </div>
                   <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                     <h3 className="text-base font-semibold leading-6 text-gray-900">
                       실무자 삭제
                     </h3>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500">
-                        {workerToDelete?.name}님을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+                        정말 삭제하시겠습니까?
                       </p>
                     </div>
                   </div>
@@ -852,14 +755,14 @@ export default function WorkersManagementPage() {
                 <button
                   type="button"
                   onClick={handleDeleteConfirm}
-                  className="inline-flex w-full justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
+                  className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
                 >
                   삭제
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsDeleteModalOpen(false)}
-                  className="mt-3 inline-flex w-full justify-center rounded-lg bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
                 >
                   취소
                 </button>

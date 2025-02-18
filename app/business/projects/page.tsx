@@ -20,6 +20,8 @@ export default function ProjectsManagementPage() {
   const [viewType, setViewType] = useState<'table' | 'card'>('card')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [isDetailSlideOverOpen, setIsDetailSlideOverOpen] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -43,6 +45,18 @@ export default function ProjectsManagementPage() {
           major_category,
           description
         `)
+
+      if (searchTerm) {
+        query = query.ilike('name', `%${searchTerm}%`)
+      }
+
+      if (selectedStatus !== 'all') {
+        query = query.eq('status', selectedStatus)
+      }
+
+      if (selectedCategory !== 'all') {
+        query = query.eq('category', selectedCategory)
+      }
 
       const { data, error } = await query
 
@@ -114,6 +128,11 @@ export default function ProjectsManagementPage() {
     }
   }
 
+  const handleProjectDetail = (project: Project) => {
+    setSelectedProject(project)
+    setIsDetailSlideOverOpen(true)
+  }
+
   useEffect(() => {
     fetchProjects()
   }, [selectedStatus, searchTerm])
@@ -170,17 +189,28 @@ export default function ProjectsManagementPage() {
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             {/* 검색창 */}
-            <div className="relative">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="프로젝트명 검색"
-                className="w-80 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4E49E7] focus:border-transparent"
-              />
-              <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            </div>
+            <form onSubmit={handleSearch} className="relative flex w-full sm:w-[400px]">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-l-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-[#4E49E7] focus:border-[#4E49E7] text-[13px]"
+                  placeholder="프로젝트 검색"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-4 py-2 text-[13px] text-black bg-white hover:text-white border border-gray-400 rounded-r-md hover:bg-[#4E49E7] transition-colors duration-200"
+              >
+                검색
+              </button>
+            </form>
+
 
             {/* 뷰 타입 전환 버튼 수정 */}
             <button 
@@ -260,36 +290,51 @@ export default function ProjectsManagementPage() {
           <div>
             {/* 카드 뷰 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 임시로 4개의 동일한 카드 생성 */}
-              {[1, 2, 3, 4].map((index) => (
+              {projects.map((project) => (
                 <div 
-                  key={index}
-                  className="border border-[#CFCFCF] rounded-[8px] p-6 hover:border-[#4E49E7] transition-colors duration-200"
+                  key={project.id}
+                  className="border border-[#CFCFCF] rounded-[8px] p-6 hover:border-[#4E49E7] transition-colors duration-200 cursor-pointer"
+                  onClick={() => handleProjectDetail(project)}
                 >
                   <div className="flex align-center justify-between">
                     <div>
                       {/* 프로젝트 제목 */}
                       <h3 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-2">
-                        KT Shop (UI/UX) 기획 및 운영 유지보수
+                        {project.name}
                       </h3>
 
                       {/* 계약 기간 */}
                       <div className="flex items-center font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F]">
                         <span className="mr-2">계약 기간 :</span>
-                        <span>2025. 01. 31 ~ 2025. 12. 31</span>
+                        <span>
+                          {project.start_date && project.end_date ? 
+                            `${new Date(project.start_date).toLocaleDateString('ko-KR', { 
+                              year: 'numeric', 
+                              month: '2-digit', 
+                              day: '2-digit'
+                            }).replace(/\. /g, '.').slice(0, -1)} ~ ${
+                              new Date(project.end_date).toLocaleDateString('ko-KR', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit'
+                              }).replace(/\. /g, '.').slice(0, -1)
+                            }` 
+                            : '기간 미설정'
+                          }
+                        </span>
                       </div>
                     </div>
-                      <div className="flex flex-row gap-2 w-[50%]">
-                        <button type="button" className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">실무자 공수 관리</button>
-                        <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
-                      </div>
+                    <div className="flex flex-row gap-2 w-[50%]">
+                      <button type="button" className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">실무자 공수 관리</button>
+                      <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
+                    </div>
                   </div>
 
                   {/* 해당월 공수진행 섹션 */}
                   <div className="mt-8">
                     {/* 타이틀 */}
                     <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-4">
-                      2월 진행 공수
+                      {new Date().getMonth() + 1}월 진행 공수
                     </h4>
 
                     {/* 직무별 공수 목록 */}
@@ -391,7 +436,6 @@ export default function ProjectsManagementPage() {
                       </div>
                     </div>
                   </div>
-
                 </div>
               ))}
             </div>
@@ -406,7 +450,6 @@ export default function ProjectsManagementPage() {
                     <tr className="bg-gray-50/50">
                       <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">번호</th>
                       <th className="w-[250px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">프로젝트명</th>
-                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">고객사</th>
                       <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">시작일</th>
                       <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">종료일</th>
                       <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
@@ -415,44 +458,7 @@ export default function ProjectsManagementPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {[
-                      {
-                        id: 1,
-                        name: 'KT Shop (UI/UX) 기획 및 운영 유지보수',
-                        client: 'KT',
-                        start_date: '2025-01-31',
-                        end_date: '2025-12-31',
-                        status: '진행중',
-                        budget: 30000000
-                      },
-                      {
-                        id: 2,
-                        name: 'SK 하이닉스 채용 사이트 구축',
-                        client: 'SK 하이닉스',
-                        start_date: '2025-02-01',
-                        end_date: '2025-08-31',
-                        status: '준비중',
-                        budget: 25000000
-                      },
-                      {
-                        id: 3,
-                        name: '현대자동차 딜러 관리 시스템 개발',
-                        client: '현대자동차',
-                        start_date: '2025-03-15',
-                        end_date: '2025-12-31',
-                        status: '진행중',
-                        budget: 40000000
-                      },
-                      {
-                        id: 4,
-                        name: '삼성전자 글로벌 마케팅 플랫폼 구축',
-                        client: '삼성전자',
-                        start_date: '2025-04-01',
-                        end_date: '2025-10-31',
-                        status: '보류',
-                        budget: 35000000
-                      }
-                    ].map((project, index) => (
+                    {projects.map((project, index) => (
                       <tr 
                         key={project.id}
                         className="hover:bg-gray-50/50 transition-colors duration-150"
@@ -464,16 +470,19 @@ export default function ProjectsManagementPage() {
                           <span className="text-[14px] text-gray-900">{project.name}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-900">{project.client}</span>
-                        </td>
-                        <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">
-                            {new Date(project.start_date).toLocaleDateString()}
+                            {project.start_date ? 
+                              new Date(project.start_date).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1) 
+                              : '-'
+                            }
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">
-                            {new Date(project.end_date).toLocaleDateString()}
+                            {project.end_date ? 
+                              new Date(project.end_date).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1) 
+                              : '-'
+                            }
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -482,17 +491,18 @@ export default function ProjectsManagementPage() {
                               project.status === '준비중' ? 'bg-yellow-50 text-yellow-700' :
                               project.status === '보류' ? 'bg-gray-50 text-gray-700' :
                               'bg-blue-50 text-blue-700'}`}>
-                            {project.status}
+                            {project.status || '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[14px] text-gray-900">
-                            {project.budget.toLocaleString()}원
+                            {project.budget ? `${project.budget.toLocaleString()}원` : '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
                           <button 
                             className="text-[13px] text-[#4E49E7] hover:text-[#3F3ABE]"
+                            onClick={() => handleProjectDetail(project)}
                           >
                             상세보기
                           </button>
@@ -536,6 +546,18 @@ export default function ProjectsManagementPage() {
           isOpen={isAddSlideOverOpen}
           onClose={() => setIsAddSlideOverOpen(false)}
           onSubmit={handleAddProject}
+        />
+
+        {/* 프로젝트 상세 슬라이드오버 */}
+        <AddProjectSlideOver
+          isOpen={isDetailSlideOverOpen}
+          onClose={() => {
+            setIsDetailSlideOverOpen(false)
+            setSelectedProject(null)
+          }}
+          onSubmit={handleAddProject}
+          project={selectedProject}
+          mode="view"
         />
       </div>
     </div>

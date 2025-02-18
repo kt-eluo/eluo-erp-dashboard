@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, ArrowLeft, Trash2, ChevronDown, HelpCircle } from 'lucide-react'
-import type { Worker, WorkerJobType, WorkerLevelType, WorkerMMRecord, WorkerType, WorkerGradeType } from '@/types/worker'
+import type { 
+  Worker, 
+  WorkerJobType, 
+  WorkerLevelType, 
+  WorkerMMRecord, 
+  WorkerType, 
+  WorkerGrade 
+} from '@/types/worker'
 import { Line, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -56,7 +63,7 @@ const DEFAULT_PRICES = {
 } as const
 
 // 상단에 gradeTypes 배열 추가
-const gradeTypes: WorkerGradeType[] = ['BD', 'BM', 'PM', 'PL', 'PA']
+const gradeTypes: WorkerGrade[] = ['BD', 'BM', 'PM', 'PL', 'PA']
 
 export default function AddWorkerSlideOver({ 
   isOpen, 
@@ -83,8 +90,9 @@ export default function AddWorkerSlideOver({
   const [isDispatchedOpen, setIsDispatchedOpen] = useState(false)
   const [workerType, setWorkerType] = useState<WorkerType | ''>(worker?.worker_type || '')
   const [isWorkerTypeOpen, setIsWorkerTypeOpen] = useState(false)
-  const [grade, setGrade] = useState<WorkerGradeType | ''>(worker?.grade || '')
+  const [grade, setGrade] = useState<WorkerGrade | ''>(worker?.grade || '')
   const [isGradeOpen, setIsGradeOpen] = useState(false)
+  const [isDuplicateName, setIsDuplicateName] = useState(false)
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발', '기타']
   const levelTypes: WorkerLevelType[] = ['특급', '고급', '중급', '초급']
@@ -223,49 +231,40 @@ export default function AddWorkerSlideOver({
         return
       }
 
-      // 수정 모드일 때
-      if (isEdit && worker?.id) {
-        const { error: updateError } = await supabase
-          .from('workers')
-          .update({
-            name: name,
-            worker_type: workerType || null,
-            grade: grade || null,
-            job_type: jobType || null,
-            level: level || null,
-            price: price ? parseInt(price.replace(/,/g, '')) : null,
-            is_dispatched: isDispatched,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', worker.id)
-
-        if (updateError) {
-          console.error('Update error:', updateError)
-          toast.error('실무자 수정에 실패했습니다.')
-          return
-        }
-
-        toast.success('실무자 정보가 수정되었습니다.')
-        onSubmit({ type: 'update' }) // fetchWorkers 트리거를 위해 호출
-        onClose()
+      // 중복 이름 체크
+      if (isDuplicateName) {
+        toast.error('중복된 이름이 있습니다. 구분할 수 있는 정보를 추가해주세요.')
         return
       }
 
-      // 새로운 실무자 추가일 때
-      const data = {
-        worker: {
-          name: name,
-          worker_type: workerType || null,
-          grade: grade || null,
-          job_type: jobType || null,
-          level: level || null,
-          price: price ? parseInt(price.replace(/,/g, '')) : null,
-          is_dispatched: isDispatched
-        },
-        mmRecords: mmRecords
+      const workerData = {
+        name,
+        worker_type: workerType || null,
+        grade: grade || null,
+        job_type: jobType || null,
+        level: level || null,
+        price: price ? parseInt(price.replace(/,/g, '')) : null,
+        is_dispatched: isDispatched ?? false
       }
 
-      onSubmit(data)
+      // 수정 모드일 때
+      if (isEdit && worker?.id) {
+        onSubmit({
+          type: 'update',
+          worker: {
+            id: worker.id,
+            ...workerData
+          }
+        })
+      } else {
+        // 새로운 실무자 추가일 때
+        onSubmit({
+          type: 'create',
+          worker: workerData,
+          mmRecords
+        })
+      }
+      onClose()
 
     } catch (error: unknown) {
       console.error('Error:', error)
@@ -274,51 +273,75 @@ export default function AddWorkerSlideOver({
     }
   }
 
-  // 이름 입력 시 실시간 유효성 검사
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 이름 입력 핸들러 수정
+  const handleNameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    
-    // 입력 중에는 모든 값을 허용
     setName(value)
-    
-    // 입력이 완료된 상태에서만 검사 (한글 입력 중이 아닐 때)
-    const nativeEvent = e.nativeEvent as InputEvent
-    if (!nativeEvent.isComposing) {
-      // 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호, 밑줄만 허용)
-      const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]*$/
-      if (value && !nameRegex.test(value)) {
-        toast.error('특수문자는 입력할 수 없습니다.')
-        return
-      }
 
-      // 길이 검사
-      if (value.length > 100) {
-        toast.error('이름은 최대 100자까지 입력 가능합니다.')
-        return
+    // 값이 비어있으면 중복 체크 스킵
+    if (!value.trim()) {
+      setIsDuplicateName(false)
+      return
+    }
+
+    try {
+      // 동명이인 체크
+      const { data: existingWorkers } = await supabase
+        .from('workers')
+        .select('id, name')
+        .eq('name', value.trim())
+        .is('deleted_at', null)
+
+      if (isEdit && worker?.id) {
+        // 수정 모드일 때는 자기 자신 제외
+        setIsDuplicateName(existingWorkers?.some(w => w.id !== worker.id) ?? false)
+      } else {
+        // 새로운 실무자 추가일 때
+        setIsDuplicateName(existingWorkers?.length > 0 ?? false)
       }
+    } catch (error) {
+      console.error('Error checking duplicate name:', error)
     }
   }
 
   const handleDelete = async () => {
-    if (!workerId) return
-    
-    if (!window.confirm('정말 삭제하시겠습니까?')) return
+    if (!worker?.id) {
+      console.error('No worker to delete')
+      return
+    }
+
+    // 삭제 확인 알럿 추가
+    if (!window.confirm('정말 삭제하시겠습니까?')) {
+      return
+    }
 
     try {
       setLoading(true)
       toast.loading('삭제 중...')
 
-      // 기존 삭제 로직 실행 (confirm 없이)
-      await onDelete(worker)
-      
-      // 성공 처리는 onDelete 내부에서 처리되므로 여기서는 닫기만 실행
+      // 실무자 삭제 (하드 삭제)
+      const { error: deleteError } = await supabase
+        .from('workers')
+        .delete()
+        .eq('id', worker.id)
+
+      if (deleteError) {
+        console.error('Error deleting worker:', deleteError)
+        toast.error('실무자 삭제 중 오류가 발생했습니다.')
+        return
+      }
+
+      toast.success('실무자가 삭제되었습니다.')
       onClose()
+      // 부모 컴포넌트의 fetchWorkers 호출을 위해 onDelete 실행
+      await onDelete(worker)
+
     } catch (error) {
       console.error('Error:', error)
-      toast.dismiss()
       toast.error('삭제 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+      toast.dismiss()
     }
   }
 
@@ -459,6 +482,11 @@ export default function AddWorkerSlideOver({
                             className="block w-full text-[38px] font-bold px-0 border-0 focus:ring-0 focus:border-gray-900"
                             placeholder="이름을 입력하세요"
                           />
+                          {isDuplicateName && (
+                            <p className="mt-2 text-sm text-red-500">
+                              이미 존재하는 이름입니다. 구분할 수 있는 정보를 추가하면 좋아요.
+                            </p>
+                          )}
                         </div>
 
                         <div>
@@ -985,7 +1013,7 @@ export default function AddWorkerSlideOver({
                     form="workerForm"
                     className="flex-1 py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] rounded-lg"
                   >
-                    저장
+                    {isEdit ? '수정' : '저장'}
                   </button>
                 </div>
               </div>

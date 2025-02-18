@@ -2,8 +2,15 @@
 
 import { useState } from 'react'
 import { X, Trash2 } from 'lucide-react'
-import type { WorkerJobType } from '@/types/worker'
+import type { 
+  Worker, 
+  WorkerJobType, 
+  WorkerLevelType, 
+  WorkerType, 
+  WorkerGrade 
+} from '@/types/worker'
 import { toast } from 'react-hot-toast'
+import { supabase } from '@/lib/supabase'
 
 interface WorkerInput {
   id: string;
@@ -25,8 +32,10 @@ export default function AddMultipleWorkersModal({
   const [workers, setWorkers] = useState<WorkerInput[]>([
     { id: '1', name: '', job_type: '' }
   ])
+  const [loading, setLoading] = useState(false)
+  const [duplicateLabels, setDuplicateLabels] = useState<{ [key: string]: boolean }>({})
 
-  const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발']
+  const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발', '기타']
 
   const handleAddWorker = () => {
     setWorkers([
@@ -46,56 +55,69 @@ export default function AddMultipleWorkersModal({
     ))
   }
 
-  const handleNameChange = (id: string, value: string) => {
-    // 한글 입력 중에는 검사하지 않음
-    const nativeEvent = window.event as InputEvent
-    if (nativeEvent.isComposing) {
-      handleChange(id, 'name', value)
-      return
-    }
-
-    // 특수문자 검사 (한글, 영문, 숫자, 공백, 괄호, 밑줄만 허용)
-    const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]*$/
-    if (value && !nameRegex.test(value)) {
-      toast.error('특수문자는 입력할 수 없습니다.')
-      return
-    }
-
-    // 길이 검사
-    if (value.length > 100) {
-      toast.error('이름은 최대 100자까지 입력 가능합니다.')
-      return
-    }
-
+  const handleNameChange = async (id: string, value: string) => {
     handleChange(id, 'name', value)
+    
+    if (!value.trim()) {
+      // 이름이 비어있으면 중복 라벨 제거
+      setDuplicateLabels(prev => {
+        const updated = { ...prev }
+        delete updated[id]
+        return updated
+      })
+      return
+    }
+
+    // 현재 입력된 이름이 기존 실무자 목록에 있는지 체크
+    const { data: existingWorkers } = await supabase
+      .from('workers')
+      .select('name')
+      .eq('name', value)
+      .is('deleted_at', null)
+
+    // 현재 입력 폼에서 동일한 이름이 있는지 체크
+    const duplicateInForm = workers.some(w => 
+      w.id !== id && w.name === value
+    )
+
+    setDuplicateLabels(prev => ({
+      ...prev,
+      [id]: (existingWorkers && existingWorkers.length > 0) || duplicateInForm
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (loading) return
 
-    // 1. 기본 유효성 검사
-    const emptyFields = workers.filter(w => !w.name)
+    // 1. 기본 유효성 검사 - 빈 이름 체크
+    const emptyFields = workers.filter(w => !w.name.trim())
     if (emptyFields.length > 0) {
       toast.error('모든 실무자의 이름을 입력해주세요.')
       return
     }
 
-    // 2. 이름 길이 검사
-    const longNames = workers.filter(w => w.name.length > 100)
-    if (longNames.length > 0) {
-      toast.error('이름은 최대 100자까지 입력 가능합니다.')
+    // 2. 중복된 이름이 있는지 확인
+    const hasDuplicates = Object.values(duplicateLabels).some(isDuplicate => isDuplicate)
+    if (hasDuplicates) {
+      toast.error('중복된 이름이 있습니다. 구분할 수 있는 정보를 추가해주세요.')
       return
     }
 
-    // 3. 특수문자 검사
-    const nameRegex = /^[가-힣a-zA-Z0-9\s_()（）[\]｛｝《》〈〉「」『』【】]+$/
-    const invalidNames = workers.filter(w => !nameRegex.test(w.name))
-    if (invalidNames.length > 0) {
-      toast.error('특수문자는 입력할 수 없습니다.')
-      return
-    }
+    try {
+      setLoading(true)
+      
+      // 부모 컴포넌트의 handleAddMultipleWorkers 호출
+      await onSubmit(workers)
+      onClose()
 
-    onSubmit(workers)
+    } catch (error) {
+      console.error('Error:', error)
+      toast.error('실무자 추가 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (!isOpen) return null
@@ -124,20 +146,32 @@ export default function AddMultipleWorkersModal({
                 <div key={worker.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
                   <div className="flex-1 flex space-x-4">
                     <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">실무자 이름</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        실무자 이름
+                        {duplicateLabels[worker.id] && (
+                          <span className="ml-2 text-xs text-red-500 font-normal">[중복]</span>
+                        )}
+                      </label>
                       <input
                         type="text"
                         value={worker.name}
                         onChange={(e) => handleNameChange(worker.id, e.target.value)}
-                        className="block w-full h-10 rounded-md border-gray-300 shadow-sm focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
+                        className={`block w-full h-10 rounded-md border-gray-300 shadow-sm focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm ${
+                          duplicateLabels[worker.id] ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
+                        }`}
                         placeholder="이름을 입력하세요"
                       />
+                      {duplicateLabels[worker.id] && (
+                        <p className="mt-1 text-xs text-red-500">
+                          이미 존재하는 이름입니다. 구분할 수 있는 정보를 추가해주세요.
+                        </p>
+                      )}
                     </div>
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-1">직무</label>
                       <select
                         value={worker.job_type}
-                        onChange={(e) => handleChange(worker.id, 'job_type', e.target.value)}
+                        onChange={(e) => handleChange(worker.id, 'job_type', e.target.value as WorkerJobType)}
                         className="block w-full h-10 rounded-md border-gray-300 shadow-sm focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
                       >
                         <option value="">선택해주세요</option>
@@ -170,9 +204,10 @@ export default function AddMultipleWorkersModal({
             <div className="px-4 py-3 bg-gray-50 sm:px-6 border-t">
               <button
                 type="submit"
+                disabled={loading}
                 className="w-full py-3 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E49E7]"
               >
-                추가하기
+                {loading ? '추가 중...' : '추가하기'}
               </button>
             </div>
           </form>

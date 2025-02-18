@@ -14,6 +14,8 @@ interface AddProjectSlideOverProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (projectData: any) => void
+  project?: Project | null
+  mode?: 'create' | 'view'
 }
 
 // 스타일 추가
@@ -47,7 +49,9 @@ const getMinDate = (date: Date | null): Date | undefined => {
 export default function AddProjectSlideOver({
   isOpen,
   onClose,
-  onSubmit
+  onSubmit,
+  project,
+  mode = 'create'
 }: AddProjectSlideOverProps) {
   // 기본 정보
   const [title, setTitle] = useState('')
@@ -139,6 +143,18 @@ export default function AddProjectSlideOver({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showManpowerModal]) // showManpowerModal을 의존성 배열에 추가
+
+  // 프로젝트 데이터로 폼 초기화
+  useEffect(() => {
+    if (project && mode === 'view') {
+      setTitle(project.name)
+      setClient(project.client || '')
+      setStartDate(project.start_date ? new Date(project.start_date) : null)
+      setEndDate(project.end_date ? new Date(project.end_date) : null)
+      setStatus(project.status || '')
+      // ... 나머지 필드들도 설정
+    }
+  }, [project, mode])
 
   const validateForm = (): string[] => {
     const errors: string[] = []

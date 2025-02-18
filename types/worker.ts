@@ -13,6 +13,8 @@ export interface Worker {
   price: number | null
   is_dispatched: boolean | null
   created_at?: string
+  updated_at?: string
+  deleted_at?: string | null
 }
 
 export interface WorkerMMRecord {
