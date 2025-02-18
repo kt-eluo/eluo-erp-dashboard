@@ -1,14 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import type { Project, ProjectStatus, ProjectManpower } from '@/types/project'
+import type { Project, ProjectStatus, ProjectManpower, ProjectCategory } from '@/types/project'
 import { Search, Plus, LayoutGrid, Table, FileSpreadsheet, Filter } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import AddProjectSlideOver from '@/components/projects/AddProjectSlideOver'
+import { Dialog, Transition } from '@headlessui/react'
 
 const ITEMS_PER_PAGE = 20
+
+// 로딩 스피너 컴포넌트 분리
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center min-h-screen bg-white">
+    <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 border-t-[#4E49E7] animate-spin" />
+  </div>
+)
 
 export default function ProjectsManagementPage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -18,15 +26,17 @@ export default function ProjectsManagementPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | 'all'>('all')
   const [viewType, setViewType] = useState<'table' | 'card'>('card')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<ProjectCategory | 'all'>('all')
   const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isDetailSlideOverOpen, setIsDetailSlideOverOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
-  const categoryTypes = ['운영', '구축', '개발', '기타']
+  const categoryTypes: ProjectCategory[] = ['운영', '구축', '개발', '기타']
 
   const fetchProjects = async () => {
     try {
@@ -43,8 +53,23 @@ export default function ProjectsManagementPage() {
           budget,
           category,
           major_category,
-          description
+          description,
+          contract_type,
+          is_vat_included,
+          common_expense,
+          down_payment,
+          intermediate_payments,
+          final_payment,
+          periodic_unit,
+          periodic_interval,
+          periodic_amount,
+          planning_manpower,
+          design_manpower,
+          publishing_manpower,
+          development_manpower,
+          created_at
         `)
+        .order('created_at', { ascending: false })
 
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`)
@@ -63,7 +88,16 @@ export default function ProjectsManagementPage() {
       if (error) throw error
 
       if (data) {
-        setProjects(data as Project[])
+        const transformedData = data.map(project => ({
+          ...project,
+          manpower: {
+            planning: project.planning_manpower,
+            design: project.design_manpower,
+            publishing: project.publishing_manpower,
+            development: project.development_manpower
+          }
+        }))
+        setProjects(transformedData as Project[])
       }
     } catch (error: any) {
       console.error('Error fetching projects:', error.message || error)
@@ -92,30 +126,43 @@ export default function ProjectsManagementPage() {
       const { data: newProject, error: projectError } = await supabase
         .from('projects')
         .insert([{
-          ...projectData,
+          name: projectData.name,  // 필수 필드
+          client: projectData.client || null,
+          start_date: projectData.start_date || null,
+          end_date: projectData.end_date || null,
+          status: projectData.status || null,
+          budget: projectData.budget || null,
+          category: projectData.category || null,
+          major_category: projectData.major_category || null,
+          description: projectData.description || null,
+          
+          // 계약 관련 정보
+          contract_type: projectData.contract_type || null,
+          is_vat_included: projectData.is_vat_included || false,
+          common_expense: projectData.common_expense || null,
+          
+          // 회차 정산형 정보
+          down_payment: projectData.down_payment || null,
+          intermediate_payments: projectData.intermediate_payments || null,
+          final_payment: projectData.final_payment || null,
+          
+          // 정기 결제형 정보
+          periodic_unit: projectData.periodic_unit || null,
+          periodic_interval: projectData.periodic_interval || null,
+          periodic_amount: projectData.periodic_amount || null,
+          
+          // 직무별 전체 공수 정보
+          planning_manpower: projectData.manpower?.planning || null,
+          design_manpower: projectData.manpower?.design || null,
+          publishing_manpower: projectData.manpower?.publishing || null,
+          development_manpower: projectData.manpower?.development || null,
+          
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])
         .select()
-        .single()
 
       if (projectError) throw projectError
-
-      // 2. 공수 정보가 있다면 저장
-      if (projectData.manpower && projectData.manpower.length > 0) {
-        const { error: manpowerError } = await supabase
-          .from('project_manpower')
-          .insert(
-            projectData.manpower.map((mp: ProjectManpower) => ({
-              ...mp,
-              project_id: newProject.id,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }))
-          )
-
-        if (manpowerError) throw manpowerError
-      }
 
       toast.success('프로젝트가 추가되었습니다.')
       setIsAddSlideOverOpen(false)
@@ -128,14 +175,111 @@ export default function ProjectsManagementPage() {
     }
   }
 
+  const handleUpdateProject = async (projectData: Project & { _action?: 'delete' }) => {
+    try {
+      setIsLoading(true)
+
+      // 삭제 액션 처리
+      if (projectData._action === 'delete') {
+        const { error: deleteError } = await supabase
+          .from('projects')
+          .delete()
+          .eq('id', projectData.id)
+
+        if (deleteError) throw deleteError
+
+        toast.success('프로젝트가 삭제되었습니다.')
+        setIsDetailSlideOverOpen(false)
+        await fetchProjects()
+        return
+      }
+      
+      // 기존 업데이트 로직...
+      const { error: updateError } = await supabase
+        .from('projects')
+        .update({
+          name: projectData.name,
+          client: projectData.client || null,
+          start_date: projectData.start_date || null,
+          end_date: projectData.end_date || null,
+          status: projectData.status || null,
+          budget: projectData.budget || null,
+          category: projectData.category || null,
+          major_category: projectData.major_category || null,
+          description: projectData.description || null,
+          
+          // 계약 관련 정보
+          contract_type: projectData.contract_type || null,
+          is_vat_included: projectData.is_vat_included || false,
+          common_expense: projectData.common_expense || null,
+          
+          // 회차 정산형 정보
+          down_payment: projectData.down_payment || null,
+          intermediate_payments: projectData.intermediate_payments || null,
+          final_payment: projectData.final_payment || null,
+          
+          // 정기 결제형 정보
+          periodic_unit: projectData.periodic_unit || null,
+          periodic_interval: projectData.periodic_interval || null,
+          periodic_amount: projectData.periodic_amount || null,
+          
+          // 직무별 전체 공수 정보 - 직접 전달된 값 사용
+          planning_manpower: projectData.planning_manpower,
+          design_manpower: projectData.design_manpower,
+          publishing_manpower: projectData.publishing_manpower,
+          development_manpower: projectData.development_manpower,
+          
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', projectData.id)
+
+      if (updateError) throw updateError
+
+      toast.success('프로젝트가 수정되었습니다.')
+      setIsDetailSlideOverOpen(false)
+      await fetchProjects()
+    } catch (error: any) {
+      console.error('Error:', error.message || error)
+      toast.error('프로젝트 수정/삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleProjectDetail = (project: Project) => {
     setSelectedProject(project)
     setIsDetailSlideOverOpen(true)
   }
 
+  // 카테고리 변경 핸들러 추가
+  const handleCategoryChange = async (category: ProjectCategory | 'all') => {
+    setIsLoading(true)  // 로딩 시작
+    setSelectedCategory(category)
+  }
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      setIsLoading(true)
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId)
+
+      if (error) throw error
+
+      toast.success('프로젝트가 삭제되었습니다.')
+      fetchProjects() // 목록 새로고침
+    } catch (error: any) {
+      console.error('Error:', error.message || error)
+      toast.error('프로젝트 삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchProjects()
-  }, [selectedStatus, searchTerm])
+  }, [selectedCategory, selectedStatus, searchTerm])
 
   // 현재 페이지의 데이터만 가져오는 함수
   const getCurrentPageData = () => {
@@ -149,9 +293,7 @@ export default function ProjectsManagementPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <div className="w-12 h-12 rounded-full border-[3px] border-gray-200 border-t-[#4E49E7] animate-spin" />
-      </div>
+      <LoadingSpinner />
     )
   }
 
@@ -232,11 +374,11 @@ export default function ProjectsManagementPage() {
           </div>
         </div>
 
-        {/* 대분류 탭 */}
+        {/* 카테고리 탭 */}
         <div className="mb-6">
           <nav className="flex space-x-2" aria-label="Tabs">
             <button
-              onClick={() => setSelectedCategory('all')}
+              onClick={() => handleCategoryChange('all')}
               className={`
                 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
                 ${selectedCategory === 'all'
@@ -250,7 +392,7 @@ export default function ProjectsManagementPage() {
             {categoryTypes.map((category) => (
               <button
                 key={category}
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => handleCategoryChange(category)}
                 className={`
                   px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
                   ${selectedCategory === category
@@ -293,146 +435,178 @@ export default function ProjectsManagementPage() {
               {projects.map((project) => (
                 <div 
                   key={project.id}
-                  className="border border-[#CFCFCF] rounded-[8px] p-6 hover:border-[#4E49E7] transition-colors duration-200 cursor-pointer"
-                  onClick={() => handleProjectDetail(project)}
+                  className="border border-[#CFCFCF] rounded-[8px] p-6 hover:border-[#4E49E7] transition-colors duration-200"
                 >
-                  <div className="flex align-center justify-between">
-                    <div>
-                      {/* 프로젝트 제목 */}
-                      <h3 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-2">
-                        {project.name}
-                      </h3>
-
-                      {/* 계약 기간 */}
-                      <div className="flex items-center font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F]">
-                        <span className="mr-2">계약 기간 :</span>
-                        <span>
-                          {project.start_date && project.end_date ? 
-                            `${new Date(project.start_date).toLocaleDateString('ko-KR', { 
-                              year: 'numeric', 
-                              month: '2-digit', 
-                              day: '2-digit'
-                            }).replace(/\. /g, '.').slice(0, -1)} ~ ${
-                              new Date(project.end_date).toLocaleDateString('ko-KR', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit'
-                              }).replace(/\. /g, '.').slice(0, -1)
-                            }` 
-                            : '기간 미설정'
-                          }
-                        </span>
-                      </div>
+                  {/* 상단 영역: 프로젝트명과 삭제 버튼 */}
+                  <div className="flex justify-between items-start mb-4">
+                    <div 
+                      className="cursor-pointer"
+                      onClick={() => handleProjectDetail(project)}
+                    >
+                      <h3 className="text-lg font-medium text-gray-900">{project.name}</h3>
                     </div>
-                    <div className="flex flex-row gap-2 w-[50%]">
-                      <button type="button" className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">실무자 공수 관리</button>
-                      <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation() // 이벤트 버블링 방지
+                        setProjectToDelete(project.id)
+                        setIsDeleteModalOpen(true)
+                      }}
+                      className="p-2 text-sm text-gray-500 hover:text-red-600 transition-colors"
+                    >
+                      <svg 
+                        className="w-5 h-5" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" 
+                        />
+                      </svg>
+                    </button>
                   </div>
 
-                  {/* 해당월 공수진행 섹션 */}
-                  <div className="mt-8">
-                    {/* 타이틀 */}
-                    <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-4">
-                      {new Date().getMonth() + 1}월 진행 공수
-                    </h4>
-
-                    {/* 직무별 공수 목록 */}
-                    <div className="space-y-4 flex flex-row items-baseline gap-2">
-                      {/* 기획 */}
-                      <div className="w-[25%]">
-                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                          기획
-                        </span>
-                        <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                          <li className="flex justify-between relative pl-3">
-                            <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                            <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                              홍길동A
-                            </span>
-                            <div className="flex items-baseline">
-                              <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                              <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                            </div>
-                          </li>
-                          <li className="flex justify-between relative pl-3">
-                            <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                            <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                              홍길동B
-                            </span>
-                            <div className="flex items-baseline">
-                              <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.5</span>
-                              <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                            </div>
-                          </li>
-                        </ul>
+                  {/* 기존 프로젝트 정보 */}
+                  <div 
+                    className="cursor-pointer"
+                    onClick={() => handleProjectDetail(project)}
+                  >
+                    <div className="flex align-center justify-between">
+                      <div>
+                        {/* 계약 기간 */}
+                        <div className="flex items-center font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F]">
+                          <span className="mr-2">계약 기간 :</span>
+                          <span>
+                            {project.start_date && project.end_date ? 
+                              `${new Date(project.start_date).toLocaleDateString('ko-KR', { 
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit'
+                              }).replace(/\. /g, '.').slice(0, -1)} ~ ${
+                                new Date(project.end_date).toLocaleDateString('ko-KR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit'
+                                }).replace(/\. /g, '.').slice(0, -1)
+                              }` 
+                              : '기간 미설정'
+                            }
+                          </span>
+                        </div>
                       </div>
-
-                      {/* 디자이너 */}
-                      <div className="w-[25%]">
-                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                          디자이너
-                        </span>
-                        <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                          <li className="flex justify-between relative pl-3">
-                            <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                            <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                              홍길동C
-                            </span>
-                            <div className="flex items-baseline">
-                              <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                              <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                            </div>
-                          </li>
-                        </ul>
+                      <div className="flex flex-row gap-2 w-[50%]">
+                        <button type="button" className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">실무자 공수 관리</button>
+                        <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
                       </div>
+                    </div>
 
-                      {/* 퍼블리셔 */}
-                      <div className="w-[25%]">
-                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                          퍼블리셔
-                        </span>
-                        <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                          <li className="flex justify-between relative pl-3">
-                            <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                            <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                              홍길동D
-                            </span>
-                            <div className="flex items-baseline">
-                              <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                              <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                            </div>
-                          </li>
-                        </ul>
-                      </div>
+                    {/* 해당월 공수진행 섹션 */}
+                    <div className="mt-8">
+                      {/* 타이틀 */}
+                      <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-4">
+                        {new Date().getMonth() + 1}월 진행 공수
+                      </h4>
 
-                      {/* 개발 */}
-                      <div className="w-[25%]">
-                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                          개발
-                        </span>
-                        <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                          <li className="flex justify-between relative pl-3">
-                            <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                            <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                              홍길동E
-                            </span>
-                            <div className="flex items-baseline">
-                              <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                              <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                            </div>
-                          </li>
-                          <li className="flex justify-between relative pl-3">
-                            <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                            <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                              홍길동F
-                            </span>
-                            <div className="flex items-baseline">
-                              <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.8</span>
-                              <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                            </div>
-                          </li>
-                        </ul>
+                      {/* 직무별 공수 목록 */}
+                      <div className="space-y-4 flex flex-row items-baseline gap-2">
+                        {/* 기획 */}
+                        <div className="w-[25%]">
+                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                            기획
+                          </span>
+                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                            <li className="flex justify-between relative pl-3">
+                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                홍길동A
+                              </span>
+                              <div className="flex items-baseline">
+                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                              </div>
+                            </li>
+                            <li className="flex justify-between relative pl-3">
+                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                홍길동B
+                              </span>
+                              <div className="flex items-baseline">
+                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.5</span>
+                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
+
+                        {/* 디자이너 */}
+                        <div className="w-[25%]">
+                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                            디자이너
+                          </span>
+                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                            <li className="flex justify-between relative pl-3">
+                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                홍길동C
+                              </span>
+                              <div className="flex items-baseline">
+                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
+
+                        {/* 퍼블리셔 */}
+                        <div className="w-[25%]">
+                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                            퍼블리셔
+                          </span>
+                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                            <li className="flex justify-between relative pl-3">
+                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                홍길동D
+                              </span>
+                              <div className="flex items-baseline">
+                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
+
+                        {/* 개발 */}
+                        <div className="w-[25%]">
+                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                            개발
+                          </span>
+                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                            <li className="flex justify-between relative pl-3">
+                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                홍길동E
+                              </span>
+                              <div className="flex items-baseline">
+                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
+                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                              </div>
+                            </li>
+                            <li className="flex justify-between relative pl-3">
+                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                홍길동F
+                              </span>
+                              <div className="flex items-baseline">
+                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.8</span>
+                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                              </div>
+                            </li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -555,10 +729,61 @@ export default function ProjectsManagementPage() {
             setIsDetailSlideOverOpen(false)
             setSelectedProject(null)
           }}
-          onSubmit={handleAddProject}
+          onSubmit={handleUpdateProject}
           project={selectedProject}
-          mode="view"
+          mode="edit"
         />
+
+        {/* 삭제 확인 모달 */}
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-screen items-center justify-center p-4 text-center">
+              <div className="fixed inset-0 bg-black bg-opacity-25 transition-opacity" onClick={() => setIsDeleteModalOpen(false)} />
+              
+              <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all w-full max-w-lg">
+                <div className="bg-white px-4 pb-4 pt-5 sm:p-6">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                      <h3 className="text-base font-semibold leading-6 text-gray-900">
+                        프로젝트 삭제
+                      </h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          정말 삭제하시겠습니까?
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                  <button
+                    type="button"
+                    className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
+                    onClick={() => {
+                      if (projectToDelete) {
+                        handleDeleteProject(projectToDelete)
+                        setIsDeleteModalOpen(false)
+                        setProjectToDelete(null)
+                      }
+                    }}
+                  >
+                    삭제
+                  </button>
+                  <button
+                    type="button"
+                    className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                    onClick={() => {
+                      setIsDeleteModalOpen(false)
+                      setProjectToDelete(null)
+                    }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

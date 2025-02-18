@@ -19,39 +19,46 @@ export interface ProjectManpower {
 }
 
 export interface Project {
-  id?: string
-  name: string                                  // 필수
-  client?: string | null
-  start_date?: string | null
-  end_date?: string | null
-  status?: ProjectStatus | null
-  budget?: number | null
-  category?: ProjectCategory | null
-  major_category?: ProjectMajorCategory | null
-  description?: string | null
+  id: string
+  name: string
+  client?: string
+  description?: string
+  start_date?: string
+  end_date?: string
+  status?: ProjectStatus
+  category?: ProjectCategory
+  major_category?: ProjectMajorCategory
+  budget?: number
   
-  // 계약 관련 정보
-  contract_type?: ContractType | null
+  // 계약 정보 추가
   is_vat_included?: boolean
-  common_expense?: number | null
+  common_expense?: number
+  contract_type?: ContractType
   
   // 회차 정산형 정보
-  down_payment?: number | null
-  intermediate_payments?: number[] | null
-  final_payment?: number | null
+  down_payment?: number
+  intermediate_payments?: number[]
+  final_payment?: number
   
   // 정기 결제형 정보
-  periodic_unit?: PeriodicUnit | null
-  periodic_interval?: number | null
-  periodic_amount?: number | null
+  periodic_unit?: PeriodicUnit
+  periodic_interval?: number
+  periodic_amount?: number
   
-  // 직무별 전체 공수 정보 추가
-  planning_manpower?: number | null      // 기획 전체 공수
-  design_manpower?: number | null        // 디자인 전체 공수
-  publishing_manpower?: number | null    // 퍼블리싱 전체 공수
-  development_manpower?: number | null   // 개발 전체 공수
+  // 직무별 전체 공수 정보 - DB 컬럼명과 일치하도록 수정
+  planning_manpower?: number | null
+  design_manpower?: number | null
+  publishing_manpower?: number | null
+  development_manpower?: number | null
+  
+  // 프론트엔드용 변환 데이터 구조
+  manpower?: {
+    planning?: number | null
+    design?: number | null
+    publishing?: number | null
+    development?: number | null
+  }
   
   created_at?: string
   updated_at?: string
-  manpower?: ProjectManpower[]
 } 

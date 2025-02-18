@@ -9,13 +9,14 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { ko } from 'date-fns/locale'
 import AddManpowerModal from './AddManpowerModal'
+import { supabase } from '@/lib/supabase'
 
 interface AddProjectSlideOverProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (projectData: any) => void
   project?: Project | null
-  mode?: 'create' | 'view'
+  mode?: 'create' | 'edit'
 }
 
 // 스타일 추가
@@ -110,6 +111,9 @@ export default function AddProjectSlideOver({
   // description state 추가
   const [description, setDescription] = useState('')
 
+  // 상단에 state 추가
+  const [isDuplicateName, setIsDuplicateName] = useState(false)
+
   const majorCategories: ProjectMajorCategory[] = ['금융', '커머스', 'AI', '기타']
   const categories: ProjectCategory[] = ['운영', '구축', '개발', '기타']
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
@@ -146,15 +150,83 @@ export default function AddProjectSlideOver({
 
   // 프로젝트 데이터로 폼 초기화
   useEffect(() => {
-    if (project && mode === 'view') {
+    if (project && mode === 'edit') {
+      // 기본 정보
       setTitle(project.name)
       setClient(project.client || '')
+      setDescription(project.description || '')
+      
+      // 날짜 정보
       setStartDate(project.start_date ? new Date(project.start_date) : null)
       setEndDate(project.end_date ? new Date(project.end_date) : null)
+      
+      // 카테고리 및 상태 정보
       setStatus(project.status || '')
-      // ... 나머지 필드들도 설정
+      setMajorCategory(project.major_category || '')
+      setCategory(project.category || '')
+      
+      // 직무별 전체 공수 정보 설정
+      if (project.manpower) {
+        setManpowerPlanning(project.manpower.planning || null)
+        setManpowerDesign(project.manpower.design || null)
+        setManpowerPublishing(project.manpower.publishing || null)
+        setManpowerDevelopment(project.manpower.development || null)
+      }
+
+      // 계약 정보 설정
+      if (project.contract_type) {
+        setContractType(project.contract_type)
+        setContractAmount(project.budget?.toString() || '')
+        setIsVatIncluded(project.is_vat_included || false)
+        setCommonExpense(project.common_expense?.toString() || '')
+
+        if (project.contract_type === '회차 정산형') {
+          setDownPayment(project.down_payment?.toString() || '')
+          setIntermediatePayments(project.intermediate_payments?.map(p => p.toString()) || [''])
+          setFinalPayment(project.final_payment?.toString() || '')
+        } else if (project.contract_type === '정기 결제형') {
+          setPeriodicUnit(project.periodic_unit || 'month')
+          setPeriodicInterval(project.periodic_interval?.toString() || '')
+          setPeriodicAmount(project.periodic_amount?.toString() || '')
+        }
+      }
     }
   }, [project, mode])
+
+  // 중복 체크 함수 추가
+  const checkDuplicateName = async (name: string) => {
+    try {
+      const { data: existingProjects, error } = await supabase
+        .from('projects')
+        .select('id, name')
+        .ilike('name', name.trim())
+        
+      if (error) throw error
+
+      // 수정 모드일 때는 현재 프로젝트를 제외하고 체크
+      if (mode === 'edit' && project?.id) {
+        setIsDuplicateName(existingProjects.some(p => p.id !== project.id))
+      } else {
+        // 새로운 프로젝트 추가일 때
+        setIsDuplicateName(existingProjects.length > 0)
+      }
+    } catch (error) {
+      console.error('Error checking duplicate name:', error)
+    }
+  }
+
+  // title state의 onChange 핸들러 수정
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value
+    setTitle(newTitle)
+    
+    // 입력값이 있을 때만 중복 체크
+    if (newTitle.trim()) {
+      checkDuplicateName(newTitle)
+    } else {
+      setIsDuplicateName(false)
+    }
+  }
 
   const validateForm = (): string[] => {
     const errors: string[] = []
@@ -188,53 +260,66 @@ export default function AddProjectSlideOver({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
+    // 중복 체크 먼저 수행
+    if (isDuplicateName) {
+      toast.error('중복된 프로젝트명입니다. 수정 해주세요.')
+      return
+    }
+
+    // 유효성 검사
     const errors = validateForm()
     if (errors.length > 0) {
-      errors.forEach(error => toast.error(error))
+      toast.error(errors[0])
       return
     }
 
     try {
-      const projectData: Omit<Project, 'id' | 'created_at' | 'updated_at'> = {
+      const projectData = {
+        id: project?.id,
         name: title,
-        client: client || null,
-        start_date: startDate ? startDate.toISOString().split('T')[0] : null,
-        end_date: endDate ? endDate.toISOString().split('T')[0] : null,
-        status: status as ProjectStatus || null,
-        budget: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : null,
-        category: (category as ProjectCategory) || null,
-        major_category: (majorCategory as ProjectMajorCategory) || null,
-        description: description || null,
+        client: client || undefined,
+        start_date: startDate ? startDate.toISOString().split('T')[0] : undefined,
+        end_date: endDate ? endDate.toISOString().split('T')[0] : undefined,
+        status: status as ProjectStatus || undefined,
+        budget: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : undefined,
+        category: (category as ProjectCategory) || undefined,
+        major_category: (majorCategory as ProjectMajorCategory) || undefined,
+        description: description || undefined,
         
-        // 계약 정보는 선택적으로 포함
-        contract_type: contractType || null,
+        contract_type: contractType || undefined,
         is_vat_included: Boolean(contractType && isVatIncluded),
-        common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : null,
+        common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : undefined,
 
-        // 직무별 전체 공수 정보 추가
-        planning_manpower: manpowerPlanning,
-        design_manpower: manpowerDesign,
-        publishing_manpower: manpowerPublishing,
-        development_manpower: manpowerDevelopment,
-
-        // 회차 정산형 정보 (계약 유형이 회차 정산형인 경우만)
-        down_payment: contractType === '회차 정산형' && downPayment ? parseInt(downPayment.replace(/,/g, '')) : null,
+        // 회차 정산형 정보
+        down_payment: contractType === '회차 정산형' && downPayment ? 
+          parseInt(downPayment.replace(/,/g, '')) : undefined,
         intermediate_payments: contractType === '회차 정산형' && intermediatePayments.length > 0 ? 
-          intermediatePayments.map(payment => payment ? parseInt(payment.replace(/,/g, '')) : 0) : null,
-        final_payment: contractType === '회차 정산형' && finalPayment ? parseInt(finalPayment.replace(/,/g, '')) : null,
+          intermediatePayments.map(payment => payment ? parseInt(payment.replace(/,/g, '')) : 0) : undefined,
+        final_payment: contractType === '회차 정산형' && finalPayment ? 
+          parseInt(finalPayment.replace(/,/g, '')) : undefined,
 
-        // 정기 결제형 정보 (계약 유형이 정기 결제형인 경우만)
-        periodic_unit: contractType === '정기 결제형' ? periodicUnit : null,
-        periodic_interval: contractType === '정기 결제형' && periodicInterval ? parseInt(periodicInterval) : null,
-        periodic_amount: contractType === '정기 결제형' && periodicAmount ? parseInt(periodicAmount.replace(/,/g, '')) : null,
+        // 정기 결제형 정보
+        periodic_unit: contractType === '정기 결제형' ? periodicUnit : undefined,
+        periodic_interval: contractType === '정기 결제형' && periodicInterval ? 
+          parseInt(periodicInterval) : undefined,
+        periodic_amount: contractType === '정기 결제형' && periodicAmount ? 
+          parseInt(periodicAmount.replace(/,/g, '')) : undefined,
+
+        // 직무별 전체 공수 정보 - 직접 각 필드로 전달
+        planning_manpower: manpowerPlanning,    // state에서 직접 값 사용
+        design_manpower: manpowerDesign,        // state에서 직접 값 사용
+        publishing_manpower: manpowerPublishing, // state에서 직접 값 사용
+        development_manpower: manpowerDevelopment, // state에서 직접 값 사용
+
+        // manpower 객체는 제거 (DB에 없는 구조이므로)
+        manpower: undefined
       }
 
       await onSubmit(projectData)
-      onClose()
     } catch (error) {
       console.error('Error:', error)
-      toast.error('프로젝트 추가 중 오류가 발생했습니다')
+      toast.error('프로젝트 저장 중 오류가 발생했습니다.')
     }
   }
 
@@ -277,6 +362,22 @@ export default function AddProjectSlideOver({
   const handleCategoryClick = (cat: ProjectCategory) => {
     setCategory(cat)
     setIsCategoryOpen(false)
+  }
+
+  // 버튼 텍스트를 위한 함수 수정
+  const getButtonText = () => {
+    if (mode === 'edit') return '프로젝트 수정'
+    return '프로젝트 추가'
+  }
+
+  // 삭제 버튼 클릭 핸들러 추가
+  const handleDeleteClick = () => {
+    if (window.confirm('정말 삭제하시겠습니까?')) {
+      if (project?.id) {
+        onSubmit({ ...project, id: project.id, _action: 'delete' })
+        onClose()
+      }
+    }
   }
 
   return (
@@ -337,6 +438,16 @@ export default function AddProjectSlideOver({
                                 </button>
                               </div>
                               <div className="flex items-center gap-4">
+                                {mode === 'edit' && (  // 수정 모드일 때만 삭제 버튼 표시
+                                  <button
+                                    type="button"
+                                    onClick={handleDeleteClick}
+                                    className="px-3 py-1.5 text-sm font-medium text-black bg-white hover:text-white border border-grey rounded-md hover:bg-red-600 transition-colors duration-200"
+                                  >
+                                    삭제하기
+                                  </button>
+                                )}
+                                
                                 <button
                                   type="button"
                                   onClick={onClose}
@@ -380,11 +491,16 @@ export default function AddProjectSlideOver({
                               <input
                                 type="text"
                                 value={title}
-                                onChange={(e) => setTitle(e.target.value)}
+                                onChange={handleTitleChange}
                                 maxLength={100}
                                 className="block w-full text-[38px] font-bold px-0 border-0 focus:ring-0 focus:border-gray-900"
                                 placeholder="프로젝트명을 입력하세요"
                               />
+                              {isDuplicateName && (
+                                <p className="mt-2 text-sm text-red-500">
+                                  이미 존재하는 프로젝트명입니다. 구분할 수 있는 정보를 추가하면 좋아요.
+                                </p>
+                              )}
                             </div>
 
                             {/* 기본 정보 섹션 */}
@@ -1161,7 +1277,7 @@ export default function AddProjectSlideOver({
                                   form="projectForm"
                                   className="flex-1 py-3 px-4 text-[14px] font-medium text-white bg-[#4E49E7] hover:bg-[#3F3ABE] rounded-lg"
                                 >
-                                  프로젝트 저장
+                                  {getButtonText()}
                                 </button>
                               </div>
                             </div>
