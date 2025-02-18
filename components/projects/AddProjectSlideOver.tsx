@@ -3,7 +3,7 @@
 import { useState, Fragment, useRef, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { X, ArrowLeft, ChevronDown, Calendar, Search } from 'lucide-react'
-import { ProjectStatus } from '@/types/project'
+import type { Project, ProjectStatus, ProjectCategory, ProjectMajorCategory, ContractType, PeriodicUnit } from '@/types/project'
 import { toast } from 'react-hot-toast'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -52,8 +52,8 @@ export default function AddProjectSlideOver({
   // 기본 정보
   const [title, setTitle] = useState('')
   const [status, setStatus] = useState<ProjectStatus | ''>('')
-  const [majorCategory, setMajorCategory] = useState('')
-  const [category, setCategory] = useState('')
+  const [majorCategory, setMajorCategory] = useState<ProjectMajorCategory | ''>('')
+  const [category, setCategory] = useState<ProjectCategory | ''>('')
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate, setEndDate] = useState<Date | null>(null)
   
@@ -61,7 +61,7 @@ export default function AddProjectSlideOver({
   const [contractAmount, setContractAmount] = useState('')
   const [isVatIncluded, setIsVatIncluded] = useState(false)
   const [commonExpense, setCommonExpense] = useState('')
-  const [contractType, setContractType] = useState<'milestone' | 'periodic'>('milestone')
+  const [contractType, setContractType] = useState<'회차 정산형' | '정기 결제형'>('회차 정산형')
   
   // 회차 정산형 정보
   const [downPayment, setDownPayment] = useState('')  // 착수금
@@ -101,8 +101,13 @@ export default function AddProjectSlideOver({
   const [showManpowerButtons, setShowManpowerButtons] = useState(false)
   const [showManpowerModal, setShowManpowerModal] = useState(false)
 
-  const majorCategories = ['운영', '구축', '개발', '기타']
-  const categories = ['금융', '커머스', 'AI', '기타'] // 예시 카테고리
+  // client state 추가
+  const [client, setClient] = useState('')
+  // description state 추가
+  const [description, setDescription] = useState('')
+
+  const majorCategories: ProjectMajorCategory[] = ['금융', '커머스', 'AI', '기타']
+  const categories: ProjectCategory[] = ['운영', '구축', '개발', '기타']
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
 
   // 외부 클릭 감지 useEffect 수정
@@ -135,46 +140,85 @@ export default function AddProjectSlideOver({
     }
   }, [showManpowerModal]) // showManpowerModal을 의존성 배열에 추가
 
+  const validateForm = (): string[] => {
+    const errors: string[] = []
+
+    // 프로젝트명만 필수 검사
+    if (!title.trim()) errors.push('프로젝트명을 입력해주세요')
+
+    // 계약 유형이 선택된 경우에만 관련 검사 수행
+    if (contractType) {
+      if (contractType === '회차 정산형' && contractAmount) {
+        // 금액이 하나라도 입력된 경우에만 검사
+        const hasAnyPayment = downPayment || intermediatePayments.some(p => p) || finalPayment || commonExpense
+
+        if (hasAnyPayment) {
+          const totalPayments = (downPayment ? parseInt(downPayment.replace(/,/g, '')) : 0) +
+            intermediatePayments.reduce((sum, payment) => sum + (payment ? parseInt(payment.replace(/,/g, '')) : 0), 0) +
+            (finalPayment ? parseInt(finalPayment.replace(/,/g, '')) : 0) +
+            (commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : 0)
+          
+          const totalBudget = parseInt(contractAmount.replace(/,/g, ''))
+
+          if (totalPayments !== totalBudget) {
+            errors.push('착수금, 중도금, 잔금, 공통경비의 합이 계약금액과 일치해야 합니다')
+          }
+        }
+      }
+    }
+
+    return errors
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    try {
-      // 기본 유효성 검사
-      if (!title.trim()) {
-        toast.error('프로젝트 제목을 입력해주세요.')
-        return
-      }
+    const errors = validateForm()
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error))
+      return
+    }
 
-      // 데이터 포맷팅
-      const projectData = {
-        title,
-        status,
-        major_category: majorCategory,
-        category,
+    try {
+      const projectData: Omit<Project, 'id' | 'created_at' | 'updated_at'> = {
+        name: title,
+        client: client || null,
         start_date: startDate ? startDate.toISOString().split('T')[0] : null,
         end_date: endDate ? endDate.toISOString().split('T')[0] : null,
-        contract_amount: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : null,
-        is_vat_included: isVatIncluded,
+        status: status as ProjectStatus || null,
+        budget: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : null,
+        category: (category as ProjectCategory) || null,
+        major_category: (majorCategory as ProjectMajorCategory) || null,
+        description: description || null,
+        
+        // 계약 정보는 선택적으로 포함
+        contract_type: contractType || null,
+        is_vat_included: Boolean(contractType && isVatIncluded),
         common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : null,
-        contract_type: contractType,
-        contract_details: contractType === 'milestone' 
-          ? {
-              down_payment: downPayment ? parseInt(downPayment.replace(/,/g, '')) : null,
-              intermediate_payments: intermediatePayments.map(p => p ? parseInt(p.replace(/,/g, '')) : null),
-              final_payment: finalPayment ? parseInt(finalPayment.replace(/,/g, '')) : null,
-            }
-          : {
-              periodic_unit: periodicUnit,
-              periodic_interval: periodicInterval ? parseInt(periodicInterval) : null,
-              periodic_amount: periodicAmount ? parseInt(periodicAmount.replace(/,/g, '')) : null,
-            }
+
+        // 직무별 전체 공수 정보 추가
+        planning_manpower: manpowerPlanning,
+        design_manpower: manpowerDesign,
+        publishing_manpower: manpowerPublishing,
+        development_manpower: manpowerDevelopment,
+
+        // 회차 정산형 정보 (계약 유형이 회차 정산형인 경우만)
+        down_payment: contractType === '회차 정산형' && downPayment ? parseInt(downPayment.replace(/,/g, '')) : null,
+        intermediate_payments: contractType === '회차 정산형' && intermediatePayments.length > 0 ? 
+          intermediatePayments.map(payment => payment ? parseInt(payment.replace(/,/g, '')) : 0) : null,
+        final_payment: contractType === '회차 정산형' && finalPayment ? parseInt(finalPayment.replace(/,/g, '')) : null,
+
+        // 정기 결제형 정보 (계약 유형이 정기 결제형인 경우만)
+        periodic_unit: contractType === '정기 결제형' ? periodicUnit : null,
+        periodic_interval: contractType === '정기 결제형' && periodicInterval ? parseInt(periodicInterval) : null,
+        periodic_amount: contractType === '정기 결제형' && periodicAmount ? parseInt(periodicAmount.replace(/,/g, '')) : null,
       }
 
-      onSubmit(projectData)
-      
+      await onSubmit(projectData)
+      onClose()
     } catch (error) {
       console.error('Error:', error)
-      toast.error('프로젝트 추가 중 오류가 발생했습니다.')
+      toast.error('프로젝트 추가 중 오류가 발생했습니다')
     }
   }
 
@@ -206,6 +250,17 @@ export default function AddProjectSlideOver({
   // 공수 추가 버튼 클릭 핸들러
   const handleAddManpowerClick = () => {
     setShowManpowerModal(true)
+  }
+
+  // 드롭다운 클릭 핸들러 수정
+  const handleMajorCategoryClick = (cat: ProjectMajorCategory) => {
+    setMajorCategory(cat)
+    setIsMajorCategoryOpen(false)
+  }
+
+  const handleCategoryClick = (cat: ProjectCategory) => {
+    setCategory(cat)
+    setIsCategoryOpen(false)
   }
 
   return (
@@ -372,13 +427,10 @@ export default function AddProjectSlideOver({
                                         <button
                                           key={cat}
                                           type="button"
-                                          onClick={() => {
-                                            setMajorCategory(cat)
-                                            setIsMajorCategoryOpen(false)
-                                          }}
+                                          onClick={() => handleMajorCategoryClick(cat)}
                                           className={`${
-                                            majorCategory === cat ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                                          } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                            majorCategory === cat ? 'bg-gray-100' : ''
+                                          } w-full text-left px-4 py-2 text-sm text-gray-900 hover:bg-gray-50`}
                                         >
                                           {cat}
                                         </button>
@@ -406,13 +458,10 @@ export default function AddProjectSlideOver({
                                         <button
                                           key={cat}
                                           type="button"
-                                          onClick={() => {
-                                            setCategory(cat)
-                                            setIsCategoryOpen(false)
-                                          }}
+                                          onClick={() => handleCategoryClick(cat)}
                                           className={`${
-                                            category === cat ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                                          } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
+                                            category === cat ? 'bg-gray-100' : ''
+                                          } w-full text-left px-4 py-2 text-sm text-gray-900 hover:bg-gray-50`}
                                         >
                                           {cat}
                                         </button>
@@ -771,7 +820,7 @@ export default function AddProjectSlideOver({
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
                                     <span className="text-gray-400">
-                                      {contractType === 'milestone' ? '회차 정산형' : '정기 결제형'}
+                                      {contractType === '회차 정산형' ? '회차 정산형' : '정기 결제형'}
                                     </span>
                                     <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isContractTypeOpen ? 'rotate-180' : ''}`} />
                                   </button>
@@ -781,11 +830,11 @@ export default function AddProjectSlideOver({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          setContractType('milestone')
+                                          setContractType('회차 정산형')
                                           setIsContractTypeOpen(false)
                                         }}
                                         className={`${
-                                          contractType === 'milestone' ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                          contractType === '회차 정산형' ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
                                         } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
                                       >
                                         회차 정산형
@@ -793,11 +842,11 @@ export default function AddProjectSlideOver({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          setContractType('periodic')
+                                          setContractType('정기 결제형')
                                           setIsContractTypeOpen(false)
                                         }}
                                         className={`${
-                                          contractType === 'periodic' ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                                          contractType === '정기 결제형' ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
                                         } hover:bg-gray-50 group flex items-center px-4 py-2 w-full text-sm`}
                                       >
                                         정기 결제형
@@ -807,7 +856,7 @@ export default function AddProjectSlideOver({
                                 </div>
 
                                 {/* 계약 유형별 추가 필드 */}
-                                {contractType === 'milestone' ? (
+                                {contractType === '회차 정산형' ? (
                                   <div className="space-y-8">
                                     {/* 착수금 */}
                                     <div className="relative">
@@ -888,7 +937,7 @@ export default function AddProjectSlideOver({
                                               setFinalPayment('')
                                             }
                                           }}
-                                          className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                          className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
                                           placeholder="잔금"
                                         />
                                         <span className="text-gray-400 ml-2">원</span>

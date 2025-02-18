@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import type { Project, ProjectStatus } from '@/types/project'
+import type { Project, ProjectStatus, ProjectManpower } from '@/types/project'
 import { Search, Plus, LayoutGrid, Table, FileSpreadsheet, Filter } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import AddProjectSlideOver from '@/components/projects/AddProjectSlideOver'
@@ -70,20 +70,44 @@ export default function ProjectsManagementPage() {
     }
   }
 
-  const handleAddProject = async (projectData: any) => {
+  const handleAddProject = async (projectData: Project) => {
     try {
       setIsLoading(true)
-      const { error } = await supabase
+      
+      // 1. 프로젝트 기본 정보 저장
+      const { data: newProject, error: projectError } = await supabase
         .from('projects')
-        .insert([projectData])
+        .insert([{
+          ...projectData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
 
-      if (error) throw error
+      if (projectError) throw projectError
+
+      // 2. 공수 정보가 있다면 저장
+      if (projectData.manpower && projectData.manpower.length > 0) {
+        const { error: manpowerError } = await supabase
+          .from('project_manpower')
+          .insert(
+            projectData.manpower.map((mp: ProjectManpower) => ({
+              ...mp,
+              project_id: newProject.id,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }))
+          )
+
+        if (manpowerError) throw manpowerError
+      }
 
       toast.success('프로젝트가 추가되었습니다.')
       setIsAddSlideOverOpen(false)
       fetchProjects()
-    } catch (error) {
-      console.error('Error:', error)
+    } catch (error: any) {
+      console.error('Error:', error.message || error)
       toast.error('프로젝트 추가 중 오류가 발생했습니다.')
     } finally {
       setIsLoading(false)
