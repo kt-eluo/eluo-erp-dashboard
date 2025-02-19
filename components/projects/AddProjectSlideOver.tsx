@@ -54,6 +54,35 @@ interface Worker {
   job_type: string
 }
 
+// 타입 정의 추가
+interface ProjectManpower {
+  id: string
+  worker_id: string
+  role: string
+  mm_value: number
+  workers?: {
+    id: string
+    name: string
+  }
+}
+
+interface UpdatedProject {
+  id: string
+  name: string
+  client: string
+  description: string
+  status: ProjectStatus
+  major_category: ProjectMajorCategory
+  category: ProjectCategory
+  start_date: string | null
+  end_date: string | null
+  project_manpower: ProjectManpower[]
+  planning_manpower: number | null
+  design_manpower: number | null
+  publishing_manpower: number | null
+  development_manpower: number | null
+}
+
 export default function AddProjectSlideOver({
   isOpen,
   onClose,
@@ -110,7 +139,6 @@ export default function AddProjectSlideOver({
   const [manpowerDevelopment, setManpowerDevelopment] = useState<number | null>(null)
 
   // 새로운 state 추가
-  const [showManpowerButtons, setShowManpowerButtons] = useState(false)
   const [showManpowerModal, setShowManpowerModal] = useState(false)
 
   // client state 추가
@@ -285,12 +313,36 @@ export default function AddProjectSlideOver({
     }))
   }
 
-  // 실무자 제거 핸들러
-  const handleWorkerRemove = (jobType: string, workerId: string) => {
-    setSelectedWorkers(prev => ({
-      ...prev,
-      [jobType]: prev[jobType].filter(w => w.id !== workerId)
-    }))
+  // 실무자 제거 핸들러 수정
+  const handleRemoveWorker = async (jobType: string, workerId: string) => {
+    try {
+      // 프로젝트 모드가 'edit'일 경우 DB에서도 삭제
+      if (mode === 'edit' && project?.id) {
+        const { error } = await supabase
+          .from('project_manpower')  // project_workers가 아닌 project_manpower 테이블 사용
+          .delete()
+          .match({ 
+            project_id: project.id,
+            worker_id: workerId 
+          })
+
+        if (error) {
+          console.error('DB 삭제 오류:', error.message)
+          throw error
+        }
+      }
+
+      // UI에서 실무자 제거
+      setSelectedWorkers(prev => ({
+        ...prev,
+        [jobType]: prev[jobType].filter(worker => worker.id !== workerId)
+      }))
+
+      toast.success('실무자가 제거되었습니다.')
+    } catch (error) {
+      console.error('실무자 제거 중 오류 발생:', error)
+      toast.error('실무자 제거 중 오류가 발생했습니다.')
+    }
   }
 
   // 중복 체크 함수 추가
@@ -360,7 +412,13 @@ export default function AddProjectSlideOver({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
+    const errors = validateForm()
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error))
+      return
+    }
+
     try {
       // 프로젝트 데이터 준비
       const projectData = {
@@ -399,50 +457,68 @@ export default function AddProjectSlideOver({
           parseInt(periodicAmount.replace(/,/g, '')) : null
       }
 
-      let projectId: string | undefined;
-      let successMessage = '';  // 성공 메시지 변수 추가
-
-      if (mode === 'create') {
-        // 새 프로젝트 생성
-        const { data: newProject, error: createError } = await supabase
-          .from('projects')
-          .insert([projectData])
-          .select('id')
-          .single()
-
-        if (createError) throw createError
-        projectId = newProject.id
-        successMessage = '프로젝트가 추가되었습니다.'  // 생성 시 메시지
-      } else if (mode === 'edit' && project?.id) {
-        // 기존 프로젝트 수정
+      if (mode === 'edit' && project?.id) {
+        // 1. 기존 프로젝트 정보 업데이트
         const { error: updateError } = await supabase
           .from('projects')
           .update(projectData)
           .eq('id', project.id)
 
         if (updateError) throw updateError
-        projectId = project.id
-        successMessage = '프로젝트가 수정되었습니다.'  // 수정 시 메시지
-      }
 
-      // 실무자 정보 업데이트
-      if (projectId) {
-        // 기존 실무자 정보 삭제
-        const { error: deleteError } = await supabase
-          .from('project_manpower')
-          .delete()
-          .eq('project_id', projectId)
+        // 2. 각 직무별로 실무자 데이터 업데이트
+        for (const [role, workers] of Object.entries(selectedWorkers)) {
+          // 2-1. 해당 직무의 기존 데이터만 삭제
+          const { error: deleteError } = await supabase
+            .from('project_manpower')
+            .delete()
+            .eq('project_id', project.id)
+            .eq('role', role)
 
-        if (deleteError) throw deleteError
+          if (deleteError) throw deleteError
 
-        // 새로운 실무자 정보 추가
-        if (Object.values(selectedWorkers).some(workers => workers.length > 0)) {
+          // 2-2. 해당 직무의 새로운 실무자 데이터 추가
+          if (workers.length > 0) {
+            const manpowerData = workers.map(worker => ({
+              project_id: project.id,
+              worker_id: worker.id,
+              role: role,
+              mm_value: 0
+            }))
+
+            const { error: insertError } = await supabase
+              .from('project_manpower')
+              .insert(manpowerData)
+
+            if (insertError) throw insertError
+          }
+        }
+
+        toast.success('수정 내용이 업데이트 되었습니다.')
+        
+        // 현재 URL에 edit=true와 projectId 파라미터 추가하여 새로고침
+        const url = new URL(window.location.href)
+        url.searchParams.set('edit', 'true')
+        url.searchParams.set('projectId', project.id)
+        window.location.href = url.toString()
+      } else {
+        // 새 프로젝트 생성
+        const { data: newProject, error: createError } = await supabase
+          .from('projects')
+          .insert([projectData])
+          .select()
+          .single()
+
+        if (createError) throw createError
+
+        // 새 프로젝트의 실무자 데이터 추가
+        if (newProject) {
           const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
             workers.map(worker => ({
-              project_id: projectId,
+              project_id: newProject.id,
               worker_id: worker.id,
-              role: role as ProjectRole,
-              mm_value: 0
+              role: role,
+              mm_value: 0 // 기본값 설정
             }))
           )
 
@@ -454,14 +530,15 @@ export default function AddProjectSlideOver({
             if (insertError) throw insertError
           }
         }
+        
+        toast.success('프로젝트가 추가되었습니다.')
+        onClose()
       }
 
-      toast.success(successMessage)  // 하나의 메시지만 표시
-      onClose()
-      onSubmit({ ...projectData, id: projectId })
+      onSubmit(projectData)
     } catch (error: any) {
-      console.error('Error saving project:', error.message || error)
-      toast.error(error.message || '프로젝트 저장 중 오류가 발생했습니다.')
+      console.error('Error saving project:', error)
+      toast.error('프로젝트 저장 중 오류가 발생했습니다.')
     }
   }
 
@@ -480,14 +557,6 @@ export default function AddProjectSlideOver({
       startDate.getMonth() +
       12 * (endDate.getFullYear() - startDate.getFullYear())
     )
-  }
-
-  // 공수 관리 버튼 클릭 핸들러
-  const handleManpowerClick = () => {
-    setShowManpowerButtons(!showManpowerButtons)
-    if (!showManpowerButtons) {
-      setShowManpowerModal(false)  // 버튼들이 닫힐 때 모달도 닫기
-    }
   }
 
   // 공수 추가 버튼 클릭 핸들러
@@ -546,6 +615,9 @@ export default function AddProjectSlideOver({
       handleWorkerSelect(jobType, { id: firstWorker.id, name: firstWorker.name })
     }
   }
+
+  // activeTab state 추가
+  const [activeTab, setActiveTab] = useState<'manpower' | 'milestone'>('manpower')
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -978,18 +1050,19 @@ export default function AddProjectSlideOver({
                                       </div>
                                       <div className="flex-1 min-h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] bg-white flex items-center flex-wrap gap-2">
                                         {selectedWorkers[jobType].map((worker) => (
-                                          <span 
-                                            key={worker.id} 
-                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[12px] bg-gray-100 border border-gray-300"
+                                          <div
+                                            key={worker.id}
+                                            className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm"
                                           >
-                                            {worker.name}
+                                            <span>{worker.name}</span>
                                             <button
-                                              onClick={() => handleWorkerRemove(jobType, worker.id)}
-                                              className="ml-1 text-gray-400 hover:text-gray-600"
+                                              type="button"
+                                              onClick={() => handleRemoveWorker(jobType, worker.id)}
+                                              className="ml-1 p-0.5 hover:bg-gray-200 rounded-full transition-colors"
                                             >
-                                              <X className="w-3 h-3" />
+                                              <X className="w-3 h-3 text-gray-500" />
                                             </button>
-                                          </span>
+                                          </div>
                                         ))}
                                       </div>
                                     </div>
@@ -1432,43 +1505,39 @@ export default function AddProjectSlideOver({
                         <div className="px-4 py-6 sm:px-6">
                           {/* 버튼 컨테이너 */}
                           <div>
-                            <div className="flex flex-row gap-2">
-                              {/* 실무자 공수 관리 버튼 */}
-                              <button
-                                type="button"
-                                className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black"
-                                onClick={handleManpowerClick}
-                              >
-                                실무자 공수 관리
-                              </button>
+                            {/* 버튼 영역 */}
+                            <div>
+                              <div className="flex flex-row gap-2">
+                                {/* 실무자 공수 관리 버튼 */}
+                                <button
+                                  type="button"
+                                  className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black"
+                                  onClick={() => setActiveTab('manpower')}
+                                >
+                                  실무자 공수 관리
+                                </button>
 
-                              {/* 마일스톤 등록 및 확인 버튼 */}
-                              <button
-                                type="button"
-                                className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white"
-                              >
-                                마일스톤 등록 및 확인
-                              </button>
-                            </div>
+                                {/* 마일스톤 등록 및 확인 버튼 */}
+                                <button
+                                  type="button"
+                                  className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white"
+                                  onClick={() => setActiveTab('milestone')}
+                                >
+                                  마일스톤 등록 및 확인
+                                </button>
+                              </div>
 
-                            {/* 공수 관리 하위 버튼들 */}
-                            {showManpowerButtons && (
+                              {/* 공수 관리 버튼 - 항상 표시 */}
                               <div className="flex gap-2 mt-2 justify-end">
                                 <button
                                   type="button"
                                   className="h-[32px] px-4 bg-white border border-[#4E49E7] rounded-[6px] font-pretendard font-medium text-[14px] leading-[16.71px] text-[#4E49E7]"
                                   onClick={handleAddManpowerClick}
                                 >
-                                  공수 추가
-                                </button>
-                                <button
-                                  type="button"
-                                  className="h-[32px] px-4 bg-white border border-[#4E49E7] rounded-[6px] font-pretendard font-medium text-[14px] leading-[16.71px] text-[#4E49E7]"
-                                >
-                                  공수 수정
+                                  공수 관리
                                 </button>
                               </div>
-                            )}
+                            </div>
                           </div>
 
                           {/* 해당월 공수진행 섹션 */}
@@ -1480,6 +1549,8 @@ export default function AddProjectSlideOver({
 
                             {/* 직무별 공수 목록 */}
                             <div className="space-y-4 flex flex-row items-baseline gap-2 flex-wrap">
+
+                              
                               {/* 기획 */}
                               <div className="w-[48.5%]">
                                 <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
@@ -1588,13 +1659,14 @@ export default function AddProjectSlideOver({
         </div>
       </Dialog>
 
-      {/* 모달 추가 */}
+      {/* 공수 관리 모달 */}
       {showManpowerModal && (
         <AddManpowerModal
           isOpen={showManpowerModal}
           onClose={() => setShowManpowerModal(false)}
           startDate={startDate}
           endDate={endDate}
+          selectedWorkers={selectedWorkers}
         />
       )}
     </Transition.Root>

@@ -154,6 +154,56 @@ export default function ProjectsManagementPage() {
     fetchProjects()
   }, [selectedCategory, selectedStatus, searchTerm])
 
+  useEffect(() => {
+    // URL 파라미터 확인
+    const params = new URLSearchParams(window.location.search)
+    const shouldEdit = params.get('edit') === 'true'
+    const projectId = params.get('projectId')
+
+    if (shouldEdit && projectId) {
+      // 프로젝트 데이터 가져오기
+      const fetchProject = async () => {
+        const { data: project, error } = await supabase
+          .from('projects')
+          .select(`
+            *,
+            project_manpower (
+              id,
+              worker_id,
+              role,
+              mm_value,
+              workers (
+                id,
+                name
+              )
+            )
+          `)
+          .eq('id', projectId)
+          .single()
+
+        if (error) {
+          console.error('Error fetching project:', error)
+          return
+        }
+
+        if (project) {
+          // project_manpower 데이터를 manpower로 변환
+          const projectWithManpower = {
+            ...project,
+            manpower: project.project_manpower || []
+          }
+          setSelectedProject(projectWithManpower)
+          setIsDetailSlideOverOpen(true)
+        }
+      }
+
+      fetchProject()
+      
+      // URL에서 파라미터 제거
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   // 현재 페이지의 데이터만 가져오는 함수
   const getCurrentPageData = () => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
