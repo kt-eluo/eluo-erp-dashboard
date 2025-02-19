@@ -1664,6 +1664,7 @@ export default function AddProjectSlideOver({
         <AddManpowerModal
           isOpen={showManpowerModal}
           onClose={() => setShowManpowerModal(false)}
+          projectId={project?.id || ''}  // projectId 추가
           startDate={startDate}
           endDate={endDate}
           selectedWorkers={selectedWorkers}
