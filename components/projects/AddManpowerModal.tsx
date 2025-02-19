@@ -26,6 +26,7 @@ interface AddManpowerModalProps {
   selectedWorkers: {
     [key: string]: Array<{ id: string; name: string; job_type: string }>
   }
+  onManpowerUpdate?: (updatedWorkers: { [key: string]: Array<{ id: string; name: string; job_type: string }> }) => void
 }
 
 interface WorkerEffortData {
@@ -43,7 +44,8 @@ export default function AddManpowerModal({
   projectId, 
   startDate, 
   endDate,
-  selectedWorkers 
+  selectedWorkers,
+  onManpowerUpdate
 }: AddManpowerModalProps) {
   // 초기 탭을 실무자가 있는 첫 번째 직무로 설정
   const [selectedTab, setSelectedTab] = useState<Role>(() => {
@@ -253,11 +255,24 @@ export default function AddManpowerModal({
         }
       }
 
-      toast.success('공수 정보가 저장되었습니다.');
+      // 저장 완료 후 부모 컴포넌트에 업데이트된 데이터 전달
+      const updatedWorkers = {...selectedWorkers};
+      Object.keys(updatedWorkers).forEach(role => {
+        updatedWorkers[role] = updatedWorkers[role].map(worker => ({
+          ...worker,
+          total_mm_value: workersEffort[`${worker.id}-${role}`]?.monthlyEfforts
+            ? Object.values(workersEffort[`${worker.id}-${role}`].monthlyEfforts)
+                .reduce((sum, val) => sum + (Number(val) || 0), 0)
+            : 0
+        }));
+      });
+
+      onManpowerUpdate?.(updatedWorkers);
       onClose();
-    } catch (error: any) {
-      console.error('Detailed error:', error);
-      toast.error(error.message || '공수 정보 저장 중 오류가 발생했습니다.');
+      toast.success('공수가 저장되었습니다.');
+    } catch (error) {
+      console.error('Error saving manpower:', error);
+      toast.error('공수 저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -359,16 +374,29 @@ export default function AddManpowerModal({
     }))
   }
 
+  // 공수 값이 변경될 때 부모 컴포넌트에 알림
+  const handleManpowerChange = (workerId: string, value: number) => {
+    const updatedWorkers = {...selectedWorkers};
+    Object.keys(updatedWorkers).forEach(role => {
+      const worker = updatedWorkers[role].find(w => w.id === workerId);
+      if (worker) {
+        worker.mm_value = value;
+      }
+    });
+    
+    onManpowerUpdate?.(updatedWorkers);
+  };
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[99999]">
-      {/* 배경 오버레이 */}
+    <div className="fixed inset-0 flex items-center justify-center z-[999999] pointer-events-auto">
+      {/* 배경 오버레이의 z-index 설정 */}
       <div 
-        className="absolute inset-0 bg-black/25" 
+        className="absolute inset-0 bg-black/25 z-[999998]" 
         onClick={onClose} 
       />
       
-      {/* 모달 컨테이너 */}
-      <div className="relative bg-white rounded-lg pl-6 pr-6 pb-6 w-[700px] max-h-[90vh] overflow-y-auto z-10 bg-white z-20">
+      {/* 모달 컨테이너의 z-index를 더 높게 설정하고 중복 제거 */}
+      <div className="relative bg-white rounded-lg pl-6 pr-6 pb-6 w-[700px] max-h-[90vh] overflow-y-auto z-[999999]">
         {/* 헤더 */}
         <div className="flex justify-between items-center pt-6 pb-6 sticky top-0 bg-white z-20">
           <h2 className="text-lg font-semibold">공수 관리</h2>

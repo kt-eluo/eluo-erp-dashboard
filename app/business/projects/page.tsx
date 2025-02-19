@@ -214,6 +214,21 @@ export default function ProjectsManagementPage() {
   // 총 페이지 수 계산
   const totalPages = Math.ceil(projects.length / ITEMS_PER_PAGE)
 
+  const calculateProgress = (startDate: string, endDate: string): number => {
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+    const now = new Date().getTime();
+
+    // 프로젝트가 시작되지 않은 경우
+    if (now < start) return 0;
+    // 프로젝트가 종료된 경우
+    if (now > end) return 100;
+
+    // 진행률 계산
+    const progress = ((now - start) / (end - start)) * 100;
+    return Math.min(Math.max(progress, 0), 100); // 0~100 사이 값으로 제한
+  };
+
   if (isLoading) {
     return (
       <LoadingSpinner />
@@ -426,110 +441,55 @@ export default function ProjectsManagementPage() {
                       </div>
                     </div>
 
-                    {/* 해당월 공수진행 섹션 */}
+                    {/* 프로젝트 진행상황 섹션 */}
                     <div className="mt-8">
                       {/* 타이틀 */}
                       <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-4">
-                        {new Date().getMonth() + 1}월 진행 공수
+                        {project.category}
                       </h4>
 
-                      {/* 직무별 공수 목록 */}
-                      <div className="space-y-4 flex flex-row items-baseline gap-2">
-                        {/* 기획 */}
-                        <div className="w-[25%]">
-                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                            기획
-                          </span>
-                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                            <li className="flex justify-between relative pl-3">
-                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                홍길동A
-                              </span>
-                              <div className="flex items-baseline">
-                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                              </div>
-                            </li>
-                            <li className="flex justify-between relative pl-3">
-                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                홍길동B
-                              </span>
-                              <div className="flex items-baseline">
-                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.5</span>
-                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                              </div>
-                            </li>
-                          </ul>
-                        </div>
+                      {/* 프로그램 진행 그래프 */}
+                      <div className="relative w-full h-2 bg-gray-200 rounded-full">
+                        {project.start_date && project.end_date && (
+                          <>
+                            {/* 진행률 바 */}
+                            <div 
+                              className="absolute top-0 left-0 h-full bg-[#FF3B9A] rounded-full"
+                              style={{ 
+                                width: `${calculateProgress(project.start_date, project.end_date)}%`,
+                              }}
+                            />
+                            {/* 현재 시점 표시 마커 */}
+                            <div 
+                              className="absolute top-[-5px] w-4 h-4 bg-[#FF3B9A] rounded-full border-2 border-white"
+                              style={{ 
+                                left: `calc(${calculateProgress(project.start_date, project.end_date)}% - 8px)`,
+                              }}
+                            />
+                          </>
+                        )}
+                      </div>
 
-                        {/* 디자이너 */}
-                        <div className="w-[25%]">
-                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                            디자이너
-                          </span>
-                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                            <li className="flex justify-between relative pl-3">
-                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                홍길동C
-                              </span>
-                              <div className="flex items-baseline">
-                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                              </div>
-                            </li>
-                          </ul>
-                        </div>
-
-                        {/* 퍼블리셔 */}
-                        <div className="w-[25%]">
-                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                            퍼블리셔
-                          </span>
-                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                            <li className="flex justify-between relative pl-3">
-                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                홍길동D
-                              </span>
-                              <div className="flex items-baseline">
-                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                              </div>
-                            </li>
-                          </ul>
-                        </div>
-
-                        {/* 개발 */}
-                        <div className="w-[25%]">
-                          <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                            개발
-                          </span>
-                          <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                            <li className="flex justify-between relative pl-3">
-                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                홍길동E
-                              </span>
-                              <div className="flex items-baseline">
-                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                              </div>
-                            </li>
-                            <li className="flex justify-between relative pl-3">
-                              <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                              <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                홍길동F
-                              </span>
-                              <div className="flex items-baseline">
-                                <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.8</span>
-                                <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                              </div>
-                            </li>
-                          </ul>
-                        </div>
+                      {/* 날짜 표시 */}
+                      <div className="flex justify-between mt-2 text-xs text-gray-500">
+                        <span>
+                          {project.start_date ? 
+                            new Date(project.start_date).toLocaleDateString('ko-KR', {
+                              month: '2-digit',
+                              day: '2-digit'
+                            }).replace(/\. /g, '.')
+                            : ''
+                          }
+                        </span>
+                        <span>
+                          {project.end_date ? 
+                            new Date(project.end_date).toLocaleDateString('ko-KR', {
+                              month: '2-digit',
+                              day: '2-digit'
+                            }).replace(/\. /g, '.')
+                            : ''
+                          }
+                        </span>
                       </div>
                     </div>
                   </div>

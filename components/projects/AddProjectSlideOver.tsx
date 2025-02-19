@@ -52,6 +52,11 @@ interface Worker {
   id: string
   name: string
   job_type: string
+  total_mm_value?: number // 총 공수 값 추가
+}
+
+interface SelectedWorkers {
+  [key: string]: Worker[];
 }
 
 // 타입 정의 추가
@@ -82,6 +87,20 @@ interface UpdatedProject {
   publishing_manpower: number | null
   development_manpower: number | null
 }
+
+// 타입 정의 추가
+interface RoleEffortData {
+  role: string;
+  monthlyEfforts: number[];
+}
+
+// 직무별 색상 정의는 컴포넌트 밖에 유지
+const roleColors = {
+  '기획': '#4E49E7',
+  '디자인': '#FF6B6B',
+  '퍼블리싱': '#51CF66',
+  '개발': '#339AF0'
+};
 
 export default function AddProjectSlideOver({
   isOpen,
@@ -159,7 +178,7 @@ export default function AddProjectSlideOver({
     '개발': ''
   })
 
-  const [selectedWorkers, setSelectedWorkers] = useState<{[key: string]: Array<{id: string, name: string}>}>({
+  const [selectedWorkers, setSelectedWorkers] = useState<SelectedWorkers>({
     'BD(BM)': [],
     'PM(PL)': [],
     '기획': [],
@@ -173,6 +192,9 @@ export default function AddProjectSlideOver({
   const majorCategories: ProjectMajorCategory[] = ['금융', '커머스', 'AI', '기타']
   const categories: ProjectCategory[] = ['운영', '구축', '개발', '기타']
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
+
+  // state 추가
+  const [roleEfforts, setRoleEfforts] = useState<RoleEffortData[]>([]);
 
   // 외부 클릭 감지 useEffect 수정
   useEffect(() => {
@@ -229,7 +251,7 @@ export default function AddProjectSlideOver({
 
       // 직무별 실무자 정보 설정
       if (project.manpower) {
-        const workersByRole: {[key: string]: Array<{id: string, name: string}>} = {
+        const workersByRole: SelectedWorkers = {
           'BD(BM)': [],
           'PM(PL)': [],
           '기획': [],
@@ -245,7 +267,9 @@ export default function AddProjectSlideOver({
             if (worker) {
               workersByRole[mp.role].push({
                 id: worker.id,
-                name: worker.name
+                name: worker.name,
+                job_type: worker.job_type,
+                total_mm_value: mp.mm_value
               });
             }
           }
@@ -410,55 +434,26 @@ export default function AddProjectSlideOver({
     return errors
   }
 
+  // handleSubmit 함수 수정
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    const errors = validateForm()
-    if (errors.length > 0) {
-      errors.forEach(error => toast.error(error))
-      return
-    }
-
+    
     try {
-      // 프로젝트 데이터 준비
-      const projectData = {
-        name: title,
-        client,
-        description,
-        start_date: startDate?.toISOString().split('T')[0],
-        end_date: endDate?.toISOString().split('T')[0],
-        status: status || null,
-        category: category || null,
-        major_category: majorCategory || null,
-        contract_type: contractType || null,
-        is_vat_included: isVatIncluded,
-        common_expense: commonExpense ? parseInt(commonExpense.replace(/,/g, '')) : null,
-        budget: contractAmount ? parseInt(contractAmount.replace(/,/g, '')) : null,
-        
-        // 직무별 전체 공수 정보 추가
-        planning_manpower: manpowerPlanning,
-        design_manpower: manpowerDesign,
-        publishing_manpower: manpowerPublishing,
-        development_manpower: manpowerDevelopment,
-        
-        // 회차 정산형 정보
-        down_payment: contractType === '회차 정산형' && downPayment ? 
-          parseInt(downPayment.replace(/,/g, '')) : null,
-        intermediate_payments: contractType === '회차 정산형' && intermediatePayments.length > 0 ? 
-          intermediatePayments.map(payment => payment ? parseInt(payment.replace(/,/g, '')) : 0) : null,
-        final_payment: contractType === '회차 정산형' && finalPayment ? 
-          parseInt(finalPayment.replace(/,/g, '')) : null,
-        
-        // 정기 결제형 정보
-        periodic_unit: contractType === '정기 결제형' ? periodicUnit : null,
-        periodic_interval: contractType === '정기 결제형' && periodicInterval ? 
-          parseInt(periodicInterval) : null,
-        periodic_amount: contractType === '정기 결제형' && periodicAmount ? 
-          parseInt(periodicAmount.replace(/,/g, '')) : null
-      }
-
       if (mode === 'edit' && project?.id) {
-        // 1. 기존 프로젝트 정보 업데이트
+        // 프로젝트 데이터 준비
+        const projectData = {
+          name: title,
+          client,
+          description,
+          status,
+          major_category: majorCategory,
+          category,
+          start_date: startDate,
+          end_date: endDate,
+          // ... 다른 필드들
+        }
+
+        // 1. 프로젝트 기본 정보 업데이트
         const { error: updateError } = await supabase
           .from('projects')
           .update(projectData)
@@ -466,43 +461,57 @@ export default function AddProjectSlideOver({
 
         if (updateError) throw updateError
 
-        // 2. 각 직무별로 실무자 데이터 업데이트
+        // 2. 새로운 실무자만 추가 (기존 데이터는 유지)
         for (const [role, workers] of Object.entries(selectedWorkers)) {
-          // 2-1. 해당 직무의 기존 데이터만 삭제
-          const { error: deleteError } = await supabase
-            .from('project_manpower')
-            .delete()
-            .eq('project_id', project.id)
-            .eq('role', role)
-
-          if (deleteError) throw deleteError
-
-          // 2-2. 해당 직무의 새로운 실무자 데이터 추가
-          if (workers.length > 0) {
-            const manpowerData = workers.map(worker => ({
-              project_id: project.id,
-              worker_id: worker.id,
-              role: role,
-              mm_value: 0
-            }))
-
-            const { error: insertError } = await supabase
+          for (const worker of workers) {
+            // 기존 데이터 확인
+            const { data: existingData } = await supabase
               .from('project_manpower')
-              .insert(manpowerData)
+              .select('id')
+              .match({
+                project_id: project.id,
+                worker_id: worker.id,
+                role: role
+              })
+              .single()
 
-            if (insertError) throw insertError
+            // 기존 데이터가 없는 경우에만 새로 추가
+            if (!existingData) {
+              const { error: insertError } = await supabase
+                .from('project_manpower')
+                .insert({
+                  project_id: project.id,
+                  worker_id: worker.id,
+                  role: role
+                })
+
+              if (insertError) throw insertError
+            }
           }
         }
 
-        toast.success('수정 내용이 업데이트 되었습니다.')
-        
+        toast.success('프로젝트가 수정되었습니다.')
+        onSubmit(projectData)
+
         // 현재 URL에 edit=true와 projectId 파라미터 추가하여 새로고침
         const url = new URL(window.location.href)
         url.searchParams.set('edit', 'true')
         url.searchParams.set('projectId', project.id)
         window.location.href = url.toString()
       } else {
-        // 새 프로젝트 생성
+        // 새 프로젝트 생성 시 데이터
+        const projectData = {
+          name: title,
+          client,
+          description,
+          start_date: startDate?.toISOString().split('T')[0],
+          end_date: endDate?.toISOString().split('T')[0],
+          status: status || null,
+          category: category || null,
+          major_category: majorCategory || null,
+          // ... 나머지 필드들
+        }
+
         const { data: newProject, error: createError } = await supabase
           .from('projects')
           .insert([projectData])
@@ -532,10 +541,9 @@ export default function AddProjectSlideOver({
         }
         
         toast.success('프로젝트가 추가되었습니다.')
+        onSubmit(projectData)  // 새로 생성된 데이터 전달
         onClose()
       }
-
-      onSubmit(projectData)
     } catch (error: any) {
       console.error('Error saving project:', error)
       toast.error('프로젝트 저장 중 오류가 발생했습니다.')
@@ -618,6 +626,215 @@ export default function AddProjectSlideOver({
 
   // activeTab state 추가
   const [activeTab, setActiveTab] = useState<'manpower' | 'milestone'>('manpower')
+
+  // 월 인덱스 계산 함수 추가
+  const getMonthIndex = (year: number, month: number): number => {
+    if (!startDate) return -1;
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth() + 1;
+    return ((year - startYear) * 12 + month - startMonth);
+  };
+
+  // 직무별 공수 데이터를 가져오는 함수 수정
+  const fetchRoleEfforts = async () => {
+    if (!project?.id || !startDate || !endDate) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          role,
+          project_monthly_efforts (
+            year,
+            month,
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (error) throw error;
+
+      // 직무 매핑 정의
+      const roleMapping: { [key: string]: string } = {
+        '기획': '기획',
+        '디자이너': '디자인',
+        '퍼블리셔': '퍼블리싱',
+        '개발': '개발'
+      };
+
+      // 월별, 직무별 공수 데이터 초기화
+      const monthCount = getMonthDiff(startDate, endDate) + 1;
+      const monthlyRoleEfforts: { [key: string]: number[] } = {
+        '기획': Array(monthCount).fill(0),
+        '디자인': Array(monthCount).fill(0),
+        '퍼블리싱': Array(monthCount).fill(0),
+        '개발': Array(monthCount).fill(0)
+      };
+
+      // 데이터 처리
+      data?.forEach(mp => {
+        const mappedRole = roleMapping[mp.role];
+        if (!mappedRole) return;
+
+        mp.project_monthly_efforts?.forEach((effort: { year: number; month: number; mm_value: number }) => {
+          const monthIndex = getMonthIndex(effort.year, effort.month);
+          if (monthIndex >= 0 && monthIndex < monthCount) {
+            monthlyRoleEfforts[mappedRole][monthIndex] += (effort.mm_value || 0);
+          }
+        });
+      });
+
+      // 결과 데이터 구성
+      const roleEffortData: RoleEffortData[] = Object.entries(monthlyRoleEfforts).map(([role, monthlyEfforts]) => ({
+        role,
+        monthlyEfforts
+      }));
+
+      setRoleEfforts(roleEffortData);
+    } catch (error) {
+      console.error('Error fetching role efforts:', error);
+    }
+  };
+
+  // useEffect 수정 - 의존성 추가
+  useEffect(() => {
+    if (project?.id) {
+      fetchRoleEfforts();
+    }
+  }, [project?.id, showManpowerModal]); // showManpowerModal 의존성 추가
+
+  // handleManpowerUpdate 함수 수정
+  const handleManpowerUpdate = async (updatedWorkers: SelectedWorkers) => {
+    setSelectedWorkers(updatedWorkers);
+    // 데이터 업데이트 후 즉시 새로운 데이터 fetch
+    await fetchWorkerEfforts();
+    await fetchRoleEfforts();
+  };
+
+  // fetchWorkerEfforts 함수를 컴포넌트 내부에서 정의
+  const fetchWorkerEfforts = async () => {
+    if (!project?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          role,
+          workers (
+            id,
+            name,
+            job_type
+          ),
+          project_monthly_efforts (
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (error) throw error;
+
+      const workersByRole: SelectedWorkers = {
+        'BD(BM)': [],
+        'PM(PL)': [],
+        '기획': [],
+        '디자이너': [],
+        '퍼블리셔': [],
+        '개발': []
+      };
+
+      data.forEach(mp => {
+        if (mp.workers) {
+          const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort: any) => {
+            return sum + (Number(effort.mm_value) || 0);
+          }, 0);
+
+          workersByRole[mp.role].push({
+            id: mp.workers.id,
+            name: mp.workers.name,
+            job_type: mp.workers.job_type || '',
+            total_mm_value: Number(totalEffort) || 0
+          });
+        }
+      });
+
+      setSelectedWorkers(workersByRole);
+    } catch (error) {
+      console.error('Error fetching worker efforts:', error);
+    }
+  };
+
+  // 프로젝트 데이터 로딩 부분 수정
+  useEffect(() => {
+    if (project?.id) {
+      const fetchProjectData = async () => {
+        try {
+          // 프로젝트 기본 정보와 함께 manpower와 monthly_efforts 데이터를 한 번에 가져옴
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select(`
+              *,
+              project_manpower (
+                id,
+                role,
+                workers (
+                  id,
+                  name,
+                  job_type
+                ),
+                project_monthly_efforts (
+                  mm_value
+                )
+              )
+            `)
+            .eq('id', project.id)
+            .single();
+
+          if (projectError) throw projectError;
+
+          // 기존 프로젝트 데이터 설정
+          setTitle(projectData.name || '');
+          setStatus(projectData.status || '');
+          // ... 다른 기본 정보 설정 ...
+
+          // 직무별 인력 데이터 정리
+          const workersByRole: SelectedWorkers = {
+            'BD(BM)': [],
+            'PM(PL)': [],
+            '기획': [],
+            '디자이너': [],
+            '퍼블리셔': [],
+            '개발': []
+          };
+
+          // project_manpower 데이터 처리
+          projectData.project_manpower?.forEach((mp: any) => {
+            if (mp.workers) {
+              // 각 worker의 모든 월별 공수 합산
+              const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort: any) => {
+                return sum + (Number(effort.mm_value) || 0);
+              }, 0);
+
+              workersByRole[mp.role].push({
+                id: mp.workers.id,
+                name: mp.workers.name,
+                job_type: mp.workers.job_type || '',
+                total_mm_value: Number(totalEffort) || 0
+              });
+            }
+          });
+
+          setSelectedWorkers(workersByRole);
+
+        } catch (error) {
+          console.error('Error fetching project data:', error);
+          toast.error('프로젝트 데이터를 불러오는 중 오류가 발생했습니다.');
+        }
+      };
+
+      fetchProjectData();
+    }
+  }, [project?.id]);
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -1454,7 +1671,51 @@ export default function AddProjectSlideOver({
 
                                           {/* 여기에 실제 데이터 라인이 들어갈 공간 */}
                                           <div className="relative h-full">
-                                            {/* 데이터 라인은 나중에 실제 데이터에 따라 동적으로 생성 */}
+                                            {roleEfforts.map(({ role, monthlyEfforts }) => {
+                                              const roleIndex = ['개발', '퍼블리싱', '디자인', '기획'].indexOf(role);
+                                              if (roleIndex === -1) return null;
+
+                                              // 라인 그래프를 위한 points 계산
+                                              const points = monthlyEfforts.map((effort, index) => {
+                                                const x = (index * 100) / (monthlyEfforts.length - 1);
+                                                const y = 100 - (effort * 20); // 값이 클수록 위로 올라가도록 반전
+                                                return `${x},${y}`;
+                                              }).join(' ');
+
+                                              return (
+                                                <div
+                                                  key={role}
+                                                  className="absolute left-0 right-0"
+                                                  style={{
+                                                    top: `${roleIndex * 25}%`,
+                                                    height: '25%'
+                                                  }}
+                                                >
+                                                  <svg className="w-full h-full" preserveAspectRatio="none">
+                                                    <polyline
+                                                      points={points}
+                                                      fill="none"
+                                                      stroke="#4E49E7"
+                                                      strokeWidth="2"
+                                                      strokeLinecap="round"
+                                                      strokeLinejoin="round"
+                                                      className="transition-all duration-300"
+                                                    />
+                                                    {/* 데이터 포인트 표시 */}
+                                                    {monthlyEfforts.map((effort, index) => (
+                                                      <circle
+                                                        key={index}
+                                                        cx={`${(index * 100) / (monthlyEfforts.length - 1)}%`}
+                                                        cy={`${100 - (effort * 20)}%`}
+                                                        r="3"
+                                                        fill="#4E49E7"
+                                                        className="transition-all duration-300"
+                                                      />
+                                                    ))}
+                                                  </svg>
+                                                </div>
+                                              );
+                                            })}
                                           </div>
                                         </div>
 
@@ -1549,103 +1810,105 @@ export default function AddProjectSlideOver({
 
                             {/* 직무별 공수 목록 */}
                             <div className="space-y-4 flex flex-row items-baseline gap-2 flex-wrap">
-
-                              
                               {/* 기획 */}
-                              <div className="w-[48.5%]">
-                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                                  기획
-                                </span>
-                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                                  <li className="flex justify-between relative pl-3">
-                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                      홍길동A
-                                    </span>
-                                    <div className="flex items-baseline">
-                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                                    </div>
-                                  </li>
-                                  <li className="flex justify-between relative pl-3">
-                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                      홍길동B
-                                    </span>
-                                    <div className="flex items-baseline">
-                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.5</span>
-                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                                    </div>
-                                  </li>
-                                </ul>
-                              </div>
+                              {selectedWorkers['기획']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    기획
+                                  </span>
+                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                    {selectedWorkers['기획'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
 
                               {/* 디자이너 */}
-                              <div className="w-[48.5%]">
-                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                                  디자이너
-                                </span>
-                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                                  <li className="flex justify-between relative pl-3">
-                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                      홍길동C
-                                    </span>
-                                    <div className="flex items-baseline">
-                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                                    </div>
-                                  </li>
-                                </ul>
-                              </div>
+                              {selectedWorkers['디자이너']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    디자이너
+                                  </span>
+                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                    {selectedWorkers['디자이너'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
 
                               {/* 퍼블리셔 */}
-                              <div className="w-[48.5%]">
-                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                                  퍼블리셔
-                                </span>
-                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                                  <li className="flex justify-between relative pl-3">
-                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                      홍길동D
-                                    </span>
-                                    <div className="flex items-baseline">
-                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                                    </div>
-                                  </li>
-                                </ul>
-                              </div>
+                              {selectedWorkers['퍼블리셔']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    퍼블리셔
+                                  </span>
+                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                    {selectedWorkers['퍼블리셔'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
 
                               {/* 개발 */}
-                              <div className="w-[48.5%]">
-                                <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
-                                  개발
-                                </span>
-                                <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
-                                  <li className="flex justify-between relative pl-3">
-                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                      홍길동E
-                                    </span>
-                                    <div className="flex items-baseline">
-                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.7</span>
-                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                                    </div>
-                                  </li>
-                                  <li className="flex justify-between relative pl-3">
-                                    <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                    <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
-                                      홍길동F
-                                    </span>
-                                    <div className="flex items-baseline">
-                                      <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">0.8</span>
-                                      <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
-                                    </div>
-                                  </li>
-                                </ul>
-                              </div>
+                              {selectedWorkers['개발']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    개발
+                                  </span>
+                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                    {selectedWorkers['개발'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1664,10 +1927,11 @@ export default function AddProjectSlideOver({
         <AddManpowerModal
           isOpen={showManpowerModal}
           onClose={() => setShowManpowerModal(false)}
-          projectId={project?.id || ''}  // projectId 추가
+          projectId={project?.id || ''}
           startDate={startDate}
           endDate={endDate}
           selectedWorkers={selectedWorkers}
+          onManpowerUpdate={handleManpowerUpdate}
         />
       )}
     </Transition.Root>
