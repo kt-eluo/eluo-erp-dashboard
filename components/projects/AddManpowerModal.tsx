@@ -98,13 +98,18 @@ export default function AddManpowerModal({
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[9999]">
-      <div className="absolute inset-0 bg-black bg-opacity-25" onClick={onClose} />
+    <div className="fixed inset-0 flex items-center justify-center z-[99999]">
+      {/* 배경 오버레이 */}
+      <div 
+        className="absolute inset-0 bg-black/25" 
+        onClick={onClose} 
+      />
       
-      <div className="relative bg-white rounded-lg p-6 w-[1000px] max-h-[90vh] overflow-y-auto">
+      {/* 모달 컨테이너 */}
+      <div className="relative bg-white rounded-lg p-6 w-[700px] max-h-[90vh] overflow-y-auto z-10">
         {/* 헤더 */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold">공수 추가</h2>
+        <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-20">
+          <h2 className="text-lg font-semibold">공수 관리</h2>
           <div className="flex items-center gap-2">
             {/* 저장 버튼 */}
             <button
@@ -116,7 +121,7 @@ export default function AddManpowerModal({
             {/* 닫기 버튼 */}
             <button
               type="button"
-              onClick={() => onClose()}
+              onClick={onClose}
               className="p-1 hover:bg-gray-100 rounded-full transition-colors"
             >
               <X className="w-5 h-5 text-gray-500" />
@@ -125,14 +130,14 @@ export default function AddManpowerModal({
         </div>
 
         {/* 탭 네비게이션 */}
-        <div className="border-b border-gray-200 mb-6">
+        <div className="border-b border-gray-200 mb-6 sticky top-[60px] bg-white z-20">
           <nav className="flex space-x-8">
             {Object.entries(selectedWorkers || {}).map(([role, workers]) => (
               workers.length > 0 && (
                 <button
                   key={role}
                   onClick={() => setSelectedTab(role as Role)}
-                  className={`py-4 px-1 text-sm font-medium border-b-2 ${
+                  className={`py-2 px-1 text-sm font-medium border-b-2 relative ${
                     selectedTab === role
                       ? 'border-[#4E49E7] text-[#4E49E7]'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -145,130 +150,129 @@ export default function AddManpowerModal({
           </nav>
         </div>
 
-        {/* 선택된 직무의 실무자들 공수 입력 영역 */}
-        <div className="space-y-8">
-          {selectedWorkers[selectedTab]?.map((worker, index) => (
+        {/* 컨텐츠 영역 */}
+        <div className="relative z-10">
+          {selectedTab && selectedWorkers[selectedTab]?.map((worker, index) => (
             <div 
               key={worker.id}
-              className={`p-4 rounded-lg ${
-                index > 0 ? 'border-t border-gray-200 mt-4' : ''
-              }`}
+              className="p-6 rounded-lg border border-gray-200 bg-white mb-4 hover:border-gray-300 transition-all"
             >
-              {/* 실무자 이름 */}
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-20 text-[13px] text-gray-500">이름</span>
-                <div className="w-[200px] h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm flex items-center">
-                  {worker.name}
+              {/* 실무자 정보 섹션 */}
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-4">
+                  <span className="text-[14px] font-medium text-gray-900">{worker.name}</span>
+                  <span className="text-xs text-gray-500 px-2 py-1 bg-gray-50 rounded-full">{worker.job_type}</span>
                 </div>
               </div>
 
-              {/* 등급 선택 (드롭다운) */}
-              <div className="flex items-center gap-2">
-                <span className="w-20 text-[13px] text-gray-500">등급</span>
-                <div className="relative w-[200px]">
-                  <select
-                    value={workersEffort[worker.id]?.grade || ''}
-                    onChange={(e) => setWorkersEffort(prev => ({
-                      ...prev,
-                      [worker.id]: {
-                        ...prev[worker.id],
-                        grade: e.target.value as Grade
-                      }
-                    }))}
-                    className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm appearance-none bg-white"
-                  >
-                    <option value="">선택</option>
-                    {grades.map((grade) => (
-                      <option key={grade} value={grade}>
-                        {grade}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* 직급 선택 (드롭다운) */}
-              <div className="flex items-center gap-2">
-                <span className="w-20 text-[13px] text-gray-500">직급</span>
-                <div className="relative w-[200px]">
-                  <select
-                    value={workersEffort[worker.id]?.position || ''}
-                    onChange={(e) => setWorkersEffort(prev => ({
-                      ...prev,
-                      [worker.id]: {
-                        ...prev[worker.id],
-                        position: e.target.value as Position
-                      }
-                    }))}
-                    className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm appearance-none bg-white"
-                  >
-                    <option value="">선택</option>
-                    {positions.map((position) => (
-                      <option key={position} value={position}>
-                        {position}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* 단가 입력 */}
-              <div className="flex items-center gap-2">
-                <span className="w-20 text-[13px] text-gray-500">단가</span>
-                <input
-                  type="number"
-                  value={workersEffort[worker.id]?.unitPrice || ''}
-                  onChange={(e) => setWorkersEffort(prev => ({
-                    ...prev,
-                    [worker.id]: {
-                      ...prev[worker.id],
-                      unitPrice: e.target.value === '' ? null : parseInt(e.target.value)
-                    }
-                  }))}
-                  className="w-[200px] h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm"
-                  placeholder="단가 입력"
-                />
-                <span className="text-gray-500">원</span>
-              </div>
-
-              {/* 공수 입력 */}
-              <div className="flex items-start gap-2">
-                <span className="w-20 text-[13px] text-gray-500 mt-[6px]">공수</span>
-                <div className="w-[calc(100%-5rem)] relative">
-                  <div className="overflow-x-auto rounded-[6px] p-4">
-                    <div className="flex gap-4 min-w-max">
-                      {getMonths().map((month) => (
-                        <div key={`${worker.id}-${month}`} className="text-center flex-shrink-0">
-                          <div className="text-[13px] text-gray-500 mb-1">{month}</div>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={workersEffort[worker.id]?.monthlyEfforts[month] || ''}
-                            onChange={(e) => handleWorkerEffortChange(worker.id, month, e.target.value)}
-                            className="w-[60px] h-[31px] px-2 rounded-[6px] border border-[#B8B8B8] text-sm text-center"
-                          />
-                        </div>
+              {/* 등급/직급/단가 섹션 */}
+              <div className="grid grid-cols-3 gap-6 mb-8">
+                {/* 등급 선택 */}
+                <div className="space-y-2">
+                  <span className="text-[13px] font-medium text-gray-700">등급</span>
+                  <div className="relative">
+                    <select
+                      value={workersEffort[worker.id]?.grade || ''}
+                      onChange={(e) => setWorkersEffort(prev => ({
+                        ...prev,
+                        [worker.id]: {
+                          ...prev[worker.id],
+                          grade: e.target.value as Grade
+                        }
+                      }))}
+                      className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                    >
+                      <option value="">선택</option>
+                      {grades.map((grade) => (
+                        <option key={grade} value={grade}>{grade}</option>
                       ))}
-                    </div>
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* 직급 선택 */}
+                <div className="space-y-2">
+                  <span className="text-[13px] font-medium text-gray-700">직급</span>
+                  <div className="relative">
+                    <select
+                      value={workersEffort[worker.id]?.position || ''}
+                      onChange={(e) => setWorkersEffort(prev => ({
+                        ...prev,
+                        [worker.id]: {
+                          ...prev[worker.id],
+                          position: e.target.value as Position
+                        }
+                      }))}
+                      className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                    >
+                      <option value="">선택</option>
+                      {positions.map((position) => (
+                        <option key={position} value={position}>{position}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* 단가 입력 */}
+                <div className="space-y-2">
+                  <span className="text-[13px] font-medium text-gray-700">단가</span>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={workersEffort[worker.id]?.unitPrice || ''}
+                      onChange={(e) => setWorkersEffort(prev => ({
+                        ...prev,
+                        [worker.id]: {
+                          ...prev[worker.id],
+                          unitPrice: e.target.value === '' ? null : parseInt(e.target.value)
+                        }
+                      }))}
+                      className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                      placeholder="단가 입력"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
                   </div>
                 </div>
               </div>
 
-              {/* 투입소계 & 투입비용 */}
-              <div className="flex items-center gap-8 mt-4">
-                <div className="flex items-center gap-2">
-                  <span className="w-20 text-[13px] text-gray-500">투입소계</span>
-                  <span className="text-[14px]">
-                    {(calculateTotalEffort(selectedTab) || 0).toFixed(1)}
-                  </span>
+              {/* 공수 입력 섹션 */}
+              <div className="space-y-2">
+                <span className="text-[13px] font-medium text-gray-700">공수</span>
+                <div className="bg-gray-50 rounded-lg p-4 overflow-x-auto">
+                  <div className="flex gap-4 min-w-max">
+                    {getMonths().map((month) => (
+                      <div key={`${worker.id}-${month}`} className="text-center flex-shrink-0">
+                        <div className="text-[13px] text-gray-600 mb-2">{month}</div>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={workersEffort[worker.id]?.monthlyEfforts[month] || ''}
+                          onChange={(e) => handleWorkerEffortChange(worker.id, month, e.target.value)}
+                          className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-20 text-[13px] text-gray-500">투입비용</span>
-                  <span className="text-[14px]">
-                    {calculateTotalCost(selectedTab).toLocaleString()} 원
-                  </span>
+              </div>
+
+              {/* 투입소계 & 투입비용 섹션 */}
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-8">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[13px] text-gray-600">투입소계</span>
+                    <span className="text-[15px] font-medium text-gray-900">
+                      {(calculateTotalEffort(selectedTab) || 0).toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[13px] text-gray-600">투입비용</span>
+                    <span className="text-[15px] font-medium text-gray-900">
+                      {calculateTotalCost(selectedTab).toLocaleString()} 원
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
