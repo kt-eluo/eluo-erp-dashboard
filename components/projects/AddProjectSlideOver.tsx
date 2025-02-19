@@ -436,119 +436,129 @@ export default function AddProjectSlideOver({
 
   // handleSubmit 함수 수정
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     
     try {
       if (mode === 'edit' && project?.id) {
-        // 프로젝트 데이터 준비
-        const projectData = {
+        // 수정할 프로젝트 데이터 준비
+        const updatedProject: any = {
           name: title,
-          client,
-          description,
-          status,
-          major_category: majorCategory,
-          category,
-          start_date: startDate,
-          end_date: endDate,
-          // ... 다른 필드들
-        }
+          updated_at: new Date().toISOString()
+        };
 
-        // 1. 프로젝트 기본 정보 업데이트
-        const { error: updateError } = await supabase
+        // 값이 있는 경우에만 업데이트 객체에 포함
+        if (status) updatedProject.status = status;
+        if (majorCategory) updatedProject.major_category = majorCategory;
+        if (category) updatedProject.category = category;
+        if (startDate) updatedProject.start_date = startDate.toISOString();
+        if (endDate) updatedProject.end_date = endDate.toISOString();
+        
+        // 공수 값이 null이 아닌 경우에만 포함
+        if (manpowerPlanning !== null) updatedProject.planning_manpower = manpowerPlanning;
+        if (manpowerDesign !== null) updatedProject.design_manpower = manpowerDesign;
+        if (manpowerPublishing !== null) updatedProject.publishing_manpower = manpowerPublishing;
+        if (manpowerDevelopment !== null) updatedProject.development_manpower = manpowerDevelopment;
+
+        // 1. 프로젝트 데이터 업데이트
+        const { data, error } = await supabase
           .from('projects')
-          .update(projectData)
+          .update(updatedProject)
           .eq('id', project.id)
+          .select();
 
-        if (updateError) throw updateError
-
-        // 2. 새로운 실무자만 추가 (기존 데이터는 유지)
-        for (const [role, workers] of Object.entries(selectedWorkers)) {
-          for (const worker of workers) {
-            // 기존 데이터 확인
-            const { data: existingData } = await supabase
-              .from('project_manpower')
-              .select('id')
-              .match({
-                project_id: project.id,
-                worker_id: worker.id,
-                role: role
-              })
-              .single()
-
-            // 기존 데이터가 없는 경우에만 새로 추가
-            if (!existingData) {
-              const { error: insertError } = await supabase
-                .from('project_manpower')
-                .insert({
-                  project_id: project.id,
-                  worker_id: worker.id,
-                  role: role
-                })
-
-              if (insertError) throw insertError
-            }
-          }
+        if (error) {
+          console.error('Error details:', error);
+          throw new Error(`프로젝트 수정 중 오류가 발생했습니다: ${error.message}`);
         }
 
-        toast.success('프로젝트가 수정되었습니다.')
-        onSubmit(projectData)
+        // 2. 직무별 실무자 데이터 처리
+        // 기존 project_manpower 데이터 삭제
+        const { error: deleteError } = await supabase
+          .from('project_manpower')
+          .delete()
+          .eq('project_id', project.id);
 
-        // 현재 URL에 edit=true와 projectId 파라미터 추가하여 새로고침
-        const url = new URL(window.location.href)
-        url.searchParams.set('edit', 'true')
-        url.searchParams.set('projectId', project.id)
-        window.location.href = url.toString()
+        if (deleteError) throw deleteError;
+
+        // 새로운 project_manpower 데이터 추가
+        const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
+          workers.map(worker => ({
+            project_id: project.id,
+            worker_id: worker.id,
+            role: role
+          }))
+        );
+
+        if (manpowerData.length > 0) {
+          const { error: insertError } = await supabase
+            .from('project_manpower')
+            .insert(manpowerData);
+
+          if (insertError) throw insertError;
+        }
+
+        // 성공적으로 업데이트된 경우
+        toast.success('프로젝트가 수정되었습니다.');
+        onSubmit(data[0]);
+        onClose();
       } else {
-        // 새 프로젝트 생성 시 데이터
-        const projectData = {
-          name: title,
-          client,
-          description,
-          start_date: startDate?.toISOString().split('T')[0],
-          end_date: endDate?.toISOString().split('T')[0],
-          status: status || null,
-          category: category || null,
-          major_category: majorCategory || null,
-          // ... 나머지 필드들
+        // 새 프로젝트 생성 시
+        const newProject: any = {
+          name: title
+        };
+
+        // 값이 있는 경우에만 포함
+        if (status) newProject.status = status;
+        if (majorCategory) newProject.major_category = majorCategory;
+        if (category) newProject.category = category;
+        if (startDate) newProject.start_date = startDate.toISOString();
+        if (endDate) newProject.end_date = endDate.toISOString();
+        
+        // 공수 값이 null이 아닌 경우에만 포함
+        if (manpowerPlanning !== null) newProject.planning_manpower = manpowerPlanning;
+        if (manpowerDesign !== null) newProject.design_manpower = manpowerDesign;
+        if (manpowerPublishing !== null) newProject.publishing_manpower = manpowerPublishing;
+        if (manpowerDevelopment !== null) newProject.development_manpower = manpowerDevelopment;
+
+        // 1. 새 프로젝트 생성
+        const { data, error } = await supabase
+          .from('projects')
+          .insert([newProject])
+          .select();
+
+        if (error) {
+          console.error('Error details:', error);
+          throw new Error(`새 프로젝트 생성 중 오류가 발생했습니다: ${error.message}`);
         }
 
-        const { data: newProject, error: createError } = await supabase
-          .from('projects')
-          .insert([projectData])
-          .select()
-          .single()
-
-        if (createError) throw createError
-
-        // 새 프로젝트의 실무자 데이터 추가
-        if (newProject) {
+        // 2. 직무별 실무자 데이터 추가
+        if (data?.[0]?.id) {
           const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
             workers.map(worker => ({
-              project_id: newProject.id,
+              project_id: data[0].id,
               worker_id: worker.id,
-              role: role,
-              mm_value: 0 // 기본값 설정
+              role: role
             }))
-          )
+          );
 
           if (manpowerData.length > 0) {
             const { error: insertError } = await supabase
               .from('project_manpower')
-              .insert(manpowerData)
+              .insert(manpowerData);
 
-            if (insertError) throw insertError
+            if (insertError) throw insertError;
           }
         }
-        
-        toast.success('프로젝트가 추가되었습니다.')
-        onSubmit(projectData)  // 새로 생성된 데이터 전달
-        onClose()
+
+        toast.success('새 프로젝트가 생성되었습니다.');
+        onSubmit(data[0]);
+        onClose();
       }
-    } catch (error: any) {
-      console.error('Error saving project:', error)
-      toast.error('프로젝트 저장 중 오류가 발생했습니다.')
+    } catch (error) {
+      console.error('Error saving project:', error);
+      toast.error(error instanceof Error ? error.message : '프로젝트 저장 중 오류가 발생했습니다.');
     }
-  }
+  };
 
   const handleAddIntermediatePayment = () => {
     setIntermediatePayments([...intermediatePayments, ''])
