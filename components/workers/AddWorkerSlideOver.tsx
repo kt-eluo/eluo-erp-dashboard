@@ -65,6 +65,20 @@ const DEFAULT_PRICES = {
 // 상단에 gradeTypes 배열 추가
 const gradeTypes: WorkerGrade[] = ['BD', 'BM', 'PM', 'PL', 'PA']
 
+// 상단에 인터페이스 추가
+interface WorkerProject {
+  id: string;
+  name: string;
+  status: string;
+  start_date: string;
+  end_date: string;
+  project_manpower: {
+    position: string;
+    role: string;
+    mm_value: number;
+  }[];
+}
+
 export default function AddWorkerSlideOver({ 
   isOpen, 
   onClose, 
@@ -93,6 +107,26 @@ export default function AddWorkerSlideOver({
   const [grade, setGrade] = useState<WorkerGrade | ''>(worker?.grade || '')
   const [isGradeOpen, setIsGradeOpen] = useState(false)
   const [isDuplicateName, setIsDuplicateName] = useState(false)
+  const [statusCounts, setStatusCounts] = useState({
+    준비중: 0,
+    진행중: 0,
+    완료: 0,
+    보류: 0
+  });
+
+  // 상태 추가
+  const [workerProjects, setWorkerProjects] = useState<WorkerProject[]>([]);
+
+  // 상단에 상태 추가
+  const [activeTab, setActiveTab] = useState<'준비중' | '진행중' | '완료' | '보류'>('준비중');
+
+  // 탭 데이터 정의
+  const tabs = [
+    { id: '준비중', count: statusCounts.준비중 },
+    { id: '진행중', count: statusCounts.진행중 },
+    { id: '완료', count: statusCounts.완료 },
+    { id: '보류', count: statusCounts.보류 }
+  ];
 
   const jobTypes: WorkerJobType[] = ['기획', '디자인', '퍼블리싱', '개발', '기타']
   const levelTypes: WorkerLevelType[] = ['특급', '고급', '중급', '초급']
@@ -221,6 +255,119 @@ export default function AddWorkerSlideOver({
 
     fetchMMRecords()
   }, [workerId])
+
+  // 프로젝트 상태 카운트를 가져오는 함수
+  const fetchProjectStatusCounts = async (workerId: string) => {
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        status,
+        project_manpower!inner (
+          worker_id
+        )
+      `)
+      .eq('project_manpower.worker_id', workerId);
+
+    if (error) {
+      console.error('Error fetching project counts:', error);
+      return;
+    }
+
+    // 상태별 카운트 계산
+    const counts = data.reduce((acc, project) => {
+      acc[project.status] = (acc[project.status] || 0) + 1;
+      return acc;
+    }, {
+      준비중: 0,
+      진행중: 0,
+      완료: 0,
+      보류: 0
+    });
+
+    setStatusCounts(counts);
+  };
+
+  // 컴포넌트가 마운트되거나 worker가 변경될 때 카운트 업데이트
+  useEffect(() => {
+    if (worker?.id) {
+      fetchProjectStatusCounts(worker.id);
+    }
+  }, [worker?.id]);
+
+  // 실무자의 프로젝트 목록을 가져오는 함수
+  const fetchWorkerProjects = async (workerId: string) => {
+    try {
+      // 먼저 project_manpower 데이터 가져오기
+      const { data: manpowerData, error: manpowerError } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          position,
+          role,
+          project_id,
+          worker_id,
+          projects (
+            id,
+            name,
+            status,
+            start_date,
+            end_date
+          ),
+          project_monthly_efforts (
+            mm_value
+          )
+        `)
+        .eq('worker_id', workerId);
+
+      if (manpowerError) {
+        console.error('Error fetching manpower data:', manpowerError);
+        return;
+      }
+
+      // 데이터 구조 변환
+      const projects = manpowerData?.map(manpower => ({
+        id: manpower.projects.id,
+        name: manpower.projects.name,
+        status: manpower.projects.status,
+        start_date: manpower.projects.start_date,
+        end_date: manpower.projects.end_date,
+        project_manpower: {
+          position: manpower.position,
+          role: manpower.role,
+          mm_value: manpower.project_monthly_efforts?.reduce((sum, effort) => 
+            sum + (effort.mm_value || 0), 0) || 0
+        }
+      })) || [];
+
+      setWorkerProjects(projects);
+    } catch (error) {
+      console.error('Error in fetchWorkerProjects:', error);
+    }
+  };
+
+  // useEffect에 추가
+  useEffect(() => {
+    if (worker?.id) {
+      fetchWorkerProjects(worker.id);
+    }
+  }, [worker?.id]);
+
+  // 날짜 포맷팅 함수 추가
+  const formatDate = (dateString: string) => {
+    return new Date(dateString)
+      .toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      })
+      .replace(/\. /g, '.')
+      .slice(0, -1);
+  };
+
+  // 공수 총합 계산 함수 추가
+  const calculateTotalMM = (monthlyEfforts: { mm_value: number }[]) => {
+    return monthlyEfforts.reduce((sum, effort) => sum + (effort.mm_value || 0), 0);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -968,31 +1115,92 @@ export default function AddWorkerSlideOver({
                 <div className="flex-1 flex flex-col bg-white border-l border-gray-200 overflow-y-auto">
                   <div className="flex-none border-b border-gray-200">
                     <nav className="flex">
-                      <button className="px-4 py-2 text-sm font-medium border-b-2 border-black">
-                        진행중 <span className="text-gray-500">0</span>
-                      </button>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent">
-                        진행 예정 <span>0</span>
-                      </button>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent">
-                        종료 <span>0</span>
-                      </button>
+                      {tabs.map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                          className={`
+                            px-4 py-2 text-sm font-medium relative
+                            ${activeTab === tab.id
+                              ? 'text-black border-b-2 border-black'
+                              : 'text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300'
+                            }
+                            transition-colors duration-200
+                          `}
+                        >
+                          {tab.id}{' '}
+                          <span className={activeTab === tab.id ? 'text-gray-900' : 'text-gray-500'}>
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
                     </nav>
                   </div>
 
                   <div className="flex-1 overflow-y-auto">
-                    <div className="h-full flex flex-col items-center justify-center p-6">
-                      <div className="w-12 h-12 mb-4">
-                        <svg viewBox="0 0 24 24" fill="none" className="w-full h-full text-gray-200">
-                          <path d="M4 4h16v16H4V4z" stroke="currentColor" strokeWidth={2} />
-                          <path d="M9 12h6M12 9v6" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
-                        </svg>
+                    {workerProjects.length > 0 ? (
+                      <div className="p-6">
+                        <div className="space-y-4">
+                          {workerProjects
+                            .filter(project => project.status === activeTab)
+                            .map((project) => (
+                              <div 
+                                key={project.id} 
+                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                              >
+                                <div className="">
+                                  {/* 프로젝트 이름 */}
+                                  <div className="font-medium text-gray-900">
+                                    {project.name}
+                                  </div>
+
+                                  {/* 계약기간  */}
+                                  <div className="font-medium text-gray-900">
+                                    계약 기간 : {project.start_date && project.end_date ? 
+                                      `${formatDate(project.start_date)} ~ ${formatDate(project.end_date)}` : 
+                                      '기간 미설정'}
+                                  </div>
+
+                                  {/* 나의 투입 정보 */}
+                                  <div className="flex items-center justify-between">
+                                    <ul>
+                                      <li>
+                                        <span>투입 직무 등급</span>{' '}
+                                        <span>{project.project_manpower?.position || '-'}</span>
+                                      </li>
+                                      <li>
+                                        <span>투입 직무</span>{' '}
+                                        <span>{project.project_manpower?.role || '-'}</span>
+                                      </li>
+                                      <li>
+                                        <span>투입 공수</span>{' '}
+                                        <span>
+                                          {project.project_manpower?.mm_value ? 
+                                            `${project.project_manpower.mm_value.toFixed(1)} M/M` : 
+                                            '-'}
+                                        </span>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-500 mb-4">현재 진행중인 프로젝트가 없어요.</p>
-                      <button className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
-                        프로젝트에 투입하기
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center p-6">
+                        <div className="w-12 h-12 mb-4">
+                          <svg viewBox="0 0 24 24" fill="none" className="w-full h-full text-gray-200">
+                            <path d="M4 4h16v16H4V4z" stroke="currentColor" strokeWidth={2} />
+                            <path d="M9 12h6M12 9v6" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+                          </svg>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-4">현재 진행중인 프로젝트가 없어요.</p>
+                        <button className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                          프로젝트에 투입하기
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

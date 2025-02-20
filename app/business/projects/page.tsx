@@ -204,6 +204,21 @@ export default function ProjectsManagementPage() {
     }
   }, [])
 
+  // URL 파라미터 확인하는 useEffect 추가
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isEdit = params.get('edit') === 'true';
+    const projectId = params.get('projectId');
+
+    if (isEdit && projectId) {
+      const project = projects.find(p => p.id === projectId);
+      if (project) {
+        setSelectedProject(project);
+        setIsDetailSlideOverOpen(true);
+      }
+    }
+  }, [projects]);
+
   // 현재 페이지의 데이터만 가져오는 함수
   const getCurrentPageData = () => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
@@ -227,6 +242,53 @@ export default function ProjectsManagementPage() {
     // 진행률 계산
     const progress = ((now - start) / (end - start)) * 100;
     return Math.min(Math.max(progress, 0), 100); // 0~100 사이 값으로 제한
+  };
+
+  // 실무자 공수 관리 버튼 클릭 핸들러 추가
+  const handleManpowerClick = async (project: Project) => {
+    try {
+      const { data: projectData, error } = await supabase
+        .from('projects')
+        .select(`
+          *,
+          project_manpower (
+            id,
+            worker_id,
+            role,
+            mm_value,
+            workers (
+              id,
+              name
+            )
+          )
+        `)
+        .eq('id', project.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching project:', error);
+        return;
+      }
+
+      if (projectData) {
+        const projectWithManpower = {
+          ...projectData,
+          manpower: projectData.project_manpower || []
+        };
+        setSelectedProject(projectWithManpower);
+        setIsDetailSlideOverOpen(true);
+        
+        // 약간의 딜레이 후 ManpowerModal 열기
+        setTimeout(() => {
+          const url = new URL(window.location.href);
+          url.searchParams.set('edit', 'true');
+          url.searchParams.set('projectId', project.id);
+          window.history.pushState({}, '', url.toString());
+        }, 300); // SlideOver 애니메이션이 완료된 후
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
   if (isLoading) {
@@ -373,7 +435,8 @@ export default function ProjectsManagementPage() {
               {projects.map((project) => (
                 <div 
                   key={project.id}
-                  className="border border-[#CFCFCF] rounded-[8px] p-6 hover:border-[#4E49E7] transition-colors duration-200"
+                  className="border border-[#CFCFCF] rounded-[8px] p-6 hover:border-[#4E49E7] transition-colors duration-200 cursor-pointer"
+                  onClick={() => handleProjectDetail(project)}
                 >
                   {/* 상단 영역: 프로젝트명과 삭제 버튼 */}
                   <div className="flex justify-between items-start mb-4">
@@ -436,7 +499,16 @@ export default function ProjectsManagementPage() {
                         </div>
                       </div>
                       <div className="flex flex-row gap-2 w-[50%]">
-                        <button type="button" className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">실무자 공수 관리</button>
+                        <button 
+                          type="button" 
+                          className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black"
+                          onClick={(e) => {
+                            e.stopPropagation(); // 카드 클릭 이벤트 전파 방지
+                            handleManpowerClick(project);
+                          }}
+                        >
+                          실무자 공수 관리
+                        </button>
                         <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
                       </div>
                     </div>
@@ -611,10 +683,12 @@ export default function ProjectsManagementPage() {
           onClose={() => {
             setIsDetailSlideOverOpen(false)
             setSelectedProject(null)
+            window.history.replaceState({}, '', window.location.pathname)
           }}
-          onSubmit={handleProjectSubmit}
           project={selectedProject}
           mode="edit"
+          onSubmit={handleProjectSubmit}
+          openManpowerModal={!!selectedProject?.id && window.location.search.includes('projectId')}
         />
 
         {/* 삭제 확인 모달 */}

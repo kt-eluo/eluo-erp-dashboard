@@ -17,6 +17,7 @@ interface AddProjectSlideOverProps {
   onSubmit: (projectData: any) => void
   project?: Project | null
   mode?: 'create' | 'edit'
+  openManpowerModal?: boolean
 }
 
 // 스타일 추가
@@ -107,7 +108,8 @@ export default function AddProjectSlideOver({
   onClose,
   onSubmit,
   project,
-  mode = 'create'
+  mode = 'create',
+  openManpowerModal = false
 }: AddProjectSlideOverProps) {
   // 기본 정보
   const [title, setTitle] = useState('')
@@ -326,15 +328,24 @@ export default function AddProjectSlideOver({
   }
 
   // 실무자 선택 핸들러
-  const handleWorkerSelect = (jobType: string, worker: { id: string, name: string }) => {
-    setSelectedWorkers(prev => ({
-      ...prev,
-      [jobType]: [...prev[jobType], worker]
-    }))
+  const handleWorkerSelect = (jobType: string, selectedWorker: { id: string, name: string }) => {
+    setSelectedWorkers(prev => {
+      const newWorker: Worker = {
+        ...selectedWorker,
+        job_type: jobType,
+        total_mm_value: 0
+      };
+
+      return {
+        ...prev,
+        [jobType]: [...(prev[jobType] || []), newWorker]
+      };
+    });
+    
     setSearchTerms(prev => ({
       ...prev,
       [jobType]: ''
-    }))
+    }));
   }
 
   // 실무자 제거 핸들러 수정
@@ -443,7 +454,12 @@ export default function AddProjectSlideOver({
         // 수정할 프로젝트 데이터 준비
         const updatedProject: any = {
           name: title,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          // 직무별 전체 공수 데이터 추가
+          planning_manpower: manpowerPlanning,
+          design_manpower: manpowerDesign,
+          publishing_manpower: manpowerPublishing,
+          development_manpower: manpowerDevelopment,
         };
 
         // 값이 있는 경우에만 업데이트 객체에 포함
@@ -452,12 +468,6 @@ export default function AddProjectSlideOver({
         if (category) updatedProject.category = category;
         if (startDate) updatedProject.start_date = startDate.toISOString();
         if (endDate) updatedProject.end_date = endDate.toISOString();
-        
-        // 공수 값이 null이 아닌 경우에만 포함
-        if (manpowerPlanning !== null) updatedProject.planning_manpower = manpowerPlanning;
-        if (manpowerDesign !== null) updatedProject.design_manpower = manpowerDesign;
-        if (manpowerPublishing !== null) updatedProject.publishing_manpower = manpowerPublishing;
-        if (manpowerDevelopment !== null) updatedProject.development_manpower = manpowerDevelopment;
 
         // 1. 프로젝트 데이터 업데이트
         const { data, error } = await supabase
@@ -471,36 +481,21 @@ export default function AddProjectSlideOver({
           throw new Error(`프로젝트 수정 중 오류가 발생했습니다: ${error.message}`);
         }
 
-        // 2. 직무별 실무자 데이터 처리
-        // 기존 project_manpower 데이터 삭제
-        const { error: deleteError } = await supabase
-          .from('project_manpower')
-          .delete()
-          .eq('project_id', project.id);
+        if (data && data[0]) {
+          // 로컬 상태 즉시 업데이트
+          setManpowerPlanning(data[0].planning_manpower);
+          setManpowerDesign(data[0].design_manpower);
+          setManpowerPublishing(data[0].publishing_manpower);
+          setManpowerDevelopment(data[0].development_manpower);
 
-        if (deleteError) throw deleteError;
+          // 부모 컴포넌트에 업데이트된 데이터 전달
+          onSubmit(data[0]);
+          toast.success('프로젝트가 수정되었습니다.');
 
-        // 새로운 project_manpower 데이터 추가
-        const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
-          workers.map(worker => ({
-            project_id: project.id,
-            worker_id: worker.id,
-            role: role
-          }))
-        );
+         // 페이지 새로고침 후 슬라이드오버 다시 열기
+         window.location.href = `${window.location.pathname}?edit=true&projectId=${project.id}`;
 
-        if (manpowerData.length > 0) {
-          const { error: insertError } = await supabase
-            .from('project_manpower')
-            .insert(manpowerData);
-
-          if (insertError) throw insertError;
         }
-
-        // 성공적으로 업데이트된 경우
-        toast.success('프로젝트가 수정되었습니다.');
-        onSubmit(data[0]);
-        onClose();
       } else {
         // 새 프로젝트 생성 시
         const newProject: any = {
@@ -846,6 +841,34 @@ export default function AddProjectSlideOver({
     }
   }, [project?.id]);
 
+  // useEffect 추가
+  useEffect(() => {
+    if (isOpen && openManpowerModal) {
+      setShowManpowerModal(true)
+    }
+  }, [isOpen, openManpowerModal])
+
+  // 직무별 전체 공수 입력 핸들러들 수정
+  const handleManpowerPlanningChange = (value: string) => {
+    const numValue = value === '' ? null : Number(value);
+    setManpowerPlanning(numValue);
+  };
+
+  const handleManpowerDesignChange = (value: string) => {
+    const numValue = value === '' ? null : Number(value);
+    setManpowerDesign(numValue);
+  };
+
+  const handleManpowerPublishingChange = (value: string) => {
+    const numValue = value === '' ? null : Number(value);
+    setManpowerPublishing(numValue);
+  };
+
+  const handleManpowerDevelopmentChange = (value: string) => {
+    const numValue = value === '' ? null : Number(value);
+    setManpowerDevelopment(numValue);
+  };
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
       {/* 스타일 태그 추가 */}
@@ -1168,10 +1191,7 @@ export default function AddProjectSlideOver({
                                         min="0"
                                         step="0.1"
                                         value={manpowerPlanning ?? ''}
-                                        onChange={(e) => {
-                                          const value = e.target.value
-                                          setManpowerPlanning(value === '' ? null : Number(value))
-                                        }}
+                                        onChange={(e) => handleManpowerPlanningChange(e.target.value)}
                                         className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
                                         placeholder=""
                                       />
@@ -1185,10 +1205,7 @@ export default function AddProjectSlideOver({
                                         min="0"
                                         step="0.1"
                                         value={manpowerDesign ?? ''}
-                                        onChange={(e) => {
-                                          const value = e.target.value
-                                          setManpowerDesign(value === '' ? null : Number(value))
-                                        }}
+                                        onChange={(e) => handleManpowerDesignChange(e.target.value)}
                                         className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
                                         placeholder=""
                                       />
@@ -1202,10 +1219,7 @@ export default function AddProjectSlideOver({
                                         min="0"
                                         step="0.1"
                                         value={manpowerPublishing ?? ''}
-                                        onChange={(e) => {
-                                          const value = e.target.value
-                                          setManpowerPublishing(value === '' ? null : Number(value))
-                                        }}
+                                        onChange={(e) => handleManpowerPublishingChange(e.target.value)}
                                         className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
                                         placeholder=""
                                       />
@@ -1219,10 +1233,7 @@ export default function AddProjectSlideOver({
                                         min="0"
                                         step="0.1"
                                         value={manpowerDevelopment ?? ''}
-                                        onChange={(e) => {
-                                          const value = e.target.value
-                                          setManpowerDevelopment(value === '' ? null : Number(value))
-                                        }}
+                                        onChange={(e) => handleManpowerDevelopmentChange(e.target.value)}
                                         className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
                                         placeholder=""
                                       />

@@ -387,6 +387,12 @@ export default function AddManpowerModal({
     onManpowerUpdate?.(updatedWorkers);
   };
 
+  // 공수 계산 로직 수정
+  const calculateTotalMM = (monthlyEfforts: Record<string, number | null>): number => {
+    return Object.values(monthlyEfforts)
+      .reduce((sum: number, val: number | null) => sum + (Number(val) || 0), 0);
+  };
+
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[999999] pointer-events-auto">
       {/* 배경 오버레이의 z-index 설정 */}
