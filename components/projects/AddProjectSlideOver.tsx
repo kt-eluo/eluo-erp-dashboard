@@ -774,7 +774,7 @@ export default function AddProjectSlideOver({
     if (project?.id) {
       const fetchProjectData = async () => {
         try {
-          // 프로젝트 기본 정보와 함께 manpower와 monthly_efforts 데이터를 한 번에 가져옴
+          // 쿼리 수정: year와 month도 가져오도록
           const { data: projectData, error: projectError } = await supabase
             .from('projects')
             .select(`
@@ -788,6 +788,8 @@ export default function AddProjectSlideOver({
                   job_type
                 ),
                 project_monthly_efforts (
+                  year,
+                  month,
                   mm_value
                 )
               )
@@ -797,12 +799,6 @@ export default function AddProjectSlideOver({
 
           if (projectError) throw projectError;
 
-          // 기존 프로젝트 데이터 설정
-          setTitle(projectData.name || '');
-          setStatus(projectData.status || '');
-          // ... 다른 기본 정보 설정 ...
-
-          // 직무별 인력 데이터 정리
           const workersByRole: SelectedWorkers = {
             'BD(BM)': [],
             'PM(PL)': [],
@@ -812,10 +808,10 @@ export default function AddProjectSlideOver({
             '개발': []
           };
 
-          // project_manpower 데이터 처리
+          // project_manpower 데이터 처리 수정
           projectData.project_manpower?.forEach((mp: any) => {
             if (mp.workers) {
-              // 각 worker의 모든 월별 공수 합산
+              // 월별 공수 합산
               const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort: any) => {
                 return sum + (Number(effort.mm_value) || 0);
               }, 0);
@@ -824,13 +820,12 @@ export default function AddProjectSlideOver({
                 id: mp.workers.id,
                 name: mp.workers.name,
                 job_type: mp.workers.job_type || '',
-                total_mm_value: Number(totalEffort) || 0
+                total_mm_value: totalEffort || 0  // null 체크 추가
               });
             }
           });
 
           setSelectedWorkers(workersByRole);
-
         } catch (error) {
           console.error('Error fetching project data:', error);
           toast.error('프로젝트 데이터를 불러오는 중 오류가 발생했습니다.');

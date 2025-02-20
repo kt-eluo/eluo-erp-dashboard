@@ -86,74 +86,51 @@ export default function AddManpowerModal({
 
   // 기존 데이터 로딩 수정
   useEffect(() => {
-    const fetchExistingData = async () => {
+    const loadManpowerData = async () => {
+      if (!projectId) return;
+
       try {
-        // 현재 선택된 실무자들의 직무별 데이터만 조회
-        const promises = Object.entries(selectedWorkers).map(async ([role, workers]) => {
-          const workerIds = workers.map(w => w.id);
+        const { data: manpowerData } = await supabase
+          .from('project_manpower')
+          .select(`
+            id,
+            worker_id,
+            role,
+            project_monthly_efforts (
+              year,
+              month,
+              mm_value
+            )
+          `)
+          .eq('project_id', projectId);
+
+        if (manpowerData) {
+          // 기존 데이터로 workersEffort 상태 초기화
+          const newWorkersEffort: { [key: string]: WorkerEffortData } = {};
           
-          const { data: manpowerData, error: manpowerError } = await supabase
-            .from('project_manpower')
-            .select(`
-              id,
-              worker_id,
-              role,
-              grade,
-              position,
-              unit_price,
-              project_monthly_efforts (
-                year,
-                month,
-                mm_value
-              )
-            `)
-            .eq('project_id', projectId)
-            .eq('role', role)
-            .in('worker_id', workerIds);
-
-          if (manpowerError) {
-            console.error('Error fetching manpower data:', manpowerError);
-            return null;
-          }
-
-          return manpowerData;
-        });
-
-        const results = await Promise.all(promises);
-        const newWorkersEffort: { [key: string]: WorkerEffortData } = {};
-
-        results.forEach(manpowerDataList => {
-          if (!manpowerDataList) return;
-
-          manpowerDataList.forEach(manpower => {
-            // 키를 worker_id와 role의 조합으로 생성
-            const key = `${manpower.worker_id}-${manpower.role}`;
-            
+          manpowerData.forEach(mp => {
+            const key = `${mp.worker_id}-${mp.role}`;
             const monthlyEfforts: { [key: string]: number | null } = {};
-            manpower.project_monthly_efforts?.forEach(effort => {
+            
+            mp.project_monthly_efforts?.forEach(effort => {
               const monthKey = `${effort.year}-${effort.month}`;
               monthlyEfforts[monthKey] = effort.mm_value;
             });
 
             newWorkersEffort[key] = {
-              grade: manpower.grade as Grade,
-              position: manpower.position as Position,
-              unitPrice: manpower.unit_price,
-              monthlyEfforts: monthlyEfforts
+              monthlyEfforts
             };
           });
-        });
 
-        setWorkersEffort(newWorkersEffort);
+          setWorkersEffort(newWorkersEffort);
+        }
       } catch (error) {
-        console.error('Error loading existing data:', error);
+        console.error('Error loading manpower data:', error);
       }
     };
 
-    if (isOpen && projectId && Object.keys(selectedWorkers).length > 0) {
-      fetchExistingData();
-    }
-  }, [isOpen, projectId, selectedWorkers]);
+    loadManpowerData();
+  }, [projectId]);
 
   // selectedTab 설정 로직 수정
   useEffect(() => {
