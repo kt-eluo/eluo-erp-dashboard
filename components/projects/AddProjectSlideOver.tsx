@@ -208,34 +208,15 @@ export default function AddProjectSlideOver({
     '개발': false
   });
 
-  // 1. useRef 수정
-  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-
-  // 2. 외부 클릭 감지 useEffect 추가
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      Object.entries(openDropdowns).forEach(([jobType, isOpen]) => {
-        if (isOpen && dropdownRefs.current[jobType] && !dropdownRefs.current[jobType]?.contains(event.target as Node)) {
-          setOpenDropdowns(prev => ({
-            ...prev,
-            [jobType]: false
-          }));
-        }
-      });
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [openDropdowns]);
-
-  // 3. 드롭다운 ref 타입 수정
-  const dropdownRef = (jobType: string) => (el: HTMLDivElement | null) => {
-    if (el) {
-      dropdownRefs.current[jobType] = el;
-    }
-  };
+  // 외부 클릭 감지를 위한 ref 추가
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({
+    'BD(BM)': null,
+    'PM(PL)': null,
+    '기획': null,
+    '디자이너': null,
+    '퍼블리셔': null,
+    '개발': null
+  });
 
   // 외부 클릭 감지 useEffect 수정
   useEffect(() => {
@@ -1489,45 +1470,57 @@ export default function AddProjectSlideOver({
                                   {Object.keys(searchTerms).map((jobType) => (
                                     <div key={jobType} className="flex items-center">
                                       <div className="text-[13px] text-gray-500 w-[56px]">{jobType}</div>
-                                      {/* 검색 입력 필드와 드롭다운 */}
                                       <div 
                                         className="relative w-[139px] mr-[8px]"
-                                        ref={dropdownRef(jobType)}
+                                        ref={el => dropdownRefs.current[jobType] = el}
                                       >
                                         <input
                                           type="text"
                                           value={searchTerms[jobType]}
-                                          onChange={(e) => handleSearchChange(jobType, e.target.value)}
-                                          onFocus={() => handleDropdownOpen(jobType)}
+                                          onChange={(e) => {
+                                            setSearchTerms(prev => ({
+                                              ...prev,
+                                              [jobType]: e.target.value
+                                            }))
+                                          }}
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
-                                              handleSearchEnter(jobType);
+                                              e.preventDefault()
+                                              handleSearchEnter(jobType)
                                             }
                                           }}
-                                          className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm"
-                                          placeholder={`${jobType} 검색`}
+                                          placeholder="이름을 입력하세요"
+                                          className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
+                                        />
+                                        <Search 
+                                          className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400 cursor-pointer name-search-input" 
+                                          onClick={() => handleSearchIconClick(jobType)}
                                         />
                                         
-                                        {/* 드롭다운 메뉴 */}
-                                        {openDropdowns[jobType] && (
-                                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                                            {getFilteredWorkers(jobType)
-                                              .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
-                                              .map(worker => (
-                                                <div
-                                                  key={worker.id}
-                                                  className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
-                                                  onClick={() => {
-                                                    handleWorkerSelect(jobType, worker);
-                                                    setOpenDropdowns(prev => ({
-                                                      ...prev,
-                                                      [jobType]: false
-                                                    }));
-                                                  }}
-                                                >
-                                                  {worker.name}
-                                                </div>
-                                              ))}
+                                        {/* 검색 결과 드롭다운 */}
+                                        {(searchTerms[jobType] || openDropdowns[jobType]) && (
+                                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                                            {!searchTerms[jobType] && (  // 검색어가 없을 때만 유효인력 레이블 표시
+                                              <div className="p-2 text-xs text-gray-500 border-b">
+                                                [유효인력]
+                                              </div>
+                                            )}
+                                            <div className="max-h-48 overflow-y-auto">
+                                              {getFilteredWorkers(jobType)
+                                                .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
+                                                .map(worker => (
+                                                  <div
+                                                    key={worker.id}
+                                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
+                                                    onClick={() => {
+                                                      handleWorkerSelect(jobType, { id: worker.id, name: worker.name });
+                                                      handleCloseDropdown(jobType);
+                                                    }}
+                                                  >
+                                                    {worker.name}
+                                                  </div>
+                                                ))}
+                                            </div>
                                           </div>
                                         )}
                                       </div>
