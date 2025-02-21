@@ -43,6 +43,24 @@ const currentDate = new Date();
 const currentYear = currentDate.getFullYear();
 const currentMonth = currentDate.getMonth() + 1;
 
+// 직급별 단가 정의 수정
+const POSITION_UNIT_PRICES: { [key: string]: number } = {
+  '부장': 9_500_000,
+  '차장': 8_500_000,
+  '과장': 7_500_000,
+  '대리': 6_500_000,
+  '주임': 6_500_000,
+  '사원': 6_500_000
+};
+
+// 직급에 따른 단가 반환 함수 추가
+const getUnitPriceByPosition = (position: Position): number => {
+  if (position === '부장') return POSITION_UNIT_PRICES['부장'];
+  if (position === '차장') return POSITION_UNIT_PRICES['차장'];
+  if (position === '과장') return POSITION_UNIT_PRICES['과장'];
+  return POSITION_UNIT_PRICES['대리']; // 대리/주임/사원은 동일 단가
+};
+
 export default function AddManpowerModal({ 
   isOpen, 
   onClose, 
@@ -343,32 +361,40 @@ export default function AddManpowerModal({
     }));
   };
 
-  // 직급 변경 핸들러
-  const handlePositionChange = (workerId: string, role: string, value: Position) => {
+  // 직급 변경 핸들러 수정
+  const handlePositionChange = (workerId: string, role: string, position: Position) => {
+    setWorkersEffort(prev => {
+      const workerKey = `${workerId}-${role}`;
+      const currentEffort = prev[workerKey] || {};
+      
+      // 직급에 따른 단가 자동 설정
+      const unitPrice = getUnitPriceByPosition(position);
+
+      return {
+        ...prev,
+        [workerKey]: {
+          ...currentEffort,
+          position,
+          unitPrice,
+          monthlyEfforts: currentEffort.monthlyEfforts || {}
+        }
+      };
+    });
+  };
+
+  // 단가 변경 핸들러는 그대로 유지 (수동 수정 가능)
+  const handleUnitPriceChange = (workerId: string, role: string, value: string) => {
+    const numericValue = value ? parseInt(value.replace(/[^\d]/g, '')) : 0;
+    
     setWorkersEffort(prev => ({
       ...prev,
       [`${workerId}-${role}`]: {
         ...prev[`${workerId}-${role}`] || {},
-        position: value as Position,  // 타입 명시
+        unitPrice: numericValue,
         monthlyEfforts: prev[`${workerId}-${role}`]?.monthlyEfforts || {}
       }
     }));
   };
-
-  const handleUnitPriceChange = (workerId: string, role: string, value: string) => {
-    const unitPrice = value === '' ? null : parseInt(value)
-    const key = `${workerId}-${role}`;
-    setWorkersEffort(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key] || {},
-        grade: prev[key]?.grade || '',
-        position: prev[key]?.position || '',
-        unitPrice,
-        monthlyEfforts: prev[key]?.monthlyEfforts || {}
-      }
-    }))
-  }
 
   // 공수 값이 변경될 때 부모 컴포넌트에 알림
   const handleManpowerChange = (workerId: string, value: number) => {
@@ -489,62 +515,48 @@ export default function AddManpowerModal({
                     >
                       <option value="">선택</option>
                       {positions.map((position) => (
-                        <option key={position} value={position}>{position}</option>
+                        <option key={position} value={position}>
+                          {position}
+                        </option>
                       ))}
                     </select>
-                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                   </div>
                 </div>
 
                 {/* 단가 입력 */}
                 <div className="space-y-2">
-                  {/* 단가 헤더 영역 */}
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] font-medium text-gray-700">단가</span>
                     {/* 도움말 아이콘 */}
                     <div className="group relative">
                       <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-medium text-gray-400 bg-gray-100 rounded-full border border-gray-300 hover:text-gray-600 hover:bg-gray-50 cursor-help transition-colors">?</span>
-                      {/* 도움말 팝업 */}
-                      <div 
-                        className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute right-0 w-[300px] bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm text-gray-600" 
-                        style={{ 
-                          zIndex: 9999999,
-                          top: '100%',  // 아이콘 바로 아래에 위치
-                          marginTop: '8px',  // 아이콘과의 간격
-                          right: '-8px',  // 우측 정렬 조정
-                          pointerEvents: 'none'
-                        }}
-                      >
-                        <p className="mb-2">정해진 단가표에 의해 금액은 자동입력됩니다.<br />다만 금액 수정은 가능합니다.</p>
-                        {/* 단가표 */}
-                        <div className="mt-2 overflow-x-auto">
+                      <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute right-0 w-[300px] bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm text-gray-600 z-50">
+                        <p className="mb-2">직급별 기본 단가가 자동으로 적용됩니다.<br />필요한 경우 수정이 가능합니다.</p>
+                        <div className="mt-2">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b">
-                                <th className="py-1 text-left font-medium">등급</th>
+                                <th className="py-1 text-left font-medium">직급</th>
                                 <th className="py-1 text-right font-medium">기본 단가</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {Object.entries(DEFAULT_PRICES).map(([level, price]) => (
-                                <tr key={level} className="border-b last:border-0">
-                                  <td className="py-1 text-left">{level}</td>
+                              {Object.entries(POSITION_UNIT_PRICES).map(([position, price]) => (
+                                <tr key={position} className="border-b last:border-0">
+                                  <td className="py-1 text-left">{position}</td>
                                   <td className="py-1 text-right">{price.toLocaleString()}원</td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
-                        {/* 팝업 화살표 - 우측 상단으로 수정 */}
-                        <div className="absolute top-[-8px] right-4 w-3 h-3 bg-white border-l border-t border-gray-200 transform -rotate-45"></div>
                       </div>
                     </div>
                   </div>
-                  {/* 단가 입력 필드 */}
                   <div className="relative">
                     <input
-                      type="number"
-                      value={workersEffort[`${worker.id}-${selectedTab}`]?.unitPrice || ''}
+                      type="text"
+                      value={workersEffort[`${worker.id}-${selectedTab}`]?.unitPrice?.toLocaleString() || ''}
                       onChange={(e) => handleUnitPriceChange(worker.id, selectedTab, e.target.value)}
                       className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                       placeholder="단가 입력"
