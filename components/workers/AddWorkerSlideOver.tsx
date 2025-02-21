@@ -77,6 +77,18 @@ interface WorkerProject {
     role: string;
     mm_value: number;
   }[];
+  other_workers?: {
+    grade: string;
+    name: string;
+    worker_type: string;
+  }[];
+}
+
+// 상단에 타입 추가
+interface MonthlyEffort {
+  year: number;
+  month: number;
+  mm_value: number;
 }
 
 export default function AddWorkerSlideOver({ 
@@ -140,6 +152,14 @@ export default function AddWorkerSlideOver({
   const workerTypeRef = useRef<HTMLDivElement>(null)
   const dispatchedRef = useRef<HTMLDivElement>(null)
   const gradeRef = useRef<HTMLDivElement>(null)
+
+  // 상단에 상태 추가
+  const [currentMonthEffort, setCurrentMonthEffort] = useState(0);
+  const [isOverloaded, setIsOverloaded] = useState(false);
+
+  // 현재 날짜 관련 상수 추가
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
 
   // body 스크롤 제어
   useEffect(() => {
@@ -295,17 +315,14 @@ export default function AddWorkerSlideOver({
   }, [worker?.id]);
 
   // 실무자의 프로젝트 목록을 가져오는 함수
-  const fetchWorkerProjects = async (workerId: string) => {
+  const fetchWorkerProjects = async () => {
     try {
-      // 먼저 project_manpower 데이터 가져오기
-      const { data: manpowerData, error: manpowerError } = await supabase
+      if (!workerId) return;
+
+      // 1. 먼저 worker가 참여한 프로젝트 정보 가져오기
+      const { data: projectData, error: projectError } = await supabase
         .from('project_manpower')
         .select(`
-          id,
-          position,
-          role,
-          project_id,
-          worker_id,
           projects (
             id,
             name,
@@ -313,42 +330,59 @@ export default function AddWorkerSlideOver({
             start_date,
             end_date
           ),
-          project_monthly_efforts (
-            mm_value
-          )
+          position,
+          role,
+          project_monthly_efforts (mm_value)
         `)
         .eq('worker_id', workerId);
 
-      if (manpowerError) {
-        console.error('Error fetching manpower data:', manpowerError);
-        return;
-      }
+      if (projectError) throw projectError;
 
-      // 데이터 구조 변환
-      const projects = manpowerData?.map(manpower => ({
-        id: manpower.projects.id,
-        name: manpower.projects.name,
-        status: manpower.projects.status,
-        start_date: manpower.projects.start_date,
-        end_date: manpower.projects.end_date,
-        project_manpower: {
-          position: manpower.position,
-          role: manpower.role,
-          mm_value: manpower.project_monthly_efforts?.reduce((sum, effort) => 
-            sum + (effort.mm_value || 0), 0) || 0
-        }
-      })) || [];
+      // 2. 각 프로젝트별로 다른 참여자 정보 가져오기
+      const projects = await Promise.all(projectData.map(async (pd) => {
+        const { data: otherWorkers, error: workersError } = await supabase
+          .from('project_manpower')
+          .select(`
+            grade,
+            workers (
+              name,
+              worker_type
+            )
+          `)
+          .eq('project_id', pd.projects.id)
+          .neq('worker_id', workerId); // 본인 제외
+
+        if (workersError) throw workersError;
+
+        return {
+          id: pd.projects.id,
+          name: pd.projects.name,
+          status: pd.projects.status,
+          start_date: pd.projects.start_date,
+          end_date: pd.projects.end_date,
+          project_manpower: {
+            position: pd.position,
+            role: pd.role,
+            mm_value: pd.project_monthly_efforts?.reduce((sum, e) => sum + (e.mm_value || 0), 0) || 0
+          },
+          other_workers: otherWorkers.map(w => ({
+            grade: w.grade,
+            name: w.workers.name,
+            worker_type: w.workers.worker_type
+          }))
+        };
+      }));
 
       setWorkerProjects(projects);
     } catch (error) {
-      console.error('Error in fetchWorkerProjects:', error);
+      console.error('Error fetching worker projects:', error);
     }
   };
 
   // useEffect에 추가
   useEffect(() => {
     if (worker?.id) {
-      fetchWorkerProjects(worker.id);
+      fetchWorkerProjects();
     }
   }, [worker?.id]);
 
@@ -546,6 +580,104 @@ export default function AddWorkerSlideOver({
     setIsLevelOpen(false);
   };
 
+  // 월간 M/M 투입 금액 데이터 가져오는 함수
+  const fetchCurrentMonthEffort = async () => {
+    try {
+      if (!workerId) return;
+
+      const { data, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          project_monthly_efforts (
+            mm_value,
+            year,
+            month
+          )
+        `)
+        .eq('worker_id', workerId);
+
+      if (error) throw error;
+
+      // 현재 연월의 mm_value 합산
+      const totalEffort = data?.reduce((sum, manpower) => {
+        const currentMonthEfforts = manpower.project_monthly_efforts?.filter(
+          effort => effort.year === currentYear && effort.month === currentMonth
+        );
+        
+        const monthSum = currentMonthEfforts?.reduce(
+          (monthSum, effort) => monthSum + (effort.mm_value || 0), 
+          0
+        ) || 0;
+
+        return sum + monthSum;
+      }, 0) || 0;
+
+      setCurrentMonthEffort(totalEffort);
+      setIsOverloaded(totalEffort > 1);
+    } catch (error) {
+      console.error('Error fetching current month effort:', error);
+    }
+  };
+
+  // useEffect에 추가
+  useEffect(() => {
+    if (workerId) {
+      fetchCurrentMonthEffort();
+    }
+  }, [workerId]);
+
+  // 월별 공수 데이터 가져오는 함수
+  const fetchMonthlyEfforts = async () => {
+    try {
+      if (!workerId) return;
+
+      const { data, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          project_monthly_efforts (
+            mm_value,
+            year,
+            month
+          )
+        `)
+        .eq('worker_id', workerId);
+
+      if (error) throw error;
+
+      // 현재 연도의 월별 공수 합산
+      const monthlyData: { [key: number]: number } = {};
+      
+      data?.forEach(manpower => {
+        manpower.project_monthly_efforts?.forEach((effort: MonthlyEffort) => {
+          if (effort.year === currentYear) {
+            monthlyData[effort.month] = (monthlyData[effort.month] || 0) + effort.mm_value;
+          }
+        });
+      });
+
+      // mmRecords 업데이트
+      const newMMRecords = Object.entries(monthlyData).map(([month, mm_value]) => ({
+        year: currentYear,
+        month: Number(month),
+        mm_value,
+        worker_id: workerId
+      }));
+
+      setMMRecords(newMMRecords);
+    } catch (error) {
+      console.error('Error fetching monthly efforts:', error);
+    }
+  };
+
+  // useEffect에 추가
+  useEffect(() => {
+    if (workerId) {
+      fetchMonthlyEfforts();
+    }
+  }, [workerId]);
+
   return (
     <div className={`fixed inset-0 overflow-hidden z-50 ${!isOpen && 'pointer-events-none'}`}>
       <div className="absolute inset-0 overflow-hidden">
@@ -559,7 +691,7 @@ export default function AddWorkerSlideOver({
         <div className={`fixed inset-y-0 right-0 max-w-full flex transform transition-transform duration-500 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}>
-          <div className="w-screen max-w-[1200px]">
+          <div className="w-screen max-w-[1300px]">
             <div className="h-full flex flex-col bg-white shadow-xl">
               <div className="sm:hidden flex-none px-4 py-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
@@ -991,21 +1123,29 @@ export default function AddWorkerSlideOver({
                         </div>
                       </div>
 
+                      {/* 월간 M/M 투입 금액 */}
                       <div className="border-t border-gray-200 pt-6">
                         <div className="mb-8">
                           <h3 className="text-[14px] font-medium text-gray-900 mb-4">월간 M/M 투입 금액</h3>
                           <div className="flex flex-col items-center">
-                            <div className="w-[200px] h-[200px] mb-4">
+                            <div className="w-[200px] h-[200px] mb-4 relative">
+                              {/* 현재 월 표시 */}
+                              <div className="absolute inset-0 flex items-center justify-center z-10">
+                                <div className="font-semibold text-[30px] text-gray-900">
+                                  {currentMonth}월
+                                </div>
+                              </div>
+                              
                               <Doughnut
                                 data={{
                                   labels: ['투입', '미투입'],
                                   datasets: [{
                                     data: [
-                                      mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0),
-                                      12 - mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0)
+                                      currentMonthEffort,
+                                      Math.max(0, 1 - currentMonthEffort)
                                     ],
                                     backgroundColor: [
-                                      '#4E49E7',
+                                      isOverloaded ? '#FF6B6B' : '#4E49E7',
                                       '#E5E7EB'
                                     ],
                                     borderWidth: 0
@@ -1017,6 +1157,14 @@ export default function AddWorkerSlideOver({
                                   plugins: {
                                     legend: {
                                       display: false
+                                    },
+                                    tooltip: {
+                                      callbacks: {
+                                        label: (context) => {
+                                          const value = context.raw as number;
+                                          return `${(value * 100).toFixed(1)}%`;
+                                        }
+                                      }
                                     }
                                   },
                                   cutout: '70%'
@@ -1024,10 +1172,11 @@ export default function AddWorkerSlideOver({
                               />
                             </div>
                             <div className="text-center">
+                              {/* 이번달 투입 합계 */}
                               <div className="text-[14px] text-gray-500 mb-2">총 투입</div>
-                              <div className="text-[24px] font-bold text-[#4E49E7]">
-                                {mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0).toLocaleString()}
-                                <span className="text-[14px] font-normal ml-1">만원</span>
+                              <div className={`text-[24px] font-bold ${isOverloaded ? 'text-[#FF6B6B]' : 'text-[#4E49E7]'}`}>
+                                {currentMonthEffort.toFixed(1)}
+                                <span className="text-[14px] font-normal ml-1">M/M</span>
                               </div>
                             </div>
                           </div>
@@ -1038,6 +1187,7 @@ export default function AddWorkerSlideOver({
                             {currentYear}년 M/M 투입 추이
                           </h3>
                           
+                          {/* 년도 공수 투입 라인 그래프 */}
                           <div className="h-[200px] mb-6">
                             <Line
                               data={{
@@ -1065,8 +1215,10 @@ export default function AddWorkerSlideOver({
                                 scales: {
                                   y: {
                                     beginAtZero: true,
+                                    max: 1,
                                     ticks: {
-                                      callback: value => `${value}만원`
+                                      callback: value => `${value} M/M`,
+                                      stepSize: 0.2
                                     }
                                   }
                                 }
@@ -1074,42 +1226,80 @@ export default function AddWorkerSlideOver({
                             />
                           </div>
 
+
+                          {/* 년도 공수 투입 테이블 */}
                           <div className="overflow-x-auto">
                             <table className="w-full text-[14px]">
-                              <thead>
-                                <tr className="bg-gray-50">
-                                  <th className="px-4 py-2 border">구분</th>
-                                  <th className="px-4 py-2 border">1월</th>
-                                  <th className="px-4 py-2 border">2월</th>
-                                  <th className="px-4 py-2 border">3월</th>
-                                  <th className="px-4 py-2 border">분기 합계</th>
-                                </tr>
-                              </thead>
                               <tbody>
-                                {[1, 2, 3, 4].map((quarter) => (
-                                  <tr key={quarter}>
-                                    <td className="px-4 py-2 border font-medium">{quarter}분기</td>
-                                    {[0, 1, 2].map((monthOffset) => {
-                                      const month = (quarter - 1) * 3 + monthOffset + 1;
-                                      const record = mmRecords.find(r => r.month === month)
-                                      return (
-                                        <td key={month} className="px-4 py-2 border text-center">
-                                          {record?.mm_value?.toLocaleString() || '0'}
-                                        </td>
-                                      );
-                                    })}
-                                    <td className="px-4 py-2 border text-center font-medium">
-                                      {mmRecords
-                                        .filter(r => Math.ceil(r.month / 3) === quarter)
-                                        .reduce((sum, record) => sum + (record.mm_value || 0), 0)
-                                        .toLocaleString()}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {/* 1분기 */}
                                 <tr className="bg-gray-50">
-                                  <td className="px-4 py-2 border font-medium">{currentYear}년 합계</td>
-                                  <td className="px-4 py-2 border text-center font-medium" colSpan={4}>
-                                    {mmRecords.reduce((sum, record) => sum + (record.mm_value || 0), 0).toLocaleString()}
+                                  <td className="px-4 py-2 border">1월</td>
+                                  <td className="px-4 py-2 border">2월</td>
+                                  <td className="px-4 py-2 border">3월</td>
+                                  <td className="px-4 py-2 border font-medium">1분기 합계</td>
+                                </tr>
+                                <tr>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 1)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 2)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 3)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center font-medium">
+                                    {mmRecords.filter(r => r.month <= 3).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                  </td>
+                                </tr>
+
+                                {/* 2분기 */}
+                                <tr className="bg-gray-50">
+                                  <td className="px-4 py-2 border">4월</td>
+                                  <td className="px-4 py-2 border">5월</td>
+                                  <td className="px-4 py-2 border">6월</td>
+                                  <td className="px-4 py-2 border font-medium">2분기 합계</td>
+                                </tr>
+                                <tr>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 4)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 5)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 6)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center font-medium">
+                                    {mmRecords.filter(r => r.month > 3 && r.month <= 6).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                  </td>
+                                </tr>
+
+                                {/* 3분기 */}
+                                <tr className="bg-gray-50">
+                                  <td className="px-4 py-2 border">7월</td>
+                                  <td className="px-4 py-2 border">8월</td>
+                                  <td className="px-4 py-2 border">9월</td>
+                                  <td className="px-4 py-2 border font-medium">3분기 합계</td>
+                                </tr>
+                                <tr>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 7)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 8)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 9)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center font-medium">
+                                    {mmRecords.filter(r => r.month > 6 && r.month <= 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                  </td>
+                                </tr>
+
+                                {/* 4분기 */}
+                                <tr className="bg-gray-50">
+                                  <td className="px-4 py-2 border">10월</td>
+                                  <td className="px-4 py-2 border">11월</td>
+                                  <td className="px-4 py-2 border">12월</td>
+                                  <td className="px-4 py-2 border font-medium">4분기 합계</td>
+                                </tr>
+                                <tr>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 10)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 11)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 12)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                  <td className="px-4 py-2 border text-center font-medium">
+                                    {mmRecords.filter(r => r.month > 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                  </td>
+                                </tr>
+
+                                {/* 연간 합계 */}
+                                <tr className="bg-gray-50">
+                                  <td colSpan={2} className="px-4 py-2 border font-medium">연간 합계</td>
+                                  <td colSpan={2} className="px-4 py-2 border text-center font-medium">
+                                    {mmRecords.reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
                                   </td>
                                 </tr>
                               </tbody>
@@ -1153,10 +1343,12 @@ export default function AddWorkerSlideOver({
                         <div className="space-y-4">
                           {workerProjects
                             .filter(project => project.status === activeTab)
-                            .map((project) => (
+                            .map((project, index) => (
                               <div 
                                 key={project.id} 
-                                className="flex items-center justify-between"
+                                className={`flex items-center justify-between ${
+                                  index > 0 ? 'border-t border-[#E5E5E5] pt-6' : ''
+                                }`}
                               >
                                 <div className="">
                                   {/* 프로젝트 이름 */}
@@ -1165,26 +1357,27 @@ export default function AddWorkerSlideOver({
                                   </div>
 
                                   {/* 계약기간  */}
-                                  <div className="font-normal text-[16px] text-[#6F6F6F]">
+                                  <div className="font-normal text-[16px] text-[#6F6F6F] pt-2 pb-2">
                                     계약 기간 : {project.start_date && project.end_date ? 
                                       `${formatDate(project.start_date)} ~ ${formatDate(project.end_date)}` : 
                                       '기간 미설정'}
                                   </div>
 
-                                  <div className='flex justify-between items-center w-full'>
+                                  {/* 프로젝트 투입 정보 영역 */}
+                                  <div className='flex justify-between items-start gap-4 w-full'>
                                     {/* 나의 투입 정보 */}
-                                    <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4 width-[50%]">
+                                    <div className="flex-1 bg-gray-50 rounded-lg p-4">
                                       <ul className="space-y-3">
                                         <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
-                                          <span className="w-[90px] text-[#6F6F6F]">투입 직무 등급</span>{' '}
+                                          <span className="w-[90px] text-[#6F6F6F] text-[14px]">투입 직무 등급</span>{' '}
                                           <span className='font-bold text-[16px] leading-normal text-black'>{project.project_manpower?.position || '-'}</span>
                                         </li>
                                         <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
-                                          <span className="w-[90px] text-[#6F6F6F]">투입 직무</span>{' '}
+                                          <span className="w-[90px] text-[#6F6F6F] text-[14px]">투입 직무</span>{' '}
                                           <span className='font-bold text-[16px] leading-normal text-black'>{project.project_manpower?.role || '-'}</span>
                                         </li>
                                         <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
-                                          <span className="w-[90px] text-[#6F6F6F]">투입 공수</span>{' '}
+                                          <span className="w-[90px] text-[#6F6F6F] text-[14px]">투입 공수</span>{' '}
                                           <span className='font-bold text-[16px] leading-normal text-black'>
                                             {project.project_manpower?.mm_value ? 
                                               `${project.project_manpower.mm_value.toFixed(1)} M/M` : 
@@ -1196,7 +1389,16 @@ export default function AddWorkerSlideOver({
 
 
                                     {/* 타인 투입 정보 */}
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex-1 rounded-lg p-4 border border-gray-200">
+                                      <ul className="space-y-3">
+                                        {project.other_workers?.map((worker, index) => (
+                                          <li key={index} className="flex items-center before:content-['•'] before:mr-1 before:text-[#6F6F6F]">
+                                            <span className="w-[40px] text-[#6F6F6F] text-[14px]">{worker.grade}</span>{' '}
+                                            <span className='flex-1 font-bold text-[16px] leading-normal text-black whitespace-nowrap'>{worker.name}</span>
+                                            <span className='w-[90px] text-[#6F6F6F] text-[11px] ml-1'>{worker.worker_type}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
                                     </div>
                                   </div>
                                 </div>

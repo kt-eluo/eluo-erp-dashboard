@@ -247,18 +247,18 @@ export default function AddProjectSlideOver({
   useEffect(() => {
     if (project && mode === 'edit') {
       // 기본 정보
-      setTitle(project.name)
-      setClient(project.client || '')
-      setDescription(project.description || '')
+      setTitle(project.name);
+      setClient(project.client || '');
+      setDescription(project.description || '');
       
       // 날짜 정보
-      setStartDate(project.start_date ? new Date(project.start_date) : null)
-      setEndDate(project.end_date ? new Date(project.end_date) : null)
+      setStartDate(project.start_date ? new Date(project.start_date) : null);
+      setEndDate(project.end_date ? new Date(project.end_date) : null);
       
       // 카테고리 및 상태 정보
-      setStatus(project.status || '')
-      setMajorCategory(project.major_category || '')
-      setCategory(project.category || '')
+      setStatus(project.status || '');
+      setMajorCategory(project.major_category || '');
+      setCategory(project.category || '');
       
       // 직무별 전체 공수 정보 설정
       setManpowerPlanning(project.planning_manpower || null);
@@ -266,54 +266,25 @@ export default function AddProjectSlideOver({
       setManpowerPublishing(project.publishing_manpower || null);
       setManpowerDevelopment(project.development_manpower || null);
 
-      // 직무별 실무자 정보 설정
-      if (project.manpower) {
-        const workersByRole: SelectedWorkers = {
-          'BD(BM)': [],
-          'PM(PL)': [],
-          '기획': [],
-          '디자이너': [],
-          '퍼블리셔': [],
-          '개발': []
-        };
-
-        project.manpower.forEach(mp => {
-          if (mp.worker_id && mp.role) {
-            // workers 배열에서 해당 worker_id를 가진 worker 찾기
-            const worker = workers.find(w => w.id === mp.worker_id);
-            if (worker) {
-              workersByRole[mp.role].push({
-                id: worker.id,
-                name: worker.name,
-                job_type: worker.job_type,
-                total_mm_value: mp.mm_value
-              });
-            }
-          }
-        });
-
-        setSelectedWorkers(workersByRole);
-      }
-
-      // 계약 정보 설정
+      // 계약 정보 설정 - null 체크 추가
       if (project.contract_type) {
-        setContractType(project.contract_type)
-        setContractAmount(project.budget?.toString() || '')
-        setIsVatIncluded(project.is_vat_included || false)
-        setCommonExpense(project.common_expense?.toString() || '')
+        setContractType(project.contract_type);
+        setContractAmount(project.budget?.toString() || '');
+        setIsVatIncluded(project.is_vat_included || false);
+        setCommonExpense(project.common_expense?.toString() || '');
 
         if (project.contract_type === '회차 정산형') {
-          setDownPayment(project.down_payment?.toString() || '')
-          setIntermediatePayments(project.intermediate_payments?.map(p => p.toString()) || [''])
-          setFinalPayment(project.final_payment?.toString() || '')
+          setDownPayment(project.down_payment?.toString() || '');
+          setIntermediatePayments(project.intermediate_payments?.map(p => p?.toString() || '') || ['']);
+          setFinalPayment(project.final_payment?.toString() || '');
         } else if (project.contract_type === '정기 결제형') {
-          setPeriodicUnit(project.periodic_unit || 'month')
-          setPeriodicInterval(project.periodic_interval?.toString() || '')
-          setPeriodicAmount(project.periodic_amount?.toString() || '')
+          setPeriodicUnit(project.periodic_unit || 'month');
+          setPeriodicInterval(project.periodic_interval?.toString() || '');
+          setPeriodicAmount(project.periodic_amount?.toString() || '');
         }
       }
     }
-  }, [project, mode, workers]) // workers를 의존성 배열에 추가
+  }, [project, mode]);
 
   // 실무자 데이터 가져오기
   useEffect(() => {
