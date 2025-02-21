@@ -80,10 +80,10 @@ export default function AddManpowerModal({
 
   // 상단에 기본 단가 설정을 위한 객체 추가
   const DEFAULT_PRICES = {
-    '특급': 9_500_000,
-    '고급': 8_500_000,
-    '중급': 7_500_000,
-    '초급': 6_500_000
+    '특급(부장 이상)': 9_500_000,
+    '고급(차장 이상)': 8_500_000,
+    '중급(과장 이상)': 7_500_000,
+    '초급(사원~대리)': 6_500_000
   } as const
 
   // Role 라벨 매핑 추가 (필요한 경우)
@@ -345,14 +345,40 @@ export default function AddManpowerModal({
 
   // 직급 변경 핸들러
   const handlePositionChange = (workerId: string, role: string, value: Position) => {
-    setWorkersEffort(prev => ({
-      ...prev,
-      [`${workerId}-${role}`]: {
-        ...prev[`${workerId}-${role}`] || {},
-        position: value as Position,  // 타입 명시
-        monthlyEfforts: prev[`${workerId}-${role}`]?.monthlyEfforts || {}
+    setWorkersEffort(prev => {
+      const key = `${workerId}-${role}`;
+      const currentData = prev[key] || {};
+      
+      // 직급에 따른 기본 단가 설정
+      let defaultUnitPrice = 6500000; // 기본값 (대리, 주임, 사원)
+      
+      switch(value) {
+        case '부장':
+          defaultUnitPrice = 9500000;
+          break;
+        case '차장':
+          defaultUnitPrice = 8500000;
+          break;
+        case '과장':
+          defaultUnitPrice = 7500000;
+          break;
+        // 대리, 주임, 사원은 기본값 사용
       }
-    }));
+
+      return {
+        ...prev,
+        [key]: {
+          ...currentData,
+          position: value as Position,
+          // 이전 단가가 없거나, 이전 직급이 다른 경우에만 기본 단가로 업데이트
+          unitPrice: (!currentData.unitPrice || currentData.position !== value) 
+            ? defaultUnitPrice 
+            : currentData.unitPrice,
+          monthlyEfforts: currentData.monthlyEfforts || {},
+          grade: currentData.grade || ''
+        }
+      };
+    });
   };
 
   const handleUnitPriceChange = (workerId: string, role: string, value: string) => {
@@ -515,28 +541,35 @@ export default function AddManpowerModal({
                           pointerEvents: 'none'
                         }}
                       >
-                        <p className="mb-2">정해진 단가표에 의해 금액은 자동입력됩니다.<br />다만 금액 수정은 가능합니다.</p>
-                        {/* 단가표 */}
-                        <div className="mt-2 overflow-x-auto">
+                        <p className="mb-2">직급 선택 시 기본 단가가 자동으로 입력됩니다.<br />필요한 경우 수정이 가능합니다.</p>
+                        <div className="mt-2">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b">
-                                <th className="py-1 text-left font-medium">등급</th>
+                                <th className="py-1 text-left font-medium">직급</th>
                                 <th className="py-1 text-right font-medium">기본 단가</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {Object.entries(DEFAULT_PRICES).map(([level, price]) => (
-                                <tr key={level} className="border-b last:border-0">
-                                  <td className="py-1 text-left">{level}</td>
-                                  <td className="py-1 text-right">{price.toLocaleString()}원</td>
-                                </tr>
-                              ))}
+                              <tr className="border-b">
+                                <td className="py-1">부장</td>
+                                <td className="py-1 text-right">9,500,000원</td>
+                              </tr>
+                              <tr className="border-b">
+                                <td className="py-1">차장</td>
+                                <td className="py-1 text-right">8,500,000원</td>
+                              </tr>
+                              <tr className="border-b">
+                                <td className="py-1">과장</td>
+                                <td className="py-1 text-right">7,500,000원</td>
+                              </tr>
+                              <tr>
+                                <td className="py-1">대리/주임/사원</td>
+                                <td className="py-1 text-right">6,500,000원</td>
+                              </tr>
                             </tbody>
                           </table>
                         </div>
-                        {/* 팝업 화살표 - 우측 상단으로 수정 */}
-                        <div className="absolute top-[-8px] right-4 w-3 h-3 bg-white border-l border-t border-gray-200 transform -rotate-45"></div>
                       </div>
                     </div>
                   </div>

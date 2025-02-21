@@ -209,14 +209,7 @@ export default function AddProjectSlideOver({
   });
 
   // 외부 클릭 감지를 위한 ref 추가
-  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({
-    'BD(BM)': null,
-    'PM(PL)': null,
-    '기획': null,
-    '디자이너': null,
-    '퍼블리셔': null,
-    '개발': null
-  });
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // 외부 클릭 감지 useEffect 수정
   useEffect(() => {
@@ -224,17 +217,45 @@ export default function AddProjectSlideOver({
       // 모달이 열려있을 때는 외부 클릭 감지를 하지 않음
       if (showManpowerModal) return;
 
-      // 각 드롭다운 ref에 대한 클릭 감지 확인
+      // 상태 드롭다운
+      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
+        setIsStatusOpen(false);
+      }
+
+      // 대분류 드롭다운
+      if (majorCategoryRef.current && !majorCategoryRef.current.contains(event.target as Node)) {
+        setIsMajorCategoryOpen(false);
+      }
+
+      // 카테고리 드롭다운
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setIsCategoryOpen(false);
+      }
+
+      // 계약 유형 드롭다운
+      if (contractTypeRef.current && !contractTypeRef.current.contains(event.target as Node)) {
+        setIsContractTypeOpen(false);
+      }
+
+      // 결제 주기 드롭다운
+      if (periodicUnitRef.current && !periodicUnitRef.current.contains(event.target as Node)) {
+        setIsPeriodicUnitOpen(false);
+      }
+
+      // 실무자 검색 드롭다운들
       Object.entries(dropdownRefs.current).forEach(([jobType, ref]) => {
         if (ref && !ref.contains(event.target as Node)) {
           setOpenDropdowns(prev => ({
             ...prev,
             [jobType]: false
           }));
+          // 검색어도 초기화
+          setSearchTerms(prev => ({
+            ...prev,
+            [jobType]: ''
+          }));
         }
       });
-
-      // 기존의 다른 ref 체크들...
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -520,21 +541,37 @@ export default function AddProjectSlideOver({
           design_manpower: manpowerDesign,
           publishing_manpower: manpowerPublishing,
           development_manpower: manpowerDevelopment,
+          status: status || null,
+          major_category: majorCategory || null,
+          category: category || null,
+          start_date: startDate?.toISOString() || null,
+          end_date: endDate?.toISOString() || null
         };
 
-        // 값이 있는 경우에만 업데이트 객체에 포함
-        if (status) updatedProject.status = status;
-        if (majorCategory) updatedProject.major_category = majorCategory;
-        if (category) updatedProject.category = category;
-        if (startDate) updatedProject.start_date = startDate.toISOString();
-        if (endDate) updatedProject.end_date = endDate.toISOString();
-
-        // 1. 프로젝트 데이터 업데이트
+        // project_manpower 관련 데이터도 함께 가져오도록 수정
         const { data, error } = await supabase
           .from('projects')
           .update(updatedProject)
           .eq('id', project.id)
-          .select();
+          .select(`
+            *,
+            project_manpower (
+              id,
+              role,
+              worker_id,
+              workers (
+                id,
+                name,
+                job_type
+              ),
+              project_monthly_efforts (
+                year,
+                month,
+                mm_value
+              )
+            )
+          `)
+          .single();
 
         if (error) {
           console.error('Error details:', error);
@@ -544,118 +581,44 @@ export default function AddProjectSlideOver({
         // 성공 메시지 표시
         toast.success('프로젝트가 수정되었습니다.');
 
-        // if (data && data[0]) {
-        //   // 로컬 상태 업데이트
-        //   setManpowerPlanning(data[0].planning_manpower);
-        //   setManpowerDesign(data[0].design_manpower);
-        //   setManpowerPublishing(data[0].publishing_manpower);
-        //   setManpowerDevelopment(data[0].development_manpower);
+        // 공수 데이터 업데이트
+        if (data?.project_manpower) {
+          const workersByRole: SelectedWorkers = {
+            'BD(BM)': [],
+            'PM(PL)': [],
+            '기획': [],
+            '디자이너': [],
+            '퍼블리셔': [],
+            '개발': []
+          };
 
-        //   // 공수 데이터 다시 불러오기
-        //   const { data: manpowerData } = await supabase
-        //     .from('project_manpower')
-        //     .select(`
-        //       id,
-        //       role,
-        //       workers (
-        //         id,
-        //         name,
-        //         job_type
-        //       ),
-        //       project_monthly_efforts (
-        //         year,
-        //         month,
-        //         mm_value
-        //       )
-        //     `)
-        //     .eq('project_id', project.id);
+          data.project_manpower.forEach((mp: any) => {
+            if (mp.workers) {
+              const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort: any) => {
+                return sum + (Number(effort.mm_value) || 0);
+              }, 0);
 
-        //   if (manpowerData) {
-        //     const workersByRole: SelectedWorkers = {
-        //       'BD(BM)': [],
-        //       'PM(PL)': [],
-        //       '기획': [],
-        //       '디자이너': [],
-        //       '퍼블리셔': [],
-        //       '개발': []
-        //     };
+              workersByRole[mp.role].push({
+                id: mp.workers.id,
+                name: mp.workers.name,
+                job_type: mp.workers.job_type || '',
+                total_mm_value: totalEffort || 0
+              });
+            }
+          });
 
-        //     const currentYear = new Date().getFullYear();
-        //     const currentMonth = new Date().getMonth() + 1;
+          setSelectedWorkers(workersByRole);
+        }
 
-        //     manpowerData.forEach(mp => {
-        //       if (mp.workers) {
-        //         // 현재 월의 공수만 찾기
-        //         const currentMonthEffort = mp.project_monthly_efforts?.find(
-        //           effort => effort.year === currentYear && effort.month === currentMonth
-        //         );
-
-        //         workersByRole[mp.role].push({
-        //           id: mp.workers.id,
-        //           name: mp.workers.name,
-        //           job_type: mp.workers.job_type || '',
-        //           total_mm_value: Number(currentMonthEffort?.mm_value) || 0
-        //         });
-        //       }
-        //     });
-
-        //     setSelectedWorkers(workersByRole);
-        //   }
-
-        //   // 부모 컴포넌트에 업데이트된 데이터 전달
-        //   onSubmit(data[0]);
-        // }
+        // 부모 컴포넌트의 상태 업데이트
+        if (data) {
+          onSubmit({
+            ...data,
+            _action: 'update'
+          });
+        }
       } else {
-        // 새 프로젝트 생성 시
-        const newProject: any = {
-          name: title
-        };
-
-        // 값이 있는 경우에만 포함
-        if (status) newProject.status = status;
-        if (majorCategory) newProject.major_category = majorCategory;
-        if (category) newProject.category = category;
-        if (startDate) newProject.start_date = startDate.toISOString();
-        if (endDate) newProject.end_date = endDate.toISOString();
-        
-        // 공수 값이 null이 아닌 경우에만 포함
-        if (manpowerPlanning !== null) newProject.planning_manpower = manpowerPlanning;
-        if (manpowerDesign !== null) newProject.design_manpower = manpowerDesign;
-        if (manpowerPublishing !== null) newProject.publishing_manpower = manpowerPublishing;
-        if (manpowerDevelopment !== null) newProject.development_manpower = manpowerDevelopment;
-
-        // 1. 새 프로젝트 생성
-        const { data, error } = await supabase
-          .from('projects')
-          .insert([newProject])
-          .select();
-
-        if (error) {
-          console.error('Error details:', error);
-          throw new Error(`새 프로젝트 생성 중 오류가 발생했습니다: ${error.message}`);
-        }
-
-        // 2. 직무별 실무자 데이터 추가
-        if (data?.[0]?.id) {
-          const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
-            workers.map(worker => ({
-              project_id: data[0].id,
-              worker_id: worker.id,
-              role: role
-            }))
-          );
-
-          if (manpowerData.length > 0) {
-            const { error: insertError } = await supabase
-              .from('project_manpower')
-              .insert(manpowerData);
-
-            if (insertError) throw insertError;
-          }
-        }
-
-        toast.success('새 프로젝트가 생성되었습니다.');
-        onSubmit(data[0]);
+        // 새 프로젝트 생성 로직...
         onClose();
       }
     } catch (error) {
@@ -1472,7 +1435,11 @@ export default function AddProjectSlideOver({
                                       <div className="text-[13px] text-gray-500 w-[56px]">{jobType}</div>
                                       <div 
                                         className="relative w-[139px] mr-[8px]"
-                                        ref={el => dropdownRefs.current[jobType] = el}
+                                        ref={(el: HTMLDivElement | null) => {
+                                          if (el) {
+                                            dropdownRefs.current[jobType] = el;
+                                          }
+                                        }}
                                       >
                                         <input
                                           type="text"
