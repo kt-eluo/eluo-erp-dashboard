@@ -38,6 +38,12 @@ interface WorkerEffortData {
   };
 }
 
+interface ProjectMonthlyEffort {
+  year: number;
+  month: number;
+  mm_value: number;
+}
+
 // 컴포넌트 상단에 현재 날짜 관련 상수 추가
 const currentDate = new Date();
 const currentYear = currentDate.getFullYear();
@@ -128,7 +134,7 @@ export default function AddManpowerModal({
             const key = `${mp.worker_id}-${mp.role}`;
             const monthlyEfforts: { [key: string]: number | null } = {};
             
-            mp.project_monthly_efforts?.forEach(effort => {
+            mp.project_monthly_efforts?.forEach((effort: ProjectMonthlyEffort) => {
               const monthKey = `${effort.year}-${effort.month}`;
               monthlyEfforts[monthKey] = effort.mm_value;
             });
