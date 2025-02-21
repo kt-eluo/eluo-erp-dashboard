@@ -1215,10 +1215,10 @@ export default function AddWorkerSlideOver({
                                 scales: {
                                   y: {
                                     beginAtZero: true,
-                                    max: 1,
+                                    max: 1.5,
                                     ticks: {
                                       callback: value => `${value} M/M`,
-                                      stepSize: 0.2
+                                      stepSize: 0.3
                                     }
                                   }
                                 }
