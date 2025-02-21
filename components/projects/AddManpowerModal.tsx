@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 
 type Grade = 'BD' | 'BM' | 'PM' | 'PL' | 'PA' | ''  // 데이터베이스의 worker_grade_type enum 값과 일치
 type Position = '부장' | '차장' | '과장' | '대리' | '주임' | '사원' | ''
-type Role = 'BD(BM)' | 'PM(PL)' | '기획' | '디자이너' | '퍼블리셔' | '개발' | ''
+type Role = 'BD(BM)' | 'PM(PL)' | '기획' | '디자이너' | '퍼블리셔' | '개발' | 'all' | '';
 
 interface ManpowerEntry {
   role: Role
@@ -177,6 +177,58 @@ export default function AddManpowerModal({
     }
   }, [selectedWorkers]);
 
+  // 월별 공수 데이터 가져오는 함수 추가
+  const fetchMonthlyEfforts = async () => {
+    if (!projectId) return;
+
+    try {
+      const { data: manpowerData, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          worker_id,
+          role,
+          project_monthly_efforts (
+            year,
+            month,
+            mm_value
+          )
+        `)
+        .eq('project_id', projectId);
+
+      if (error) throw error;
+
+      // 기존 workersEffort 상태 업데이트
+      const newWorkersEffort = { ...workersEffort };
+
+      manpowerData?.forEach(mp => {
+        const key = `${mp.worker_id}-${mp.role}`;
+        const monthlyEfforts: { [key: string]: number } = {};
+
+        mp.project_monthly_efforts?.forEach(effort => {
+          const monthKey = `${effort.year}-${String(effort.month).padStart(2, '0')}`;
+          monthlyEfforts[monthKey] = effort.mm_value;
+        });
+
+        newWorkersEffort[key] = {
+          ...newWorkersEffort[key],
+          monthlyEfforts
+        };
+      });
+
+      setWorkersEffort(newWorkersEffort);
+    } catch (error) {
+      console.error('Error fetching monthly efforts:', error);
+    }
+  };
+
+  // useEffect에 추가
+  useEffect(() => {
+    if (projectId && startDate && endDate) {
+      fetchMonthlyEfforts();
+    }
+  }, [projectId, startDate, endDate]);
+
   // 저장 핸들러
   const handleSave = async () => {
     try {
@@ -321,21 +373,38 @@ export default function AddManpowerModal({
     }, 0)
   }
 
-  // 실무자별 공수 입력 핸들러
+  // 월별 공수 데이터 처리 함수 수정
   const handleWorkerEffortChange = (workerId: string, role: string, monthKey: string, value: string) => {
-    const key = `${workerId}-${role}`;
-    const numValue = value === '' ? null : parseFloat(value)
-    setWorkersEffort(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        monthlyEfforts: {
-          ...(prev[key]?.monthlyEfforts || {}),
-          [monthKey]: numValue
+    const numericValue = value === '' ? null : Number(value);
+    
+    setWorkersEffort(prev => {
+      const workerKey = `${workerId}-${role}`;
+      const currentEffort = prev[workerKey] || {};
+      const currentMonthlyEfforts = currentEffort.monthlyEfforts || {};
+
+      return {
+        ...prev,
+        [workerKey]: {
+          ...currentEffort,
+          monthlyEfforts: {
+            ...currentMonthlyEfforts,
+            [monthKey]: numericValue
+          }
         }
+      };
+    });
+
+    // 전체 탭의 데이터도 동기화
+    const updatedWorkers = {...selectedWorkers};
+    Object.keys(updatedWorkers).forEach(r => {
+      const worker = updatedWorkers[r].find(w => w.id === workerId);
+      if (worker) {
+        const totalEffort = calculateTotalMM(workersEffort[`${workerId}-${role}`]?.monthlyEfforts || {});
+        worker.mm_value = totalEffort;
       }
-    }))
-  }
+    });
+    onManpowerUpdate?.(updatedWorkers);
+  };
 
   // 투입비용 계산 함수 수정
   const calculateTotalCost = (workerId: string, role: string) => {
@@ -392,19 +461,6 @@ export default function AddManpowerModal({
         monthlyEfforts: prev[`${workerId}-${role}`]?.monthlyEfforts || {}
       }
     }));
-  };
-
-  // 공수 값이 변경될 때 부모 컴포넌트에 알림
-  const handleManpowerChange = (workerId: string, value: number) => {
-    const updatedWorkers = {...selectedWorkers};
-    Object.keys(updatedWorkers).forEach(role => {
-      const worker = updatedWorkers[role].find(w => w.id === workerId);
-      if (worker) {
-        worker.mm_value = value;
-      }
-    });
-    
-    onManpowerUpdate?.(updatedWorkers);
   };
 
   // 공수 계산 로직 수정
@@ -464,12 +520,23 @@ export default function AddManpowerModal({
                 </button>
               )
             ))}
+            <button
+              onClick={() => setSelectedTab('all')}
+              className={`py-2 px-1 text-sm font-medium border-b-2 relative ${
+                selectedTab === 'all'
+                  ? 'border-[#4E49E7] text-[#4E49E7]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              전체
+            </button>
           </nav>
         </div>
 
         {/* 컨텐츠 영역 */}
         <div className="relative z-10">
-          {selectedTab && selectedWorkers[selectedTab]?.map((worker, index) => (
+          {/* 기존 탭 컨텐츠 */}
+          {selectedTab !== 'all' && selectedWorkers[selectedTab]?.map((worker, index) => (
             <div 
               key={worker.id}
               className="p-6 rounded-lg border border-gray-200 bg-white mb-4 hover:border-gray-300 transition-all"
@@ -609,6 +676,59 @@ export default function AddManpowerModal({
               </div>
             </div>
           ))}
+
+          {/* 전체 탭 컨텐츠 */}
+          {selectedTab === 'all' && (
+            <div className="mt-4">
+              <div className="overflow-x-auto whitespace-nowrap" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50">직무 구분</td>
+                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">실무자</td>
+                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">등급</td>
+                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">직급</td>
+                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">단가</td>
+                      {startDate && endDate && getMonths().map((month) => (
+                        <td key={month} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                          {month}
+                        </td>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {Object.entries(selectedWorkers).map(([role, workers]) =>
+                      workers.map((worker) => {
+                        const workerKey = `${worker.id}-${role}`;
+                        const workerData = workersEffort[workerKey] || {};
+                        
+                        return (
+                          <tr key={`${role}-${worker.id}`}>
+                            <td className="px-4 py-3 text-sm text-gray-900 sticky left-0 bg-white">{role}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{worker.name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                              {workerData.grade || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                              {workerData.position || '-'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+                              {workerData.unitPrice?.toLocaleString() || '-'}
+                            </td>
+                            {startDate && endDate && getMonths().map((monthKey) => (
+                              <td key={monthKey} className="px-4 py-3 text-center text-sm text-gray-900 whitespace-nowrap">
+                                {workerData.monthlyEfforts?.[monthKey] || '-'}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

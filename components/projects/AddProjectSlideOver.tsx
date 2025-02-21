@@ -10,6 +10,28 @@ import 'react-datepicker/dist/react-datepicker.css'
 import { ko } from 'date-fns/locale'
 import AddManpowerModal from './AddManpowerModal'
 import { supabase } from '@/lib/supabase'
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js'
+
+// Chart.js 컴포넌트 등록
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+)
 
 interface AddProjectSlideOverProps {
   isOpen: boolean
@@ -102,6 +124,13 @@ const roleColors = {
   '퍼블리싱': '#51CF66',
   '개발': '#339AF0'
 };
+
+// 월별 공수 데이터 타입 정의 추가
+interface MonthlyEffort {
+  [role: string]: {
+    [month: string]: number;
+  };
+}
 
 export default function AddProjectSlideOver({
   isOpen,
@@ -1022,6 +1051,138 @@ export default function AddProjectSlideOver({
     return months;
   }, [startDate, endDate]);
 
+  // 상단에 상태 및 유틸리티 함수 추가
+  const [monthlyEfforts, setMonthlyEfforts] = useState<{
+    [role: string]: { [month: string]: number }
+  }>({});
+
+  const getMonthsBetween = (start: Date, end: Date) => {
+    const months: string[] = [];
+    const current = new Date(start);
+    
+    while (current <= end) {
+      months.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`);
+      current.setMonth(current.getMonth() + 1);
+    }
+    return months;
+  };
+
+  // 공수 데이터 가져오는 함수 개선
+  const fetchMonthlyEfforts = async () => {
+    if (!project?.id || !startDate || !endDate) return;
+
+    try {
+      // 1. 프로젝트의 모든 공수 데이터를 한 번에 가져오기
+      const { data: manpowerData, error: manpowerError } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          role,
+          worker_id,
+          project_monthly_efforts (
+            year,
+            month,
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (manpowerError) throw manpowerError;
+
+      // 2. 초기 데이터 구조 설정
+      const effortsByRole: MonthlyEffort = {
+        '기획': {},
+        '디자이너': {},
+        '퍼블리셔': {},
+        '개발': {}
+      };
+
+      // 3. 데이터 처리 및 유효성 검사
+      manpowerData?.forEach(mp => {
+        if (!mp.role || !mp.project_monthly_efforts) return;
+
+        mp.project_monthly_efforts.forEach(effort => {
+          if (!effort.year || !effort.month || effort.mm_value === null) return;
+
+          const monthKey = `${effort.year}-${String(effort.month).padStart(2, '0')}`;
+          
+          // 해당 월이 프로젝트 기간 내에 있는지 확인
+          const effortDate = new Date(effort.year, effort.month - 1);
+          if (effortDate >= startDate && effortDate <= endDate) {
+            effortsByRole[mp.role] = effortsByRole[mp.role] || {};
+            effortsByRole[mp.role][monthKey] = (effortsByRole[mp.role][monthKey] || 0) + effort.mm_value;
+          }
+        });
+      });
+
+      // 4. 상태 업데이트 전 데이터 검증
+      Object.keys(effortsByRole).forEach(role => {
+        Object.keys(effortsByRole[role]).forEach(month => {
+          if (isNaN(effortsByRole[role][month])) {
+            effortsByRole[role][month] = 0;
+          }
+        });
+      });
+
+      setMonthlyEfforts(effortsByRole);
+    } catch (error) {
+      console.error('Error fetching monthly efforts:', error);
+      toast.error('공수 데이터를 불러오는 중 오류가 발생했습니다.');
+    }
+  };
+
+  // useEffect에 추가
+  useEffect(() => {
+    if (project?.id && startDate && endDate) {
+      fetchMonthlyEfforts();
+    }
+  }, [project?.id, startDate, endDate]);
+
+  // 그래프 데이터 생성 함수 추가
+  const getChartData = useCallback(() => {
+    if (!startDate || !endDate || !monthlyEfforts) return null;
+
+    const months = getMonthsBetween(startDate, endDate);
+    
+    return {
+      labels: months,
+      datasets: [
+        {
+          label: '기획',
+          data: months.map(month => monthlyEfforts['기획']?.[month] || 0),
+          borderColor: '#4E49E7',
+          backgroundColor: 'rgba(78, 73, 231, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '디자이너',
+          data: months.map(month => monthlyEfforts['디자이너']?.[month] || 0),
+          borderColor: '#FF6B6B',
+          backgroundColor: 'rgba(255, 107, 107, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '퍼블리셔',
+          data: months.map(month => monthlyEfforts['퍼블리셔']?.[month] || 0),
+          borderColor: '#51CF66',
+          backgroundColor: 'rgba(81, 207, 102, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '개발',
+          data: months.map(month => monthlyEfforts['개발']?.[month] || 0),
+          borderColor: '#339AF0',
+          backgroundColor: 'rgba(51, 154, 240, 0.1)',
+          tension: 0.4,
+          fill: false
+        }
+      ]
+    };
+  }, [startDate, endDate, monthlyEfforts]);
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
       {/* 스타일 태그 추가 */}
@@ -1805,99 +1966,75 @@ export default function AddProjectSlideOver({
                                     </div>
 
                                     {/* 그래프 영역 */}
-                                    <div className="relative">
-                                      {/* 왼쪽 직무 라벨 */}
-                                      <div className="absolute left-0 top-0 space-y-[22px] text-[13px] text-gray-500">
-                                        <div>개발</div>
-                                        <div>퍼블리싱</div>
-                                        <div>디자인</div>
-                                        <div>기획</div>
-                                      </div>
-
-                                      {/* 그래프 영역 */}
-                                      <div className="ml-[56px]">
-                                        {/* 그래프 라인들 */}
-                                        <div className="relative h-[130px]">
-                                          {/* 수평 구분선 */}
-                                          <div className="absolute w-full border-t border-[#E5E5E5] top-0"></div>
-                                          <div className="absolute w-full border-t border-[#E5E5E5] top-[25%]"></div>
-                                          <div className="absolute w-full border-t border-[#E5E5E5] top-[50%]"></div>
-                                          <div className="absolute w-full border-t border-[#E5E5E5] top-[75%]"></div>
-                                          <div className="absolute w-full border-t border-[#E5E5E5] top-[100%]"></div>
-
-                                          {/* 수직 구분선 */}
-                                          {startDate && endDate && (
-                                            <div className="absolute inset-0 flex justify-between w-full h-full">
-                                              {Array.from({ length: getMonthDiff(startDate, endDate) + 1 }).map((_, index) => (
-                                                <div 
-                                                  key={index} 
-                                                  className="border-l border-[#E5E5E5] h-full"
-                                                ></div>
-                                              ))}
-                                            </div>
-                                          )}
-
-                                          {/* 여기에 실제 데이터 라인이 들어갈 공간 */}
-                                          <div className="relative h-full">
-                                            {roleEfforts.map(({ role, monthlyEfforts }) => {
-                                              const roleIndex = ['개발', '퍼블리싱', '디자인', '기획'].indexOf(role);
-                                              if (roleIndex === -1) return null;
-
-                                              // 라인 그래프를 위한 points 계산
-                                              const points = monthlyEfforts.map((effort, index) => {
-                                                const x = (index * 100) / (monthlyEfforts.length - 1);
-                                                const y = 100 - (effort * 20); // 값이 클수록 위로 올라가도록 반전
-                                                return `${x},${y}`;
-                                              }).join(' ');
-
-                                              return (
-                                                <div
-                                                  key={role}
-                                                  className="absolute left-0 right-0"
-                                                  style={{
-                                                    top: `${roleIndex * 25}%`,
-                                                    height: '25%'
-                                                  }}
-                                                >
-                                                  <svg className="w-full h-full" preserveAspectRatio="none">
-                                                    <polyline
-                                                      points={points}
-                                                      fill="none"
-                                                      stroke="#4E49E7"
-                                                      strokeWidth="2"
-                                                      strokeLinecap="round"
-                                                      strokeLinejoin="round"
-                                                      className="transition-all duration-300"
-                                                    />
-                                                    {/* 데이터 포인트 표시 */}
-                                                    {monthlyEfforts.map((effort, index) => (
-                                                      <circle
-                                                        key={index}
-                                                        cx={`${(index * 100) / (monthlyEfforts.length - 1)}%`}
-                                                        cy={`${100 - (effort * 20)}%`}
-                                                        r="3"
-                                                        fill="#4E49E7"
-                                                        className="transition-all duration-300"
-                                                      />
-                                                    ))}
-                                                  </svg>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-
-                                        {/* 월 표시 */}
-                                        <div className="flex justify-between mt-2 text-[13px] text-gray-500">
-                                          {startDate && endDate && (
-                                            <div className="flex justify-between w-full">
-                                              {getMonths().map((monthText, index) => (
-                                                <div key={index}>{monthText}</div>
-                                              ))}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
+                                    <div className="h-[200px] mb-6">
+                                      <Line
+                                        data={{
+                                          labels: startDate && endDate ? getMonthsBetween(startDate, endDate) : [],
+                                          datasets: [
+                                            {
+                                              label: '기획',
+                                              data: startDate && endDate ? 
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['기획']?.[month] || 0) : [],
+                                              borderColor: '#4E49E7',
+                                              backgroundColor: 'rgba(78, 73, 231, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
+                                            {
+                                              label: '디자이너',
+                                              data: startDate && endDate ?
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['디자이너']?.[month] || 0) : [],
+                                              borderColor: '#FF6B6B',
+                                              backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
+                                            {
+                                              label: '퍼블리셔',
+                                              data: startDate && endDate ?
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['퍼블리셔']?.[month] || 0) : [],
+                                              borderColor: '#51CF66',
+                                              backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
+                                            {
+                                              label: '개발',
+                                              data: startDate && endDate ?
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['개발']?.[month] || 0) : [],
+                                              borderColor: '#339AF0',
+                                              backgroundColor: 'rgba(51, 154, 240, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            }
+                                          ]
+                                        }}
+                                        options={{
+                                          responsive: true,
+                                          maintainAspectRatio: false,
+                                          plugins: {
+                                            legend: {
+                                              display: true,
+                                              position: 'top',
+                                              align: 'end'
+                                            }
+                                          },
+                                          scales: {
+                                            y: {
+                                              beginAtZero: true,
+                                              max: 1.5,
+                                              ticks: {
+                                                callback: value => `${value} M/M`,
+                                                stepSize: 0.2
+                                              }
+                                            }
+                                          }
+                                        }}
+                                      />
                                     </div>
                                 </div>
                                 </div>
