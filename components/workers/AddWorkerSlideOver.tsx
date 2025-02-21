@@ -59,7 +59,7 @@ const DEFAULT_PRICES = {
   '특급': 9_500_000,
   '고급': 8_500_000,
   '중급': 7_500_000,
-  '초급': 6_500_000,
+  '초급': 6_500_000
 } as const
 
 // 상단에 gradeTypes 배열 추가
@@ -78,6 +78,14 @@ interface WorkerProject {
     mm_value: number;
   }[];
 }
+
+// 기술등급별 단가 매핑 객체
+const LEVEL_UNIT_PRICES: { [key: string]: number } = {
+  '특급': 9_500_000,
+  '고급': 8_500_000,
+  '중급': 7_500_000,
+  '초급': 6_500_000
+};
 
 export default function AddWorkerSlideOver({ 
   isOpen, 
@@ -670,6 +678,12 @@ export default function AddWorkerSlideOver({
                                     onClick={() => {
                                       setGrade(type)
                                       setIsGradeOpen(false)
+                                      // 선택된 등급에 해당하는 단가 설정
+                                      const price = GRADE_UNIT_PRICES[type];
+                                      if (price) {
+                                        setPrice(price.toLocaleString());
+                                        setTempPrice(price.toLocaleString());
+                                      }
                                     }}
                                     className={`${
                                       grade === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
@@ -762,8 +776,14 @@ export default function AddWorkerSlideOver({
                                     key={type}
                                     type="button"
                                     onClick={() => {
-                                      setLevel(type)
-                                      setIsLevelOpen(false)
+                                      setLevel(type);
+                                      setIsLevelOpen(false);
+                                      // 선택된 등급에 해당하는 단가 설정
+                                      const price = LEVEL_UNIT_PRICES[type];
+                                      if (price) {
+                                        setPrice(price.toLocaleString());
+                                        setTempPrice(price.toLocaleString());
+                                      }
                                     }}
                                     className={`${
                                       level === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
@@ -1196,9 +1216,9 @@ export default function AddWorkerSlideOver({
                           </svg>
                         </div>
                         <p className="text-sm text-gray-500 mb-4">현재 진행중인 프로젝트가 없어요.</p>
-                        <button className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
+                        {/* <button className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50">
                           프로젝트에 투입하기
-                        </button>
+                        </button> */}
                       </div>
                     )}
                   </div>

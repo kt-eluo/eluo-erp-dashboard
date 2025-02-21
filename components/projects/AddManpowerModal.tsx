@@ -38,6 +38,11 @@ interface WorkerEffortData {
   };
 }
 
+// 컴포넌트 상단에 현재 날짜 관련 상수 추가
+const currentDate = new Date();
+const currentYear = currentDate.getFullYear();
+const currentMonth = currentDate.getMonth() + 1;
+
 export default function AddManpowerModal({ 
   isOpen, 
   onClose, 
@@ -73,6 +78,14 @@ export default function AddManpowerModal({
     '': '선택'
   }
 
+  // 상단에 기본 단가 설정을 위한 객체 추가
+  const DEFAULT_PRICES = {
+    '특급': 9_500_000,
+    '고급': 8_500_000,
+    '중급': 7_500_000,
+    '초급': 6_500_000
+  } as const
+
   // Role 라벨 매핑 추가 (필요한 경우)
   const roleLabels: Record<Role, string> = {
     'BD(BM)': 'BD(BM)',
@@ -96,6 +109,9 @@ export default function AddManpowerModal({
             id,
             worker_id,
             role,
+            grade,
+            position,
+            unit_price,
             project_monthly_efforts (
               year,
               month,
@@ -118,6 +134,9 @@ export default function AddManpowerModal({
             });
 
             newWorkersEffort[key] = {
+              grade: mp.grade,
+              position: mp.position,
+              unitPrice: mp.unit_price,
               monthlyEfforts
             };
           });
@@ -148,10 +167,7 @@ export default function AddManpowerModal({
       for (const [role, workers] of Object.entries(selectedWorkers)) {
         for (const worker of workers) {
           const workerData = workersEffort[`${worker.id}-${role}`];
-          if (!workerData) {
-            console.log(`No data for worker: ${worker.id}`);
-            continue;
-          }
+          if (!workerData) continue;
 
           // 1. 기존 데이터 확인
           const { data: existingData, error: fetchError } = await supabase
@@ -176,10 +192,10 @@ export default function AddManpowerModal({
               id: existingData?.id,
               project_id: projectId,
               worker_id: worker.id,
-              role: role as any,
+              role: role,
               grade: workerData.grade || null,
               position: workerData.position || null,
-              unit_price: workerData.unitPrice || null,
+              unit_price: workerData.unitPrice || null
             }, {
               onConflict: 'project_id,worker_id,role'
             })
@@ -235,13 +251,16 @@ export default function AddManpowerModal({
       // 저장 완료 후 부모 컴포넌트에 업데이트된 데이터 전달
       const updatedWorkers = {...selectedWorkers};
       Object.keys(updatedWorkers).forEach(role => {
-        updatedWorkers[role] = updatedWorkers[role].map(worker => ({
-          ...worker,
-          total_mm_value: workersEffort[`${worker.id}-${role}`]?.monthlyEfforts
-            ? Object.values(workersEffort[`${worker.id}-${role}`].monthlyEfforts)
-                .reduce((sum, val) => sum + (Number(val) || 0), 0)
-            : 0
-        }));
+        updatedWorkers[role] = updatedWorkers[role].map(worker => {
+          const monthKey = `${currentYear}-${currentMonth}`;  // 이제 정의된 상수 사용 가능
+          const currentMonthEffort = workersEffort[`${worker.id}-${role}`]?.monthlyEfforts[monthKey];
+          
+          return {
+            ...worker,
+            monthlyEfforts: workersEffort[`${worker.id}-${role}`]?.monthlyEfforts || {},
+            total_mm_value: currentMonthEffort || 0
+          };
+        });
       });
 
       onManpowerUpdate?.(updatedWorkers);
@@ -253,22 +272,27 @@ export default function AddManpowerModal({
     }
   };
 
-  // 월 목록 생성 함수 수정
+  // getMonths 함수 수정
   const getMonths = useCallback(() => {
-    if (!startDate || !endDate) return []
+    if (!startDate || !endDate) return [];
     
-    const months: string[] = []
-    const currentDate = new Date(startDate)
+    const months: string[] = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
     
-    while (currentDate <= endDate) {
-      const year = currentDate.getFullYear()
-      const month = currentDate.getMonth() + 1
-      months.push(`${year}-${month}`)
-      currentDate.setMonth(currentDate.getMonth() + 1)
+    // 시작일과 종료일을 각각 해당 월의 1일로 설정
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const lastMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0); // 종료월의 마지막 날로 설정
+
+    while (current <= lastMonth) {
+      const year = current.getFullYear();
+      const month = current.getMonth() + 1;
+      months.push(`${year}-${month}`);
+      current.setMonth(current.getMonth() + 1);
     }
     
-    return months
-  }, [startDate, endDate])
+    return months;
+  }, [startDate, endDate]);
 
   // 투입소계 계산 함수 수정
   const calculateTotalEffort = (workerId: string, role: string) => {
@@ -307,34 +331,29 @@ export default function AddManpowerModal({
     return effort * workerData.unitPrice
   }
 
-  // select 변경 핸들러 수정
-  const handleGradeChange = (workerId: string, role: string, grade: Grade) => {
-    const key = `${workerId}-${role}`;
+  // 등급 변경 핸들러
+  const handleGradeChange = (workerId: string, role: string, value: Grade) => {
     setWorkersEffort(prev => ({
       ...prev,
-      [key]: {
-        ...prev[key] || {},
-        grade,
-        position: prev[key]?.position || '',
-        unitPrice: prev[key]?.unitPrice || null,
-        monthlyEfforts: prev[key]?.monthlyEfforts || {}
+      [`${workerId}-${role}`]: {
+        ...prev[`${workerId}-${role}`] || {},
+        grade: value as Grade,  // 타입 명시
+        monthlyEfforts: prev[`${workerId}-${role}`]?.monthlyEfforts || {}
       }
-    }))
-  }
+    }));
+  };
 
-  const handlePositionChange = (workerId: string, role: string, position: Position) => {
-    const key = `${workerId}-${role}`;
+  // 직급 변경 핸들러
+  const handlePositionChange = (workerId: string, role: string, value: Position) => {
     setWorkersEffort(prev => ({
       ...prev,
-      [key]: {
-        ...prev[key] || {},
-        grade: prev[key]?.grade || '',
-        position,
-        unitPrice: prev[key]?.unitPrice || null,
-        monthlyEfforts: prev[key]?.monthlyEfforts || {}
+      [`${workerId}-${role}`]: {
+        ...prev[`${workerId}-${role}`] || {},
+        position: value as Position,  // 타입 명시
+        monthlyEfforts: prev[`${workerId}-${role}`]?.monthlyEfforts || {}
       }
-    }))
-  }
+    }));
+  };
 
   const handleUnitPriceChange = (workerId: string, role: string, value: string) => {
     const unitPrice = value === '' ? null : parseInt(value)
@@ -479,7 +498,49 @@ export default function AddManpowerModal({
 
                 {/* 단가 입력 */}
                 <div className="space-y-2">
-                  <span className="text-[13px] font-medium text-gray-700">단가</span>
+                  {/* 단가 헤더 영역 */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-gray-700">단가</span>
+                    {/* 도움말 아이콘 */}
+                    <div className="group relative">
+                      <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-medium text-gray-400 bg-gray-100 rounded-full border border-gray-300 hover:text-gray-600 hover:bg-gray-50 cursor-help transition-colors">?</span>
+                      {/* 도움말 팝업 */}
+                      <div 
+                        className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute right-0 w-[300px] bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm text-gray-600" 
+                        style={{ 
+                          zIndex: 9999999,
+                          top: '100%',  // 아이콘 바로 아래에 위치
+                          marginTop: '8px',  // 아이콘과의 간격
+                          right: '-8px',  // 우측 정렬 조정
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        <p className="mb-2">정해진 단가표에 의해 금액은 자동입력됩니다.<br />다만 금액 수정은 가능합니다.</p>
+                        {/* 단가표 */}
+                        <div className="mt-2 overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="py-1 text-left font-medium">등급</th>
+                                <th className="py-1 text-right font-medium">기본 단가</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(DEFAULT_PRICES).map(([level, price]) => (
+                                <tr key={level} className="border-b last:border-0">
+                                  <td className="py-1 text-left">{level}</td>
+                                  <td className="py-1 text-right">{price.toLocaleString()}원</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* 팝업 화살표 - 우측 상단으로 수정 */}
+                        <div className="absolute top-[-8px] right-4 w-3 h-3 bg-white border-l border-t border-gray-200 transform -rotate-45"></div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 단가 입력 필드 */}
                   <div className="relative">
                     <input
                       type="number"
@@ -499,8 +560,8 @@ export default function AddManpowerModal({
                 <div className="bg-gray-50 rounded-lg p-4 overflow-x-auto">
                   <div className="flex gap-4 min-w-max">
                     {getMonths().map((monthKey) => {
-                      const [year, month] = monthKey.split('-')
-                      const displayText = `${year}년 ${month}월`
+                      const [year, month] = monthKey.split('-');
+                      const displayText = `${year}년 ${month}월`;
                       
                       return (
                         <div key={`${worker.id}-${selectedTab}-${monthKey}`} className="text-center flex-shrink-0">
@@ -513,7 +574,7 @@ export default function AddManpowerModal({
                             className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                           />
                         </div>
-                      )
+                      );
                     })}
                   </div>
                 </div>

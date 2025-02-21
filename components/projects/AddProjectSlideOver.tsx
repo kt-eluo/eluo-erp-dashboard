@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Fragment, useRef, useEffect } from 'react'
+import { useState, Fragment, useRef, useEffect, useCallback } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { X, ArrowLeft, ChevronDown, Calendar, Search } from 'lucide-react'
 import type { Project, ProjectStatus, ProjectCategory, ProjectMajorCategory, ContractType, PeriodicUnit, ProjectRole, ManpowerSummary } from '@/types/project'
@@ -198,35 +198,50 @@ export default function AddProjectSlideOver({
   // state 추가
   const [roleEfforts, setRoleEfforts] = useState<RoleEffortData[]>([]);
 
+  // 상태 추가 (컴포넌트 최상단 상태 선언부에 추가)
+  const [openDropdowns, setOpenDropdowns] = useState<{[key: string]: boolean}>({
+    'BD(BM)': false,
+    'PM(PL)': false,
+    '기획': false,
+    '디자이너': false,
+    '퍼블리셔': false,
+    '개발': false
+  });
+
+  // 외부 클릭 감지를 위한 ref 추가
+  const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({
+    'BD(BM)': null,
+    'PM(PL)': null,
+    '기획': null,
+    '디자이너': null,
+    '퍼블리셔': null,
+    '개발': null
+  });
+
   // 외부 클릭 감지 useEffect 수정
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       // 모달이 열려있을 때는 외부 클릭 감지를 하지 않음
       if (showManpowerModal) return;
 
-      // 각 ref에 대한 클릭 감지 확인
-      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
-        setIsStatusOpen(false)
-      }
-      if (majorCategoryRef.current && !majorCategoryRef.current.contains(event.target as Node)) {
-        setIsMajorCategoryOpen(false)
-      }
-      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
-        setIsCategoryOpen(false)
-      }
-      if (contractTypeRef.current && !contractTypeRef.current.contains(event.target as Node)) {
-        setIsContractTypeOpen(false)
-      }
-      if (periodicUnitRef.current && !periodicUnitRef.current.contains(event.target as Node)) {
-        setIsPeriodicUnitOpen(false)
-      }
-    }
+      // 각 드롭다운 ref에 대한 클릭 감지 확인
+      Object.entries(dropdownRefs.current).forEach(([jobType, ref]) => {
+        if (ref && !ref.contains(event.target as Node)) {
+          setOpenDropdowns(prev => ({
+            ...prev,
+            [jobType]: false
+          }));
+        }
+      });
 
-    document.addEventListener('mousedown', handleClickOutside)
+      // 기존의 다른 ref 체크들...
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showManpowerModal]) // showManpowerModal을 의존성 배열에 추가
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showManpowerModal]);
 
   // 프로젝트 데이터로 폼 초기화
   useEffect(() => {
@@ -321,64 +336,111 @@ export default function AddProjectSlideOver({
 
   // 검색어에 맞는 실무자 필터링
   const getFilteredWorkers = (jobType: string) => {
-    const searchTerm = searchTerms[jobType]
-    return workers.filter(worker => 
-      worker.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  }
-
-  // 실무자 선택 핸들러
-  const handleWorkerSelect = (jobType: string, selectedWorker: { id: string, name: string }) => {
-    setSelectedWorkers(prev => {
-      const newWorker: Worker = {
-        ...selectedWorker,
-        job_type: jobType,
-        total_mm_value: 0
-      };
-
-      return {
-        ...prev,
-        [jobType]: [...(prev[jobType] || []), newWorker]
-      };
-    });
+    const searchTerm = searchTerms[jobType].toLowerCase();
     
-    setSearchTerms(prev => ({
-      ...prev,
-      [jobType]: ''
-    }));
-  }
+    // 검색어가 있을 때는 일반 검색 결과 반환
+    if (searchTerm) {
+      return workers.filter(worker => 
+        worker.name.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    // 검색 아이콘으로 열었을 때는 필터링된 목록 반환
+    return filteredWorkersList[jobType];
+  };
+
+  // 실무자 선택 핸들러 수정
+  const handleWorkerSelect = async (jobType: string, worker: { id: string; name: string }) => {
+    try {
+      if (mode === 'edit' && project?.id) {
+        // 1. project_manpower 테이블에 데이터 추가
+        const { data, error } = await supabase
+          .from('project_manpower')
+          .upsert({
+            project_id: project.id,
+            worker_id: worker.id,
+            role: jobType
+          }, {
+            onConflict: 'project_id,worker_id,role'  // 중복 체크할 컬럼 지정
+          })
+          .select(`
+            id,
+            workers (
+              id,
+              name,
+              job_type
+            )
+          `)
+          .single();
+
+        if (error) {
+          console.error('Error details:', error);
+          throw error;
+        }
+
+        // 2. UI 업데이트
+        setSelectedWorkers(prev => ({
+          ...prev,
+          [jobType]: [
+            ...prev[jobType],
+            {
+              id: worker.id,
+              name: worker.name,
+              job_type: data.workers?.job_type || '',
+              total_mm_value: 0
+            }
+          ]
+        }));
+
+        // 검색어 초기화
+        setSearchTerms(prev => ({
+          ...prev,
+          [jobType]: ''
+        }));
+
+        toast.success('실무자가 추가되었습니다.');
+
+        // 선택 후 드롭다운 닫기
+        handleCloseDropdown(jobType);
+      }
+    } catch (error) {
+      console.error('Error in handleWorkerSelect:', error);
+      toast.error('실무자 추가 중 오류가 발생했습니다.');
+    }
+  };
 
   // 실무자 제거 핸들러 수정
   const handleRemoveWorker = async (jobType: string, workerId: string) => {
     try {
-      // 프로젝트 모드가 'edit'일 경우 DB에서도 삭제
       if (mode === 'edit' && project?.id) {
+        // 1. project_manpower 테이블에서 데이터 삭제
         const { error } = await supabase
-          .from('project_manpower')  // project_workers가 아닌 project_manpower 테이블 사용
+          .from('project_manpower')
           .delete()
-          .match({ 
+          .match({
             project_id: project.id,
-            worker_id: workerId 
-          })
+            worker_id: workerId,
+            role: jobType
+          });
 
         if (error) {
-          console.error('DB 삭제 오류:', error.message)
-          throw error
+          console.error('Error removing worker:', error);
+          throw error;
         }
+
+        // 2. UI 업데이트
+        setSelectedWorkers(prev => ({
+          ...prev,
+          [jobType]: prev[jobType].filter(worker => worker.id !== workerId)
+        }));
+
+        toast.success('실무자가 제거되었습니다.');
       }
-
-      // UI에서 실무자 제거
-      setSelectedWorkers(prev => ({
-        ...prev,
-        [jobType]: prev[jobType].filter(worker => worker.id !== workerId)
-      }))
-
-      toast.success('실무자가 제거되었습니다.')
     } catch (error) {
-      console.error('실무자 제거 중 오류 발생:', error)
-      toast.error('실무자 제거 중 오류가 발생했습니다.')
+      console.error('Error in handleRemoveWorker:', error);
+      toast.error('실무자 제거 중 오류가 발생했습니다.');
     }
-  }
+  };
 
   // 중복 체크 함수 추가
   const checkDuplicateName = async (name: string) => {
@@ -451,11 +513,9 @@ export default function AddProjectSlideOver({
     
     try {
       if (mode === 'edit' && project?.id) {
-        // 수정할 프로젝트 데이터 준비
         const updatedProject: any = {
           name: title,
           updated_at: new Date().toISOString(),
-          // 직무별 전체 공수 데이터 추가
           planning_manpower: manpowerPlanning,
           design_manpower: manpowerDesign,
           publishing_manpower: manpowerPublishing,
@@ -481,21 +541,70 @@ export default function AddProjectSlideOver({
           throw new Error(`프로젝트 수정 중 오류가 발생했습니다: ${error.message}`);
         }
 
-        if (data && data[0]) {
-          // 로컬 상태 즉시 업데이트
-          setManpowerPlanning(data[0].planning_manpower);
-          setManpowerDesign(data[0].design_manpower);
-          setManpowerPublishing(data[0].publishing_manpower);
-          setManpowerDevelopment(data[0].development_manpower);
+        // 성공 메시지 표시
+        toast.success('프로젝트가 수정되었습니다.');
 
-          // 부모 컴포넌트에 업데이트된 데이터 전달
-          onSubmit(data[0]);
-          toast.success('프로젝트가 수정되었습니다.');
+        // if (data && data[0]) {
+        //   // 로컬 상태 업데이트
+        //   setManpowerPlanning(data[0].planning_manpower);
+        //   setManpowerDesign(data[0].design_manpower);
+        //   setManpowerPublishing(data[0].publishing_manpower);
+        //   setManpowerDevelopment(data[0].development_manpower);
 
-         // 페이지 새로고침 후 슬라이드오버 다시 열기
-         window.location.href = `${window.location.pathname}?edit=true&projectId=${project.id}`;
+        //   // 공수 데이터 다시 불러오기
+        //   const { data: manpowerData } = await supabase
+        //     .from('project_manpower')
+        //     .select(`
+        //       id,
+        //       role,
+        //       workers (
+        //         id,
+        //         name,
+        //         job_type
+        //       ),
+        //       project_monthly_efforts (
+        //         year,
+        //         month,
+        //         mm_value
+        //       )
+        //     `)
+        //     .eq('project_id', project.id);
 
-        }
+        //   if (manpowerData) {
+        //     const workersByRole: SelectedWorkers = {
+        //       'BD(BM)': [],
+        //       'PM(PL)': [],
+        //       '기획': [],
+        //       '디자이너': [],
+        //       '퍼블리셔': [],
+        //       '개발': []
+        //     };
+
+        //     const currentYear = new Date().getFullYear();
+        //     const currentMonth = new Date().getMonth() + 1;
+
+        //     manpowerData.forEach(mp => {
+        //       if (mp.workers) {
+        //         // 현재 월의 공수만 찾기
+        //         const currentMonthEffort = mp.project_monthly_efforts?.find(
+        //           effort => effort.year === currentYear && effort.month === currentMonth
+        //         );
+
+        //         workersByRole[mp.role].push({
+        //           id: mp.workers.id,
+        //           name: mp.workers.name,
+        //           job_type: mp.workers.job_type || '',
+        //           total_mm_value: Number(currentMonthEffort?.mm_value) || 0
+        //         });
+        //       }
+        //     });
+
+        //     setSelectedWorkers(workersByRole);
+        //   }
+
+        //   // 부모 컴포넌트에 업데이트된 데이터 전달
+        //   onSubmit(data[0]);
+        // }
       } else {
         // 새 프로젝트 생성 시
         const newProject: any = {
@@ -716,7 +825,7 @@ export default function AddProjectSlideOver({
     await fetchRoleEfforts();
   };
 
-  // fetchWorkerEfforts 함수를 컴포넌트 내부에서 정의
+  // fetchWorkerEfforts 함수 수정
   const fetchWorkerEfforts = async () => {
     if (!project?.id) return;
     
@@ -726,12 +835,17 @@ export default function AddProjectSlideOver({
         .select(`
           id,
           role,
+          grade,
+          position,
+          unit_price,
           workers (
             id,
             name,
             job_type
           ),
           project_monthly_efforts (
+            year,
+            month,
             mm_value
           )
         `)
@@ -748,17 +862,24 @@ export default function AddProjectSlideOver({
         '개발': []
       };
 
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+
       data.forEach(mp => {
         if (mp.workers) {
-          const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort: any) => {
-            return sum + (Number(effort.mm_value) || 0);
-          }, 0);
+          // 현재 월의 공수만 찾기
+          const currentMonthEffort = mp.project_monthly_efforts?.find(
+            effort => effort.year === currentYear && effort.month === currentMonth
+          );
 
           workersByRole[mp.role].push({
             id: mp.workers.id,
             name: mp.workers.name,
             job_type: mp.workers.job_type || '',
-            total_mm_value: Number(totalEffort) || 0
+            grade: mp.grade,
+            position: mp.position,
+            unit_price: mp.unit_price,
+            total_mm_value: Number(currentMonthEffort?.mm_value) || 0
           });
         }
       });
@@ -769,12 +890,22 @@ export default function AddProjectSlideOver({
     }
   };
 
+  // useEffect 추가
+  useEffect(() => {
+    if (project?.id) {
+      fetchWorkerEfforts();
+    }
+  }, [project?.id]); // project.id가 변경될 때마다 실행
+
   // 프로젝트 데이터 로딩 부분 수정
   useEffect(() => {
     if (project?.id) {
       const fetchProjectData = async () => {
         try {
-          // 쿼리 수정: year와 month도 가져오도록
+          const currentDate = new Date();
+          const currentYear = currentDate.getFullYear();
+          const currentMonth = currentDate.getMonth() + 1;
+
           const { data: projectData, error: projectError } = await supabase
             .from('projects')
             .select(`
@@ -787,7 +918,7 @@ export default function AddProjectSlideOver({
                   name,
                   job_type
                 ),
-                project_monthly_efforts (
+                project_monthly_efforts!inner (
                   year,
                   month,
                   mm_value
@@ -795,10 +926,27 @@ export default function AddProjectSlideOver({
               )
             `)
             .eq('id', project.id)
+            .eq('project_manpower.project_monthly_efforts.year', currentYear)
+            .eq('project_manpower.project_monthly_efforts.month', currentMonth)
             .single();
 
           if (projectError) throw projectError;
 
+          // 프로젝트 기본 정보 설정
+          if (projectData) {
+            setTitle(projectData.name || '');
+            setStatus(projectData.status || '');
+            setMajorCategory(projectData.major_category || '');
+            setCategory(projectData.category || '');
+            setStartDate(projectData.start_date ? new Date(projectData.start_date) : null);
+            setEndDate(projectData.end_date ? new Date(projectData.end_date) : null);
+            setManpowerPlanning(projectData.planning_manpower);
+            setManpowerDesign(projectData.design_manpower);
+            setManpowerPublishing(projectData.publishing_manpower);
+            setManpowerDevelopment(projectData.development_manpower);
+          }
+
+          // 실무자 데이터 설정
           const workersByRole: SelectedWorkers = {
             'BD(BM)': [],
             'PM(PL)': [],
@@ -808,19 +956,16 @@ export default function AddProjectSlideOver({
             '개발': []
           };
 
-          // project_manpower 데이터 처리 수정
           projectData.project_manpower?.forEach((mp: any) => {
             if (mp.workers) {
-              // 월별 공수 합산
-              const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort: any) => {
-                return sum + (Number(effort.mm_value) || 0);
-              }, 0);
+              // 현재 월의 공수만 사용
+              const currentMonthEffort = mp.project_monthly_efforts?.[0]?.mm_value || 0;
 
               workersByRole[mp.role].push({
                 id: mp.workers.id,
                 name: mp.workers.name,
                 job_type: mp.workers.job_type || '',
-                total_mm_value: totalEffort || 0  // null 체크 추가
+                total_mm_value: currentMonthEffort
               });
             }
           });
@@ -863,6 +1008,88 @@ export default function AddProjectSlideOver({
     const numValue = value === '' ? null : Number(value);
     setManpowerDevelopment(numValue);
   };
+
+  // 검색 아이콘 클릭 시 사용할 함수 수정
+  const handleSearchIconClick = async (jobType: string) => {
+    try {
+      // 현재 드롭다운 상태 확인
+      const isCurrentlyOpen = openDropdowns[jobType];
+
+      if (!isCurrentlyOpen) {
+        // 드롭다운이 닫혀있을 때만 데이터 fetch
+        const { data: activeWorkers } = await supabase
+          .from('project_manpower')
+          .select('worker_id')
+          .not('worker_id', 'is', null);
+
+        const activeWorkerIds = new Set(activeWorkers?.map(w => w.worker_id) || []);
+        const availableWorkers = workers.filter(worker => !activeWorkerIds.has(worker.id));
+        
+        setFilteredWorkersList(prev => ({
+          ...prev,
+          [jobType]: availableWorkers
+        }));
+      }
+
+      // 드롭다운 상태 토글
+      setOpenDropdowns(prev => ({
+        ...prev,
+        [jobType]: !isCurrentlyOpen
+      }));
+
+      // 검색어 초기화
+      setSearchTerms(prev => ({
+        ...prev,
+        [jobType]: ''
+      }));
+
+    } catch (error) {
+      console.error('Error fetching available workers:', error);
+    }
+  };
+
+  // 드롭다운 닫기 핸들러 추가
+  const handleCloseDropdown = (jobType: string) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [jobType]: false
+    }));
+  };
+
+  // 필터링된 실무자 목록을 위한 상태 추가
+  const [filteredWorkersList, setFilteredWorkersList] = useState<{[key: string]: Worker[]}>({
+    'BD(BM)': [],
+    'PM(PL)': [],
+    '기획': [],
+    '디자이너': [],
+    '퍼블리셔': [],
+    '개발': []
+  });
+
+  // 컴포넌트 상단에 현재 날짜 관련 상수 추가
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth() + 1;
+
+  // 월 목록 생성 함수 수정
+  const getMonths = useCallback(() => {
+    if (!startDate || !endDate) return [];
+    
+    const months: string[] = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // 연도와 월만 비교하기 위해 날짜는 1일로 통일
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const lastMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+
+    // 종료월까지 포함하기 위해 lastMonth에 1개월을 더한 값과 비교
+    while (current <= lastMonth) {
+      months.push(`${current.getFullYear()}년 ${current.getMonth() + 1}월`);
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    return months;
+  }, [startDate, endDate]);
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -1243,7 +1470,10 @@ export default function AddProjectSlideOver({
                                   {Object.keys(searchTerms).map((jobType) => (
                                     <div key={jobType} className="flex items-center">
                                       <div className="text-[13px] text-gray-500 w-[56px]">{jobType}</div>
-                                      <div className="relative w-[139px] mr-[8px]">
+                                      <div 
+                                        className="relative w-[139px] mr-[8px]"
+                                        ref={el => dropdownRefs.current[jobType] = el}
+                                      >
                                         <input
                                           type="text"
                                           value={searchTerms[jobType]}
@@ -1262,22 +1492,35 @@ export default function AddProjectSlideOver({
                                           placeholder="이름을 입력하세요"
                                           className="w-full h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] text-sm focus:ring-0 focus:border-[#B8B8B8] placeholder:text-[12px]"
                                         />
-                                        <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400" />
+                                        <Search 
+                                          className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-black-400 cursor-pointer name-search-input" 
+                                          onClick={() => handleSearchIconClick(jobType)}
+                                        />
                                         
                                         {/* 검색 결과 드롭다운 */}
-                                        {searchTerms[jobType] && (
+                                        {(searchTerms[jobType] || openDropdowns[jobType]) && (
                                           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-                                            {getFilteredWorkers(jobType)
-                                              .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
-                                              .map(worker => (
-                                                <div
-                                                  key={worker.id}
-                                                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
-                                                  onClick={() => handleWorkerSelect(jobType, { id: worker.id, name: worker.name })}
-                                                >
-                                                  {worker.name}
-                                                </div>
-                                              ))}
+                                            {!searchTerms[jobType] && (  // 검색어가 없을 때만 유효인력 레이블 표시
+                                              <div className="p-2 text-xs text-gray-500 border-b">
+                                                [유효인력]
+                                              </div>
+                                            )}
+                                            <div className="max-h-48 overflow-y-auto">
+                                              {getFilteredWorkers(jobType)
+                                                .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
+                                                .map(worker => (
+                                                  <div
+                                                    key={worker.id}
+                                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
+                                                    onClick={() => {
+                                                      handleWorkerSelect(jobType, { id: worker.id, name: worker.name });
+                                                      handleCloseDropdown(jobType);
+                                                    }}
+                                                  >
+                                                    {worker.name}
+                                                  </div>
+                                                ))}
+                                            </div>
                                           </div>
                                         )}
                                       </div>
@@ -1739,15 +1982,9 @@ export default function AddProjectSlideOver({
                                         <div className="flex justify-between mt-2 text-[13px] text-gray-500">
                                           {startDate && endDate && (
                                             <div className="flex justify-between w-full">
-                                              {Array.from({ length: getMonthDiff(startDate, endDate) + 1 }).map((_, index) => {
-                                                const currentDate = new Date(startDate)
-                                                currentDate.setMonth(startDate.getMonth() + index)
-                                                return (
-                                                  <div key={index}>
-                                                    {currentDate.toLocaleDateString('ko-KR', { month: 'long' })}
-                                                  </div>
-                                                )
-                                              })}
+                                              {getMonths().map((monthText, index) => (
+                                                <div key={index}>{monthText}</div>
+                                              ))}
                                             </div>
                                           )}
                                         </div>
@@ -1789,7 +2026,7 @@ export default function AddProjectSlideOver({
                                 <button
                                   type="button"
                                   className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black"
-                                  onClick={() => setActiveTab('manpower')}
+                                  onClick={handleAddManpowerClick}
                                 >
                                   실무자 공수 관리
                                 </button>
@@ -1803,17 +2040,6 @@ export default function AddProjectSlideOver({
                                   마일스톤 등록 및 확인
                                 </button>
                               </div>
-
-                              {/* 공수 관리 버튼 - 항상 표시 */}
-                              <div className="flex gap-2 mt-2 justify-end">
-                                <button
-                                  type="button"
-                                  className="h-[32px] px-4 bg-white border border-[#4E49E7] rounded-[6px] font-pretendard font-medium text-[14px] leading-[16.71px] text-[#4E49E7]"
-                                  onClick={handleAddManpowerClick}
-                                >
-                                  공수 관리
-                                </button>
-                              </div>
                             </div>
                           </div>
 
@@ -1821,7 +2047,7 @@ export default function AddProjectSlideOver({
                           <div className="mt-8">
                             {/* 타이틀 */}
                             <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mb-4">
-                              2월 진행 공수
+                              {currentMonth}월 진행 공수
                             </h4>
 
                             {/* 직무별 공수 목록 */}
