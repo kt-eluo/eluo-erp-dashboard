@@ -51,12 +51,12 @@ const POSITION_UNIT_PRICES: { [key: string]: number } = {
   '대리/주임/사원': 6_500_000
 };
 
-// 직급에 따른 단가 반환 함수 추가
+// 직급에 따른 단가 반환 함수 수정
 const getUnitPriceByPosition = (position: Position): number => {
-  if (position === '부장') return POSITION_UNIT_PRICES['부장'];
-  if (position === '차장') return POSITION_UNIT_PRICES['차장'];
-  if (position === '과장') return POSITION_UNIT_PRICES['과장'];
-  return POSITION_UNIT_PRICES['대리']; // 대리/주임/사원은 동일 단가
+  if (position === '대리' || position === '주임' || position === '사원') {
+    return POSITION_UNIT_PRICES['대리/주임/사원'];
+  }
+  return POSITION_UNIT_PRICES[position] || 6_500_000;
 };
 
 export default function AddManpowerModal({ 
@@ -380,7 +380,7 @@ export default function AddManpowerModal({
     });
   };
 
-  // 단가 변경 핸들러는 그대로 유지 (수동 수정 가능)
+  // 단가 수동 변경 핸들러는 그대로 유지
   const handleUnitPriceChange = (workerId: string, role: string, value: string) => {
     const numericValue = value ? parseInt(value.replace(/[^\d]/g, '')) : 0;
     

@@ -60,7 +60,7 @@ const DEFAULT_PRICES = {
   '고급': 8_500_000,
   '중급': 7_500_000,
   '초급': 6_500_000
-} as const
+} as const;
 
 // 상단에 gradeTypes 배열 추가
 const gradeTypes: WorkerGrade[] = ['BD', 'BM', 'PM', 'PL', 'PA']
@@ -78,14 +78,6 @@ interface WorkerProject {
     mm_value: number;
   }[];
 }
-
-// 기술등급별 단가 매핑 객체
-const LEVEL_UNIT_PRICES: { [key: string]: number } = {
-  '특급': 9_500_000,
-  '고급': 8_500_000,
-  '중급': 7_500_000,
-  '초급': 6_500_000
-};
 
 export default function AddWorkerSlideOver({ 
   isOpen, 
@@ -544,6 +536,16 @@ export default function AddWorkerSlideOver({
     }
   }
 
+  // level 변경 핸들러 수정
+  const handleLevelChange = (type: WorkerLevelType) => {
+    setLevel(type);
+    // 기술등급에 따른 단가 자동 설정
+    const defaultPrice = DEFAULT_PRICES[type];
+    setPrice(defaultPrice.toLocaleString());
+    setTempPrice(defaultPrice.toLocaleString());
+    setIsLevelOpen(false);
+  };
+
   return (
     <div className={`fixed inset-0 overflow-hidden z-50 ${!isOpen && 'pointer-events-none'}`}>
       <div className="absolute inset-0 overflow-hidden">
@@ -678,12 +680,6 @@ export default function AddWorkerSlideOver({
                                     onClick={() => {
                                       setGrade(type)
                                       setIsGradeOpen(false)
-                                      // 선택된 등급에 해당하는 단가 설정
-                                      const price = GRADE_UNIT_PRICES[type];
-                                      if (price) {
-                                        setPrice(price.toLocaleString());
-                                        setTempPrice(price.toLocaleString());
-                                      }
                                     }}
                                     className={`${
                                       grade === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
@@ -776,14 +772,7 @@ export default function AddWorkerSlideOver({
                                     key={type}
                                     type="button"
                                     onClick={() => {
-                                      setLevel(type);
-                                      setIsLevelOpen(false);
-                                      // 선택된 등급에 해당하는 단가 설정
-                                      const price = LEVEL_UNIT_PRICES[type];
-                                      if (price) {
-                                        setPrice(price.toLocaleString());
-                                        setTempPrice(price.toLocaleString());
-                                      }
+                                      handleLevelChange(type);
                                     }}
                                     className={`${
                                       level === type ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
@@ -1160,47 +1149,55 @@ export default function AddWorkerSlideOver({
                   <div className="flex-1 overflow-y-auto">
                     {workerProjects.length > 0 ? (
                       <div className="p-6">
+                        {/* 투입 프로젝트 정보 영역 */}
                         <div className="space-y-4">
                           {workerProjects
                             .filter(project => project.status === activeTab)
                             .map((project) => (
                               <div 
                                 key={project.id} 
-                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                                className="flex items-center justify-between"
                               >
                                 <div className="">
                                   {/* 프로젝트 이름 */}
-                                  <div className="font-medium text-gray-900">
+                                  <div className="font-bold text-[20px] leading-normal">
                                     {project.name}
                                   </div>
 
                                   {/* 계약기간  */}
-                                  <div className="font-medium text-gray-900">
+                                  <div className="font-normal text-[16px] text-[#6F6F6F]">
                                     계약 기간 : {project.start_date && project.end_date ? 
                                       `${formatDate(project.start_date)} ~ ${formatDate(project.end_date)}` : 
                                       '기간 미설정'}
                                   </div>
 
-                                  {/* 나의 투입 정보 */}
-                                  <div className="flex items-center justify-between">
-                                    <ul>
-                                      <li>
-                                        <span>투입 직무 등급</span>{' '}
-                                        <span>{project.project_manpower?.position || '-'}</span>
-                                      </li>
-                                      <li>
-                                        <span>투입 직무</span>{' '}
-                                        <span>{project.project_manpower?.role || '-'}</span>
-                                      </li>
-                                      <li>
-                                        <span>투입 공수</span>{' '}
-                                        <span>
-                                          {project.project_manpower?.mm_value ? 
-                                            `${project.project_manpower.mm_value.toFixed(1)} M/M` : 
-                                            '-'}
-                                        </span>
-                                      </li>
-                                    </ul>
+                                  <div className='flex justify-between items-center w-full'>
+                                    {/* 나의 투입 정보 */}
+                                    <div className="flex items-center justify-between bg-gray-50 rounded-lg p-4 width-[50%]">
+                                      <ul className="space-y-3">
+                                        <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
+                                          <span className="w-[90px] text-[#6F6F6F]">투입 직무 등급</span>{' '}
+                                          <span className='font-bold text-[16px] leading-normal text-black'>{project.project_manpower?.position || '-'}</span>
+                                        </li>
+                                        <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
+                                          <span className="w-[90px] text-[#6F6F6F]">투입 직무</span>{' '}
+                                          <span className='font-bold text-[16px] leading-normal text-black'>{project.project_manpower?.role || '-'}</span>
+                                        </li>
+                                        <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
+                                          <span className="w-[90px] text-[#6F6F6F]">투입 공수</span>{' '}
+                                          <span className='font-bold text-[16px] leading-normal text-black'>
+                                            {project.project_manpower?.mm_value ? 
+                                              `${project.project_manpower.mm_value.toFixed(1)} M/M` : 
+                                              '-'}
+                                          </span>
+                                        </li>
+                                      </ul>
+                                    </div>
+
+
+                                    {/* 타인 투입 정보 */}
+                                    <div className="flex items-center justify-between">
+                                    </div>
                                   </div>
                                 </div>
                               </div>

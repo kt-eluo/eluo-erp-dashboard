@@ -520,91 +520,51 @@ export default function AddProjectSlideOver({
           design_manpower: manpowerDesign,
           publishing_manpower: manpowerPublishing,
           development_manpower: manpowerDevelopment,
+          // 계약 정보 추가
+          contract_type: contractType,
+          budget: contractAmount ? parseInt(contractAmount.replace(/[^\d]/g, '')) : null,
+          is_vat_included: isVatIncluded,
+          common_expense: commonExpense ? parseInt(commonExpense.replace(/[^\d]/g, '')) : null,
         };
 
-        // 값이 있는 경우에만 업데이트 객체에 포함
+        // 기본 필드 추가
         if (status) updatedProject.status = status;
         if (majorCategory) updatedProject.major_category = majorCategory;
         if (category) updatedProject.category = category;
         if (startDate) updatedProject.start_date = startDate.toISOString();
         if (endDate) updatedProject.end_date = endDate.toISOString();
 
-        // 1. 프로젝트 데이터 업데이트
-        const { data, error } = await supabase
+        // 계약 유형에 따른 필드 추가
+        if (contractType === '회차 정산형') {
+          updatedProject.down_payment = downPayment ? parseInt(downPayment.replace(/[^\d]/g, '')) : null;
+          updatedProject.intermediate_payments = intermediatePayments.map(p => p ? parseInt(p.replace(/[^\d]/g, '')) : null);
+          updatedProject.final_payment = finalPayment ? parseInt(finalPayment.replace(/[^\d]/g, '')) : null;
+          // 정기 결제형 필드 초기화
+          updatedProject.periodic_unit = null;
+          updatedProject.periodic_interval = null;
+          updatedProject.periodic_amount = null;
+        } else if (contractType === '정기 결제형') {
+          updatedProject.periodic_unit = periodicUnit;
+          updatedProject.periodic_interval = periodicInterval ? parseInt(periodicInterval) : null;
+          updatedProject.periodic_amount = periodicAmount ? parseInt(periodicAmount.replace(/[^\d]/g, '')) : null;
+          // 회차 정산형 필드 초기화
+          updatedProject.down_payment = null;
+          updatedProject.intermediate_payments = null;
+          updatedProject.final_payment = null;
+        }
+
+        // 프로젝트 데이터 업데이트
+        const { error } = await supabase
           .from('projects')
           .update(updatedProject)
-          .eq('id', project.id)
-          .select();
+          .eq('id', project.id);
 
         if (error) {
           console.error('Error details:', error);
           throw new Error(`프로젝트 수정 중 오류가 발생했습니다: ${error.message}`);
         }
 
-        // 성공 메시지 표시
         toast.success('프로젝트가 수정되었습니다.');
-
-        // if (data && data[0]) {
-        //   // 로컬 상태 업데이트
-        //   setManpowerPlanning(data[0].planning_manpower);
-        //   setManpowerDesign(data[0].design_manpower);
-        //   setManpowerPublishing(data[0].publishing_manpower);
-        //   setManpowerDevelopment(data[0].development_manpower);
-
-        //   // 공수 데이터 다시 불러오기
-        //   const { data: manpowerData } = await supabase
-        //     .from('project_manpower')
-        //     .select(`
-        //       id,
-        //       role,
-        //       workers (
-        //         id,
-        //         name,
-        //         job_type
-        //       ),
-        //       project_monthly_efforts (
-        //         year,
-        //         month,
-        //         mm_value
-        //       )
-        //     `)
-        //     .eq('project_id', project.id);
-
-        //   if (manpowerData) {
-        //     const workersByRole: SelectedWorkers = {
-        //       'BD(BM)': [],
-        //       'PM(PL)': [],
-        //       '기획': [],
-        //       '디자이너': [],
-        //       '퍼블리셔': [],
-        //       '개발': []
-        //     };
-
-        //     const currentYear = new Date().getFullYear();
-        //     const currentMonth = new Date().getMonth() + 1;
-
-        //     manpowerData.forEach(mp => {
-        //       if (mp.workers) {
-        //         // 현재 월의 공수만 찾기
-        //         const currentMonthEffort = mp.project_monthly_efforts?.find(
-        //           effort => effort.year === currentYear && effort.month === currentMonth
-        //         );
-
-        //         workersByRole[mp.role].push({
-        //           id: mp.workers.id,
-        //           name: mp.workers.name,
-        //           job_type: mp.workers.job_type || '',
-        //           total_mm_value: Number(currentMonthEffort?.mm_value) || 0
-        //         });
-        //       }
-        //     });
-
-        //     setSelectedWorkers(workersByRole);
-        //   }
-
-        //   // 부모 컴포넌트에 업데이트된 데이터 전달
-        //   onSubmit(data[0]);
-        // }
       } else {
         // 새 프로젝트 생성 시
         const newProject: any = {
@@ -1827,29 +1787,7 @@ export default function AddProjectSlideOver({
                                         </div>
                                       </div>
                                     </div>
-                                    <div>
-                                      <label className="block text-sm font-medium text-gray-700">결제 금액</label>
-                                      <div className="mt-1 relative rounded-md shadow-sm">
-                                        <input
-                                          type="text"
-                                          value={periodicAmount}
-                                          onChange={(e) => {
-                                            const value = e.target.value.replace(/[^\d,]/g, '')
-                                            const number = parseInt(value.replace(/,/g, ''))
-                                            if (!isNaN(number)) {
-                                              setPeriodicAmount(number.toLocaleString())
-                                            } else {
-                                              setPeriodicAmount('')
-                                            }
-                                          }}
-                                          className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
-                                          placeholder="0"
-                                        />
-                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                          <span className="text-gray-500 sm:text-sm">원</span>
-                                        </div>
-                                      </div>
-                                    </div>
+
                                   </div>
                                 )}
 
