@@ -618,8 +618,8 @@ export default function AddProjectSlideOver({
           });
         }
       } else {
-        // 새 프로젝트 생성 로직 복구
-        const newProject: any = {
+        // 새 프로젝트 생성 로직 개선
+        const newProject = {
           name: title,
           status: status || null,
           major_category: majorCategory || null,
@@ -629,45 +629,69 @@ export default function AddProjectSlideOver({
           planning_manpower: manpowerPlanning,
           design_manpower: manpowerDesign,
           publishing_manpower: manpowerPublishing,
-          development_manpower: manpowerDevelopment
+          development_manpower: manpowerDevelopment,
+          created_at: new Date().toISOString(), // 생성 시간 추가
+          updated_at: new Date().toISOString()  // 수정 시간 추가
         };
 
-        // 1. 새 프로젝트 생성
-        const { data, error } = await supabase
+        console.log('Creating new project:', newProject); // 디버깅용 로그
+
+        // 1. 프로젝트 생성
+        const { data: projectData, error: projectError } = await supabase
           .from('projects')
           .insert([newProject])
-          .select();
+          .select('*')
+          .single();
 
-        if (error) {
-          throw new Error(`새 프로젝트 생성 중 오류가 발생했습니다: ${error.message}`);
+        if (projectError) {
+          console.error('Project creation error:', projectError); // 상세 에러 로깅
+          throw new Error(`프로젝트 생성 중 오류: ${projectError.message}`);
         }
 
-        // 2. 직무별 실무자 데이터 추가
-        if (data?.[0]?.id) {
+        if (!projectData) {
+          throw new Error('프로젝트 데이터를 받지 못했습니다.');
+        }
+
+        console.log('Project created:', projectData); // 디버깅용 로그
+
+        // 2. 실무자 데이터 추가
+        if (Object.values(selectedWorkers).some(workers => workers.length > 0)) {
           const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
             workers.map(worker => ({
-              project_id: data[0].id,
+              project_id: projectData.id,
               worker_id: worker.id,
-              role: role
+              role: role,
+              created_at: new Date().toISOString()
             }))
           );
 
+          console.log('Adding manpower data:', manpowerData); // 디버깅용 로그
+
           if (manpowerData.length > 0) {
-            const { error: insertError } = await supabase
+            const { error: manpowerError } = await supabase
               .from('project_manpower')
               .insert(manpowerData);
 
-            if (insertError) throw insertError;
+            if (manpowerError) {
+              console.error('Manpower data insertion error:', manpowerError); // 상세 에러 로깅
+              throw new Error(`실무자 데이터 추가 중 오류: ${manpowerError.message}`);
+            }
           }
         }
 
         toast.success('새 프로젝트가 생성되었습니다.');
-        onSubmit(data[0]);
+        onSubmit(projectData);
         onClose();
       }
     } catch (error) {
-      console.error('Error saving project:', error);
-      toast.error(error instanceof Error ? error.message : '프로젝트 저장 중 오류가 발생했습니다.');
+      console.error('Project submission error:', error); // 상세 에러 로깅
+      
+      // 사용자에게 더 자세한 에러 메시지 표시
+      if (error instanceof Error) {
+        toast.error(`프로젝트 저장 실패: ${error.message}`);
+      } else {
+        toast.error('프로젝트 저장 중 알 수 없는 오류가 발생했습니다.');
+      }
     }
   };
 
@@ -1116,6 +1140,47 @@ export default function AddProjectSlideOver({
     
     return months;
   }, [startDate, endDate]);
+
+  // 2. 유효성 검사 추가
+  const validateProjectData = () => {
+    const errors: string[] = [];
+
+    if (!title.trim()) {
+      errors.push('프로젝트명은 필수입니다.');
+    }
+
+    if (title.length > 100) {
+      errors.push('프로젝트명은 100자를 초과할 수 없습니다.');
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      errors.push('종료일은 시작일보다 이후여야 합니다.');
+    }
+
+    return errors;
+  };
+
+  // 3. 상태 초기화 함수 추가
+  const resetForm = () => {
+    setTitle('');
+    setStatus('');
+    setMajorCategory('');
+    setCategory('');
+    setStartDate(null);
+    setEndDate(null);
+    setManpowerPlanning(null);
+    setManpowerDesign(null);
+    setManpowerPublishing(null);
+    setManpowerDevelopment(null);
+    setSelectedWorkers({
+      'BD(BM)': [],
+      'PM(PL)': [],
+      '기획': [],
+      '디자이너': [],
+      '퍼블리셔': [],
+      '개발': []
+    });
+  };
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
