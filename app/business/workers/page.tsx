@@ -46,7 +46,9 @@ export default function WorkersManagementPage() {
   const fetchWorkers = async () => {
     try {
       setLoading(true)
-      let query = supabase
+      const currentYear = new Date().getFullYear()
+
+      let { data: workersData, error } = await supabase
         .from('workers')
         .select(`
           id,
@@ -58,31 +60,41 @@ export default function WorkersManagementPage() {
           price,
           is_dispatched,
           created_at,
-          mmRecords: worker_mm_records(mm_value)
+          project_manpower:project_manpower(
+            id,
+            project_monthly_efforts!project_monthly_efforts_project_manpower_id_fkey(
+              mm_value,
+              year
+            )
+          )
         `)
         .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        
-      if (selectedJobType !== 'all') {
-        query = query.eq('job_type', selectedJobType)
-      }
 
-      if (searchTerm) {
-        query = query.ilike('name', `%${searchTerm}%`)
-      }
+      if (error) throw error
 
-      const { data, error } = await query
+      // 각 worker의 현재 년도 총 공수 계산
+      const workersWithYearlyEffort = workersData?.map(worker => {
+        const yearlyEffort = worker.project_manpower?.reduce((total, pm) => {
+          const yearEfforts = pm.project_monthly_efforts
+            ?.filter(effort => effort.year === currentYear)
+            ?.reduce((sum, effort) => {
+              // mm_value가 있는 경우에만 합산
+              const mmValue = effort.mm_value || 0;
+              // 이미 올바른 소수점 형식(0.5 등)으로 저장되어 있다고 가정
+              return sum + mmValue;
+            }, 0) || 0;
+          return total + yearEfforts;
+        }, 0) || 0;
 
-      if (error) {
-        console.error('Error fetching workers:', error)
-        toast.error('실무자 목록을 불러오는데 실패했습니다.')
-        return
-      }
+        return {
+          ...worker,
+          yearly_effort: yearlyEffort
+        }
+      });
 
-      console.log('Fetched workers:', data) // 디버깅용 로그
-      setWorkers(data || [])
+      setWorkers(workersWithYearlyEffort || [])
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Error fetching workers:', error)
       toast.error('실무자 목록을 불러오는데 실패했습니다.')
     } finally {
       setLoading(false)
@@ -328,6 +340,19 @@ export default function WorkersManagementPage() {
     }
   }
 
+  const getWorkerTypeTagStyles = (workerType: string) => {
+    switch (workerType) {
+      case '정규직':
+        return 'bg-blue-50 text-blue-700';
+      case '계약직':
+        return 'bg-orange-50 text-orange-700';
+      case '프리랜서':
+        return 'bg-purple-50 text-purple-700';
+      default:
+        return 'bg-gray-50 text-gray-600';
+    }
+  };
+
   const handleDeleteClick = (worker: Worker) => {
     setWorkerToDelete(worker)
     setIsDeleteModalOpen(true)
@@ -445,7 +470,7 @@ export default function WorkersManagementPage() {
 
         <button 
           onClick={() => setViewType(viewType === 'table' ? 'card' : 'table')}
-          className="flex items-center gap-2 px-4 py-2 text-[13px] text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-[13px] text-gray-600 bg-gray-100 hover:bg-gray-100 rounded-lg transition-colors"
         >
           {viewType === 'table' ? (
             <>
@@ -563,7 +588,12 @@ export default function WorkersManagementPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-[14px] text-gray-900">{worker.worker_type || '미지정'}</span>
+                        <div className="flex items-center justify-between">
+                          {/* <span className="text-[14px] text-gray-900">{worker.worker_type || '미지정'}</span> */}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getWorkerTypeTagStyles(worker.worker_type)}`}>
+                            {worker.worker_type || '미지정'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
@@ -626,16 +656,23 @@ export default function WorkersManagementPage() {
             {getCurrentPageData().map((worker) => (
               <div 
                 key={worker.id}
-                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200"
+                className={`rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200 ${
+                  !worker.yearly_effort || worker.yearly_effort === 0 ? 'bg-gray-50' : 'bg-white'
+                }`}
               >
-                <div className="p-6 space-y-4">
+                <div className="pt-4 pb-3 pr-2 pl-6 space-y-4 cursor-pointer" onClick={() => handleEditClick(worker)}>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium text-gray-900">{worker.name}</h3>
-                    {worker.job_type && (
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
-                        {worker.job_type}
+                    <h3 className="text-lg font-bold text-gray-900">{worker.name}</h3>
+                    <div className="flex gap-2">
+                      {worker.job_type && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getJobTypeTagStyles(worker.job_type)}`}>
+                          {worker.job_type}
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium ${getWorkerTypeTagStyles(worker.worker_type)}`}>
+                        {worker.worker_type || '미지정'}
                       </span>
-                    )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center text-[13px] text-gray-500">
@@ -655,33 +692,25 @@ export default function WorkersManagementPage() {
                       <span className="text-gray-900">{worker.price ? `${worker.price.toLocaleString()}원` : '-'}</span>
                     </div>
                     <div className="flex items-center text-[13px] text-gray-500">
-                      <span className="w-16">직원여부</span>
-                      <span className="text-gray-900">{worker.worker_type || '-'}</span>
-                    </div>
-                    <div className="flex items-center text-[13px] text-gray-500">
                       <span className="w-16">파견여부</span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                        worker.is_dispatched 
-                          ? 'bg-green-50 text-green-700' 
-                          : 'bg-gray-50 text-gray-600'
-                      }`}>
-                        {worker.is_dispatched ? '파견중' : '파견안함'}
-                      </span>
+                      <span className="text-gray-900">{worker.is_dispatched ? '파견' : '자사'}</span>
                     </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button 
-                      onClick={() => handleEditClick(worker)}
-                      className="flex-1 py-1.5 text-[12px] font-medium text-[#4E49E7] hover:bg-[#4E49E7]/5 rounded-lg transition-colors"
-                    >
-                      수정
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteClick(worker)}
-                      className="flex-1 py-1.5 text-[12px] font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      삭제
-                    </button>
+
+                    {/* 년도 공수 표시 */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-baseline gap-1 justify-center">
+                        <span className={`text-xl font-bold ${
+                          !worker.yearly_effort || worker.yearly_effort === 0 
+                            ? 'text-red-500' 
+                            : 'text-gray-900'
+                        }`}>
+                          {(!worker.yearly_effort || worker.yearly_effort === 0)
+                            ? '0'
+                            : worker.yearly_effort.toFixed(1)}
+                        </span>
+                        <span className="text-[13px] text-gray-500">MM</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -762,7 +791,7 @@ export default function WorkersManagementPage() {
                 <button
                   type="button"
                   onClick={() => setIsDeleteModalOpen(false)}
-                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                  className="mt-3 inline-flex w-full -center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
                 >
                   취소
                 </button>
