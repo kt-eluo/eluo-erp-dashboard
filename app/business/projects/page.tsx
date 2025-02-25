@@ -572,7 +572,7 @@ export default function ProjectsManagementPage() {
                       <div className="flex flex-row gap-2 w-[50%]">
                         <button 
                           type="button" 
-                          className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-black"
+                          className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-black"
                           onClick={(e) => {
                             e.stopPropagation();  // 카드 클릭 이벤트 전파 방지
                             handleManpowerClick(project);
@@ -580,7 +580,7 @@ export default function ProjectsManagementPage() {
                         >
                           실무자 공수 관리
                         </button>
-                        <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
+                        <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
                       </div>
                     </div>
 

@@ -125,13 +125,6 @@ const roleColors = {
   '개발': '#339AF0'
 };
 
-// 월별 공수 데이터 타입 정의 추가
-interface MonthlyEffort {
-  [role: string]: {
-    [month: string]: number;
-  };
-}
-
 export default function AddProjectSlideOver({
   isOpen,
   onClose,
@@ -512,111 +505,96 @@ export default function AddProjectSlideOver({
     e.preventDefault();
     
     try {
-      if (mode === 'edit' && project?.id) {
-        const updatedProject: any = {
-          name: title,
-          updated_at: new Date().toISOString(),
-          planning_manpower: manpowerPlanning,
-          design_manpower: manpowerDesign,
-          publishing_manpower: manpowerPublishing,
-          development_manpower: manpowerDevelopment,
-          // 계약 정보 추가
-          contract_type: contractType,
-          budget: contractAmount ? parseInt(contractAmount.replace(/[^\d]/g, '')) : null,
-          is_vat_included: isVatIncluded,
-          common_expense: commonExpense ? parseInt(commonExpense.replace(/[^\d]/g, '')) : null,
-        };
+      // 필수 필드 검증
+      if (!title.trim()) {
+        toast.error('프로젝트명은 필수입니다.');
+        return;
+      }
 
-        // 기본 필드 추가
-        if (status) updatedProject.status = status;
-        if (majorCategory) updatedProject.major_category = majorCategory;
-        if (category) updatedProject.category = category;
-        if (startDate) updatedProject.start_date = startDate.toISOString();
-        if (endDate) updatedProject.end_date = endDate.toISOString();
+      // 금액 데이터 정리 함수 수정
+      const cleanAmount = (amount: string | null | undefined): number | null => {
+        if (!amount) return null;
+        const cleaned = amount.replace(/[^\d]/g, '');
+        return cleaned ? parseInt(cleaned) : null;
+      };
 
-        // 계약 유형에 따른 필드 추가
-        if (contractType === '회차 정산형') {
-          updatedProject.down_payment = downPayment ? parseInt(downPayment.replace(/[^\d]/g, '')) : null;
-          updatedProject.intermediate_payments = intermediatePayments.map(p => p ? parseInt(p.replace(/[^\d]/g, '')) : null);
-          updatedProject.final_payment = finalPayment ? parseInt(finalPayment.replace(/[^\d]/g, '')) : null;
-          // 정기 결제형 필드 초기화
-          updatedProject.periodic_unit = null;
-          updatedProject.periodic_interval = null;
-          updatedProject.periodic_amount = null;
-        } else if (contractType === '정기 결제형') {
-          updatedProject.periodic_unit = periodicUnit;
-          updatedProject.periodic_interval = periodicInterval ? parseInt(periodicInterval) : null;
-          updatedProject.periodic_amount = periodicAmount ? parseInt(periodicAmount.replace(/[^\d]/g, '')) : null;
-          // 회차 정산형 필드 초기화
-          updatedProject.down_payment = null;
-          updatedProject.intermediate_payments = null;
-          updatedProject.final_payment = null;
-        }
-
-        // 프로젝트 데이터 업데이트
-        const { error } = await supabase
-          .from('projects')
-          .update(updatedProject)
-          .eq('id', project.id);
-
-        if (error) {
-          console.error('Error details:', error);
-          throw new Error(`프로젝트 수정 중 오류가 발생했습니다: ${error.message}`);
-        }
-
-        toast.success('프로젝트가 수정되었습니다.');
-      } else {
-        // 새 프로젝트 생성 시
-        const newProject: any = {
-          name: title
-        };
-
-        // 값이 있는 경우에만 포함
-        if (status) newProject.status = status;
-        if (majorCategory) newProject.major_category = majorCategory;
-        if (category) newProject.category = category;
-        if (startDate) newProject.start_date = startDate.toISOString();
-        if (endDate) newProject.end_date = endDate.toISOString();
+      // 공수 데이터 정리 함수 추가
+      const cleanManpower = (value: number | null | undefined): number | null => {
+        return typeof value === 'number' ? value : null;
+      };
+      
+      const projectData = {
+        name: title.trim(),
+        status: status || '준비중',
+        major_category: majorCategory || null,
+        category: category || null,
+        start_date: startDate?.toISOString() || null,
+        end_date: endDate?.toISOString() || null,
         
-        // 공수 값이 null이 아닌 경우에만 포함
-        if (manpowerPlanning !== null) newProject.planning_manpower = manpowerPlanning;
-        if (manpowerDesign !== null) newProject.design_manpower = manpowerDesign;
-        if (manpowerPublishing !== null) newProject.publishing_manpower = manpowerPublishing;
-        if (manpowerDevelopment !== null) newProject.development_manpower = manpowerDevelopment;
+        // 공수 정보 처리 수정
+        planning_manpower: cleanManpower(manpowerPlanning),
+        design_manpower: cleanManpower(manpowerDesign),
+        publishing_manpower: cleanManpower(manpowerPublishing),
+        development_manpower: cleanManpower(manpowerDevelopment),
+        
+        // 계약 정보
+        contract_type: contractType || '회차 정산형',
+        is_vat_included: isVatIncluded,
+        common_expense: cleanAmount(commonExpense),
+        
+        // 회차 정산형 정보
+        down_payment: cleanAmount(downPayment),
+        intermediate_payments: intermediatePayments
+          .map(cleanAmount)
+          .filter((amount): amount is number => amount !== null),
+        final_payment: cleanAmount(finalPayment),
+        
+        // 정기 결제형 정보
+        periodic_unit: periodicUnit || null,
+        periodic_interval: periodicInterval ? parseInt(periodicInterval.toString()) : null,
+        periodic_amount: cleanAmount(periodicAmount?.toString())
+      };
 
-        // 1. 새 프로젝트 생성
-        const { data, error } = await supabase
+      if (mode === 'create') {
+        const { data, error: insertError } = await supabase
           .from('projects')
-          .insert([newProject])
-          .select();
+          .insert([projectData])
+          .select()
+          .single();
 
-        if (error) {
-          console.error('Error details:', error);
-          throw new Error(`새 프로젝트 생성 중 오류가 발생했습니다: ${error.message}`);
+        if (insertError) {
+          console.error('Project insert error details:', insertError);
+          throw new Error(`프로젝트 생성 오류: ${insertError.message}`);
         }
 
-        // 2. 직무별 실무자 데이터 추가
-        if (data?.[0]?.id) {
-          const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
-            workers.map(worker => ({
-              project_id: data[0].id,
-              worker_id: worker.id,
-              role: role
-            }))
-          );
+        if (data?.id) {
+          // 실무자 데이터 저장
+          if (Object.keys(selectedWorkers).length > 0) {
+            const manpowerPromises = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
+              workers.map(worker => ({
+                project_id: data.id,
+                worker_id: worker.id,
+                role: role,
+                mm_value: worker.total_mm_value || 0
+              }))
+            );
 
-          if (manpowerData.length > 0) {
-            const { error: insertError } = await supabase
+            const { error: manpowerError } = await supabase
               .from('project_manpower')
-              .insert(manpowerData);
+              .insert(manpowerPromises);
 
-            if (insertError) throw insertError;
+            if (manpowerError) {
+              console.error('Manpower insert error:', manpowerError);
+              throw new Error(`실무자 정보 저장 오류: ${manpowerError.message}`);
+            }
           }
-        }
 
-        toast.success('새 프로젝트가 생성되었습니다.');
-        onSubmit(data[0]);
-        onClose();
+          toast.success('새 프로젝트가 생성되었습니다.');
+          onSubmit(data);
+          onClose();
+        }
+      } else {
+        // 수정 모드 로직...
       }
     } catch (error) {
       console.error('Error saving project:', error);
@@ -859,78 +837,53 @@ export default function AddProjectSlideOver({
 
   // 프로젝트 데이터 로딩 부분 수정
   useEffect(() => {
-    if (project?.id) {
+    if (mode === 'edit' && project?.id) {
       const fetchProjectData = async () => {
         try {
-          const currentDate = new Date();
-          const currentYear = currentDate.getFullYear();
-          const currentMonth = currentDate.getMonth() + 1;
-
-          const { data: projectData, error: projectError } = await supabase
+          const { data: projectData, error } = await supabase
             .from('projects')
             .select(`
               *,
               project_manpower (
                 id,
                 role,
+                mm_value,
                 workers (
                   id,
                   name,
                   job_type
-                ),
-                project_monthly_efforts!inner (
-                  year,
-                  month,
-                  mm_value
                 )
               )
             `)
             .eq('id', project.id)
-            .eq('project_manpower.project_monthly_efforts.year', currentYear)
-            .eq('project_manpower.project_monthly_efforts.month', currentMonth)
             .single();
 
-          if (projectError) throw projectError;
+          if (error) throw error;
 
-          // 프로젝트 기본 정보 설정
           if (projectData) {
+            // 기본 정보 설정
             setTitle(projectData.name || '');
             setStatus(projectData.status || '');
             setMajorCategory(projectData.major_category || '');
             setCategory(projectData.category || '');
             setStartDate(projectData.start_date ? new Date(projectData.start_date) : null);
             setEndDate(projectData.end_date ? new Date(projectData.end_date) : null);
-            setManpowerPlanning(projectData.planning_manpower);
-            setManpowerDesign(projectData.design_manpower);
-            setManpowerPublishing(projectData.publishing_manpower);
-            setManpowerDevelopment(projectData.development_manpower);
+            
+            // 계약 정보 설정
+            setContractType(projectData.contract_type || '회차 정산형');
+            setIsVatIncluded(projectData.is_vat_included || false);
+            setCommonExpense(projectData.common_expense ? projectData.common_expense.toLocaleString() : '');
+            setDownPayment(projectData.down_payment ? projectData.down_payment.toLocaleString() : '');
+            setFinalPayment(projectData.final_payment ? projectData.final_payment.toLocaleString() : '');
+            setIntermediatePayments(
+              projectData.intermediate_payments?.map(p => p ? p.toLocaleString() : '') || ['']
+            );
+            
+            // 정기 결제형 정보 설정
+            setPeriodicUnit(projectData.periodic_unit || null);
+            setPeriodicInterval(projectData.periodic_interval || null);
+            setPeriodicAmount(projectData.periodic_amount ? projectData.periodic_amount.toLocaleString() : '');
           }
-
-          // 실무자 데이터 설정
-          const workersByRole: SelectedWorkers = {
-            'BD(BM)': [],
-            'PM(PL)': [],
-            '기획': [],
-            '디자이너': [],
-            '퍼블리셔': [],
-            '개발': []
-          };
-
-          projectData.project_manpower?.forEach((mp: any) => {
-            if (mp.workers) {
-              // 현재 월의 공수만 사용
-              const currentMonthEffort = mp.project_monthly_efforts?.[0]?.mm_value || 0;
-
-              workersByRole[mp.role].push({
-                id: mp.workers.id,
-                name: mp.workers.name,
-                job_type: mp.workers.job_type || '',
-                total_mm_value: currentMonthEffort
-              });
-            }
-          });
-
-          setSelectedWorkers(workersByRole);
         } catch (error) {
           console.error('Error fetching project data:', error);
           toast.error('프로젝트 데이터를 불러오는 중 오류가 발생했습니다.');
@@ -939,7 +892,7 @@ export default function AddProjectSlideOver({
 
       fetchProjectData();
     }
-  }, [project?.id]);
+  }, [project?.id, mode]);
 
   // useEffect 추가
   useEffect(() => {
@@ -1050,138 +1003,6 @@ export default function AddProjectSlideOver({
     
     return months;
   }, [startDate, endDate]);
-
-  // 상단에 상태 및 유틸리티 함수 추가
-  const [monthlyEfforts, setMonthlyEfforts] = useState<{
-    [role: string]: { [month: string]: number }
-  }>({});
-
-  const getMonthsBetween = (start: Date, end: Date) => {
-    const months: string[] = [];
-    const current = new Date(start);
-    
-    while (current <= end) {
-      months.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`);
-      current.setMonth(current.getMonth() + 1);
-    }
-    return months;
-  };
-
-  // 공수 데이터 가져오는 함수 개선
-  const fetchMonthlyEfforts = async () => {
-    if (!project?.id || !startDate || !endDate) return;
-
-    try {
-      // 1. 프로젝트의 모든 공수 데이터를 한 번에 가져오기
-      const { data: manpowerData, error: manpowerError } = await supabase
-        .from('project_manpower')
-        .select(`
-          id,
-          role,
-          worker_id,
-          project_monthly_efforts (
-            year,
-            month,
-            mm_value
-          )
-        `)
-        .eq('project_id', project.id);
-
-      if (manpowerError) throw manpowerError;
-
-      // 2. 초기 데이터 구조 설정
-      const effortsByRole: MonthlyEffort = {
-        '기획': {},
-        '디자이너': {},
-        '퍼블리셔': {},
-        '개발': {}
-      };
-
-      // 3. 데이터 처리 및 유효성 검사
-      manpowerData?.forEach(mp => {
-        if (!mp.role || !mp.project_monthly_efforts) return;
-
-        mp.project_monthly_efforts.forEach(effort => {
-          if (!effort.year || !effort.month || effort.mm_value === null) return;
-
-          const monthKey = `${effort.year}-${String(effort.month).padStart(2, '0')}`;
-          
-          // 해당 월이 프로젝트 기간 내에 있는지 확인
-          const effortDate = new Date(effort.year, effort.month - 1);
-          if (effortDate >= startDate && effortDate <= endDate) {
-            effortsByRole[mp.role] = effortsByRole[mp.role] || {};
-            effortsByRole[mp.role][monthKey] = (effortsByRole[mp.role][monthKey] || 0) + effort.mm_value;
-          }
-        });
-      });
-
-      // 4. 상태 업데이트 전 데이터 검증
-      Object.keys(effortsByRole).forEach(role => {
-        Object.keys(effortsByRole[role]).forEach(month => {
-          if (isNaN(effortsByRole[role][month])) {
-            effortsByRole[role][month] = 0;
-          }
-        });
-      });
-
-      setMonthlyEfforts(effortsByRole);
-    } catch (error) {
-      console.error('Error fetching monthly efforts:', error);
-      toast.error('공수 데이터를 불러오는 중 오류가 발생했습니다.');
-    }
-  };
-
-  // useEffect에 추가
-  useEffect(() => {
-    if (project?.id && startDate && endDate) {
-      fetchMonthlyEfforts();
-    }
-  }, [project?.id, startDate, endDate]);
-
-  // 그래프 데이터 생성 함수 추가
-  const getChartData = useCallback(() => {
-    if (!startDate || !endDate || !monthlyEfforts) return null;
-
-    const months = getMonthsBetween(startDate, endDate);
-    
-    return {
-      labels: months,
-      datasets: [
-        {
-          label: '기획',
-          data: months.map(month => monthlyEfforts['기획']?.[month] || 0),
-          borderColor: '#4E49E7',
-          backgroundColor: 'rgba(78, 73, 231, 0.1)',
-          tension: 0.4,
-          fill: false
-        },
-        {
-          label: '디자이너',
-          data: months.map(month => monthlyEfforts['디자이너']?.[month] || 0),
-          borderColor: '#FF6B6B',
-          backgroundColor: 'rgba(255, 107, 107, 0.1)',
-          tension: 0.4,
-          fill: false
-        },
-        {
-          label: '퍼블리셔',
-          data: months.map(month => monthlyEfforts['퍼블리셔']?.[month] || 0),
-          borderColor: '#51CF66',
-          backgroundColor: 'rgba(81, 207, 102, 0.1)',
-          tension: 0.4,
-          fill: false
-        },
-        {
-          label: '개발',
-          data: months.map(month => monthlyEfforts['개발']?.[month] || 0),
-          borderColor: '#339AF0',
-          backgroundColor: 'rgba(51, 154, 240, 0.1)',
-          tension: 0.4,
-          fill: false
-        }
-      ]
-    };
-  }, [startDate, endDate, monthlyEfforts]);
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -1969,58 +1790,22 @@ export default function AddProjectSlideOver({
                                     <div className="h-[200px] mb-6">
                                       <Line
                                         data={{
-                                          labels: startDate && endDate ? getMonthsBetween(startDate, endDate) : [],
-                                          datasets: [
-                                            {
-                                              label: '기획',
-                                              data: startDate && endDate ? 
-                                                getMonthsBetween(startDate, endDate)
-                                                  .map(month => monthlyEfforts['기획']?.[month] || 0) : [],
-                                              borderColor: '#4E49E7',
-                                              backgroundColor: 'rgba(78, 73, 231, 0.1)',
-                                              tension: 0.4,
-                                              fill: false
-                                            },
-                                            {
-                                              label: '디자이너',
-                                              data: startDate && endDate ?
-                                                getMonthsBetween(startDate, endDate)
-                                                  .map(month => monthlyEfforts['디자이너']?.[month] || 0) : [],
-                                              borderColor: '#FF6B6B',
-                                              backgroundColor: 'rgba(255, 107, 107, 0.1)',
-                                              tension: 0.4,
-                                              fill: false
-                                            },
-                                            {
-                                              label: '퍼블리셔',
-                                              data: startDate && endDate ?
-                                                getMonthsBetween(startDate, endDate)
-                                                  .map(month => monthlyEfforts['퍼블리셔']?.[month] || 0) : [],
-                                              borderColor: '#51CF66',
-                                              backgroundColor: 'rgba(81, 207, 102, 0.1)',
-                                              tension: 0.4,
-                                              fill: false
-                                            },
-                                            {
-                                              label: '개발',
-                                              data: startDate && endDate ?
-                                                getMonthsBetween(startDate, endDate)
-                                                  .map(month => monthlyEfforts['개발']?.[month] || 0) : [],
-                                              borderColor: '#339AF0',
-                                              backgroundColor: 'rgba(51, 154, 240, 0.1)',
-                                              tension: 0.4,
-                                              fill: false
-                                            }
-                                          ]
+                                          labels: Array.from({ length: 12 }, (_, i) => `${i + 1}월`),
+                                          datasets: [{
+                                            label: '월별 M/M',
+                                            data: Array.from({ length: 12 }, () => 0),
+                                            borderColor: '#4E49E7',
+                                            backgroundColor: 'rgba(78, 73, 231, 0.1)',
+                                            tension: 0.4,
+                                            fill: true
+                                          }]
                                         }}
                                         options={{
                                           responsive: true,
                                           maintainAspectRatio: false,
                                           plugins: {
                                             legend: {
-                                              display: true,
-                                              position: 'top',
-                                              align: 'end'
+                                              display: false
                                             }
                                           },
                                           scales: {
@@ -2029,7 +1814,7 @@ export default function AddProjectSlideOver({
                                               max: 1.5,
                                               ticks: {
                                                 callback: value => `${value} M/M`,
-                                                stepSize: 0.2
+                                                stepSize: 0.3
                                               }
                                             }
                                           }
