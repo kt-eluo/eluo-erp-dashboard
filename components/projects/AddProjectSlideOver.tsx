@@ -125,6 +125,13 @@ const roleColors = {
   '개발': '#339AF0'
 };
 
+// 월별 공수 데이터 타입 정의 추가
+interface MonthlyEffort {
+  [role: string]: {
+    [month: string]: number;
+  };
+}
+
 export default function AddProjectSlideOver({
   isOpen,
   onClose,
@@ -148,14 +155,14 @@ export default function AddProjectSlideOver({
   const [contractType, setContractType] = useState<'회차 정산형' | '정기 결제형'>('회차 정산형')
   
   // 회차 정산형 정보
-  const [downPayment, setDownPayment] = useState('')  // 착수금
+  const [downPayment, setDownPayment] = useState<string>('')  // 착수금
   const [intermediatePayments, setIntermediatePayments] = useState<string[]>(['']) // 중도금
-  const [finalPayment, setFinalPayment] = useState('') // 잔금
+  const [finalPayment, setFinalPayment] = useState<string>('') // 잔금
   
   // 정기 결제형 정보
   const [periodicUnit, setPeriodicUnit] = useState<'month' | 'week'>('month')
-  const [periodicInterval, setPeriodicInterval] = useState('')
-  const [periodicAmount, setPeriodicAmount] = useState('')
+  const [periodicInterval, setPeriodicInterval] = useState<string>('')
+  const [periodicAmount, setPeriodicAmount] = useState<string>('')
 
   // 드롭다운 상태 추가
   const [isStatusOpen, setIsStatusOpen] = useState(false)
@@ -267,46 +274,64 @@ export default function AddProjectSlideOver({
 
   // 프로젝트 데이터로 폼 초기화
   useEffect(() => {
-    if (project && mode === 'edit') {
-      // 기본 정보
-      setTitle(project.name);
-      setClient(project.client || '');
-      setDescription(project.description || '');
-      
-      // 날짜 정보
-      setStartDate(project.start_date ? new Date(project.start_date) : null);
-      setEndDate(project.end_date ? new Date(project.end_date) : null);
-      
-      // 카테고리 및 상태 정보
-      setStatus(project.status || '');
-      setMajorCategory(project.major_category || '');
-      setCategory(project.category || '');
-      
-      // 직무별 전체 공수 정보 설정
-      setManpowerPlanning(project.planning_manpower || null);
-      setManpowerDesign(project.design_manpower || null);
-      setManpowerPublishing(project.publishing_manpower || null);
-      setManpowerDevelopment(project.development_manpower || null);
+    if (mode === 'edit' && project?.id) {
+      const fetchProjectData = async () => {
+        try {
+          const { data: projectData, error } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', project.id)
+            .single();
 
-      // 계약 정보 설정 - null 체크 추가
-      if (project.contract_type) {
-        setContractType(project.contract_type);
-        setContractAmount(project.budget?.toString() || '');
-        setIsVatIncluded(project.is_vat_included || false);
-        setCommonExpense(project.common_expense?.toString() || '');
+          if (error) throw error;
 
-        if (project.contract_type === '회차 정산형') {
-          setDownPayment(project.down_payment?.toString() || '');
-          setIntermediatePayments(project.intermediate_payments?.map(p => p?.toString() || '') || ['']);
-          setFinalPayment(project.final_payment?.toString() || '');
-        } else if (project.contract_type === '정기 결제형') {
-          setPeriodicUnit(project.periodic_unit || 'month');
-          setPeriodicInterval(project.periodic_interval?.toString() || '');
-          setPeriodicAmount(project.periodic_amount?.toString() || '');
+          // 기본 정보 설정
+          setTitle(projectData.name || '');
+          setStatus(projectData.status || '');
+          setMajorCategory(projectData.major_category || '');
+          setCategory(projectData.category || '');
+          setStartDate(projectData.start_date ? new Date(projectData.start_date) : null);
+          setEndDate(projectData.end_date ? new Date(projectData.end_date) : null);
+          setBudget(projectData.budget ? projectData.budget.toLocaleString() : '');
+          
+          // 계약 정보 설정
+          if (projectData.contract_type) {
+            setContractType(projectData.contract_type);
+            setIsVatIncluded(projectData.is_vat_included || false);
+            setCommonExpense(projectData.common_expense?.toLocaleString() || '');
+
+            // 회차 정산형 정보
+            if (projectData.contract_type === '회차 정산형') {
+              setDownPayment(projectData.down_payment?.toLocaleString() || '');
+              setIntermediatePayments(
+                (projectData.intermediate_payments || []).map(p => p?.toLocaleString() || '')
+              );
+              setFinalPayment(projectData.final_payment?.toLocaleString() || '');
+            }
+            
+            // 정기 결제형 정보
+            if (projectData.contract_type === '정기 결제형') {
+              setPeriodicUnit(projectData.periodic_unit || 'month');
+              setPeriodicInterval(projectData.periodic_interval?.toString() || '');
+              setPeriodicAmount(projectData.periodic_amount?.toLocaleString() || '');
+            }
+          }
+
+          // 공수 정보 설정
+          setManpowerPlanning(projectData.planning_manpower || null);
+          setManpowerDesign(projectData.design_manpower || null);
+          setManpowerPublishing(projectData.publishing_manpower || null);
+          setManpowerDevelopment(projectData.development_manpower || null);
+
+        } catch (error) {
+          console.error('Error fetching project data:', error);
+          toast.error('프로젝트 데이터 로딩 중 오류가 발생했습니다.');
         }
-      }
+      };
+
+      fetchProjectData();
     }
-  }, [project, mode]);
+  }, [mode, project?.id]);
 
   // 실무자 데이터 가져오기
   useEffect(() => {
@@ -343,9 +368,33 @@ export default function AddProjectSlideOver({
   };
 
   // 실무자 선택 핸들러 수정
-  const handleWorkerSelect = async (jobType: string, worker: { id: string; name: string }) => {
+  const handleWorkerSelect = async (jobType: string, worker: { id: string; name: string; job_type?: string }) => {
     try {
-      if (mode === 'edit' && project?.id) {
+      // 신규 모드일 때는 UI만 업데이트
+      if (mode === 'create') {
+        const newWorker = {
+          id: worker.id,
+          name: worker.name,
+          job_type: worker.job_type || '',
+          grade: '',
+          position: '',
+          unit_price: 0,
+          monthlyEfforts: {},
+          total_mm_value: 0
+        };
+
+        setSelectedWorkers(prev => ({
+          ...prev,
+          [jobType]: [...(prev[jobType] || []), newWorker]
+        }));
+
+        setSearchTerms(prev => ({ ...prev, [jobType]: '' }));
+        handleCloseDropdown(jobType);
+        return;
+      }
+
+      // 기존 수정 모드 로직은 그대로 유지
+      if (project?.id) {
         // 1. project_manpower 테이블에 데이터 추가
         const { data, error } = await supabase
           .from('project_manpower')
@@ -505,100 +554,69 @@ export default function AddProjectSlideOver({
     e.preventDefault();
     
     try {
-      // 필수 필드 검증
-      if (!title.trim()) {
-        toast.error('프로젝트명은 필수입니다.');
-        return;
-      }
-
-      // 금액 데이터 정리 함수 수정
-      const cleanAmount = (amount: string | null | undefined): number | null => {
-        if (!amount) return null;
-        const cleaned = amount.replace(/[^\d]/g, '');
-        return cleaned ? parseInt(cleaned) : null;
-      };
-
-      // 공수 데이터 정리 함수 추가
-      const cleanManpower = (value: number | null | undefined): number | null => {
-        return typeof value === 'number' ? value : null;
-      };
-      
-      const projectData = {
+      const projectData: any = {
         name: title.trim(),
-        status: status || '준비중',
+        status: status || null,
         major_category: majorCategory || null,
         category: category || null,
-        start_date: startDate?.toISOString() || null,
-        end_date: endDate?.toISOString() || null,
-        
-        // 공수 정보 처리 수정
-        planning_manpower: cleanManpower(manpowerPlanning),
-        design_manpower: cleanManpower(manpowerDesign),
-        publishing_manpower: cleanManpower(manpowerPublishing),
-        development_manpower: cleanManpower(manpowerDevelopment),
-        
-        // 계약 정보
-        contract_type: contractType || '회차 정산형',
+        start_date: startDate?.toISOString().split('T')[0] || null,
+        end_date: endDate?.toISOString().split('T')[0] || null,
+        budget: budget ? Number(budget.replace(/[^\d]/g, '')) : null,  // Number로 변환
+        contract_type: contractType || null,
         is_vat_included: isVatIncluded,
-        common_expense: cleanAmount(commonExpense),
+        common_expense: commonExpense ? parseInt(commonExpense.replace(/[^\d]/g, '')) : null,
         
         // 회차 정산형 정보
-        down_payment: cleanAmount(downPayment),
-        intermediate_payments: intermediatePayments
-          .map(cleanAmount)
-          .filter((amount): amount is number => amount !== null),
-        final_payment: cleanAmount(finalPayment),
+        down_payment: contractType === '회차 정산형' && downPayment ? 
+          parseInt(downPayment.replace(/[^\d]/g, '')) : null,
+        intermediate_payments: contractType === '회차 정산형' ? 
+          intermediatePayments
+            .filter(p => p.trim() !== '')
+            .map(p => parseInt(p.replace(/[^\d]/g, ''))) : null,
+        final_payment: contractType === '회차 정산형' && finalPayment ? 
+          parseInt(finalPayment.replace(/[^\d]/g, '')) : null,
         
         // 정기 결제형 정보
-        periodic_unit: periodicUnit || null,
-        periodic_interval: periodicInterval ? parseInt(periodicInterval.toString()) : null,
-        periodic_amount: cleanAmount(periodicAmount?.toString())
+        periodic_unit: contractType === '정기 결제형' ? periodicUnit : null,
+        periodic_interval: contractType === '정기 결제형' && periodicInterval ? 
+          parseInt(periodicInterval) : null,
+        periodic_amount: contractType === '정기 결제형' && periodicAmount ? 
+          parseInt(periodicAmount.replace(/[^\d]/g, '')) : null,
       };
 
+      // 공수 정보 추가
+      if (manpowerPlanning !== null) projectData.planning_manpower = manpowerPlanning;
+      if (manpowerDesign !== null) projectData.design_manpower = manpowerDesign;
+      if (manpowerPublishing !== null) projectData.publishing_manpower = manpowerPublishing;
+      if (manpowerDevelopment !== null) projectData.development_manpower = manpowerDevelopment;
+
       if (mode === 'create') {
-        const { data, error: insertError } = await supabase
+        const { data, error } = await supabase
           .from('projects')
           .insert([projectData])
           .select()
           .single();
 
-        if (insertError) {
-          console.error('Project insert error details:', insertError);
-          throw new Error(`프로젝트 생성 오류: ${insertError.message}`);
-        }
+        if (error) throw error;
+        onSubmit(data);
+      } else if (project?.id) {
+        const { data, error } = await supabase
+          .from('projects')
+          .update(projectData)
+          .eq('id', project.id)
+          .select()
+          .single();
 
-        if (data?.id) {
-          // 실무자 데이터 저장
-          if (Object.keys(selectedWorkers).length > 0) {
-            const manpowerPromises = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
-              workers.map(worker => ({
-                project_id: data.id,
-                worker_id: worker.id,
-                role: role,
-                mm_value: worker.total_mm_value || 0
-              }))
-            );
-
-            const { error: manpowerError } = await supabase
-              .from('project_manpower')
-              .insert(manpowerPromises);
-
-            if (manpowerError) {
-              console.error('Manpower insert error:', manpowerError);
-              throw new Error(`실무자 정보 저장 오류: ${manpowerError.message}`);
-            }
-          }
-
-          toast.success('새 프로젝트가 생성되었습니다.');
-          onSubmit(data);
-          onClose();
-        }
-      } else {
-        // 수정 모드 로직...
+        if (error) throw error;
+        onSubmit({ ...project, ...data });
       }
-    } catch (error) {
+
+      toast.success(mode === 'create' ? '프로젝트가 생성되었습니다.' : '프로젝트가 수정되었습니다.');
+      onClose();
+
+    } catch (error: any) {
       console.error('Error saving project:', error);
-      toast.error(error instanceof Error ? error.message : '프로젝트 저장 중 오류가 발생했습니다.');
+      toast.error(error.message || '프로젝트 저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -847,7 +865,9 @@ export default function AddProjectSlideOver({
               project_manpower (
                 id,
                 role,
-                mm_value,
+                grade,
+                position,
+                unit_price,
                 workers (
                   id,
                   name,
@@ -868,21 +888,36 @@ export default function AddProjectSlideOver({
             setCategory(projectData.category || '');
             setStartDate(projectData.start_date ? new Date(projectData.start_date) : null);
             setEndDate(projectData.end_date ? new Date(projectData.end_date) : null);
-            
-            // 계약 정보 설정
-            setContractType(projectData.contract_type || '회차 정산형');
-            setIsVatIncluded(projectData.is_vat_included || false);
-            setCommonExpense(projectData.common_expense ? projectData.common_expense.toLocaleString() : '');
-            setDownPayment(projectData.down_payment ? projectData.down_payment.toLocaleString() : '');
-            setFinalPayment(projectData.final_payment ? projectData.final_payment.toLocaleString() : '');
-            setIntermediatePayments(
-              projectData.intermediate_payments?.map(p => p ? p.toLocaleString() : '') || ['']
-            );
-            
-            // 정기 결제형 정보 설정
-            setPeriodicUnit(projectData.periodic_unit || null);
-            setPeriodicInterval(projectData.periodic_interval || null);
-            setPeriodicAmount(projectData.periodic_amount ? projectData.periodic_amount.toLocaleString() : '');
+            setManpowerPlanning(projectData.planning_manpower || 0);
+            setManpowerDesign(projectData.design_manpower || 0);
+            setManpowerPublishing(projectData.publishing_manpower || 0);
+            setManpowerDevelopment(projectData.development_manpower || 0);
+
+            // 실무자 정보 설정
+            const workersByRole = {
+              'BD(BM)': [],
+              'PM(PL)': [],
+              '기획': [],
+              '디자이너': [],
+              '퍼블리셔': [],
+              '개발': []
+            };
+
+            projectData.project_manpower?.forEach(mp => {
+              if (mp.workers && mp.role) {
+                workersByRole[mp.role].push({
+                  id: mp.workers.id,
+                  name: mp.workers.name,
+                  job_type: mp.workers.job_type || '',
+                  grade: mp.grade || '',
+                  position: mp.position || '',
+                  unit_price: mp.unit_price || 0,
+                  total_mm_value: 0
+                });
+              }
+            });
+
+            setSelectedWorkers(workersByRole);
           }
         } catch (error) {
           console.error('Error fetching project data:', error);
@@ -892,7 +927,7 @@ export default function AddProjectSlideOver({
 
       fetchProjectData();
     }
-  }, [project?.id, mode]);
+  }, [project?.id, mode]); // 의존성 배열 수정
 
   // useEffect 추가
   useEffect(() => {
@@ -1003,6 +1038,166 @@ export default function AddProjectSlideOver({
     
     return months;
   }, [startDate, endDate]);
+
+  // 상단에 상태 및 유틸리티 함수 추가
+  const [monthlyEfforts, setMonthlyEfforts] = useState<{
+    [role: string]: { [month: string]: number }
+  }>({});
+
+  const getMonthsBetween = (start: Date, end: Date) => {
+    const months: string[] = [];
+    const current = new Date(start);
+    
+    while (current <= end) {
+      months.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`);
+      current.setMonth(current.getMonth() + 1);
+    }
+    return months;
+  };
+
+  // 공수 데이터 가져오는 함수 개선
+  const fetchMonthlyEfforts = async () => {
+    if (!project?.id || !startDate || !endDate) return;
+
+    try {
+      // 1. 프로젝트의 모든 공수 데이터를 한 번에 가져오기
+      const { data: manpowerData, error: manpowerError } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          role,
+          worker_id,
+          project_monthly_efforts (
+            year,
+            month,
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (manpowerError) throw manpowerError;
+
+      // 2. 초기 데이터 구조 설정
+      const effortsByRole: MonthlyEffort = {
+        '기획': {},
+        '디자이너': {},
+        '퍼블리셔': {},
+        '개발': {}
+      };
+
+      // 3. 데이터 처리 및 유효성 검사
+      manpowerData?.forEach(mp => {
+        if (!mp.role || !mp.project_monthly_efforts) return;
+
+        mp.project_monthly_efforts.forEach(effort => {
+          if (!effort.year || !effort.month || effort.mm_value === null) return;
+
+          const monthKey = `${effort.year}-${String(effort.month).padStart(2, '0')}`;
+          
+          // 해당 월이 프로젝트 기간 내에 있는지 확인
+          const effortDate = new Date(effort.year, effort.month - 1);
+          if (effortDate >= startDate && effortDate <= endDate) {
+            effortsByRole[mp.role] = effortsByRole[mp.role] || {};
+            effortsByRole[mp.role][monthKey] = (effortsByRole[mp.role][monthKey] || 0) + effort.mm_value;
+          }
+        });
+      });
+
+      // 4. 상태 업데이트 전 데이터 검증
+      Object.keys(effortsByRole).forEach(role => {
+        Object.keys(effortsByRole[role]).forEach(month => {
+          if (isNaN(effortsByRole[role][month])) {
+            effortsByRole[role][month] = 0;
+          }
+        });
+      });
+
+      setMonthlyEfforts(effortsByRole);
+    } catch (error) {
+      console.error('Error fetching monthly efforts:', error);
+      toast.error('공수 데이터를 불러오는 중 오류가 발생했습니다.');
+    }
+  };
+
+  // useEffect에 추가
+  useEffect(() => {
+    if (project?.id && startDate && endDate) {
+      fetchMonthlyEfforts();
+    }
+  }, [project?.id, startDate, endDate]);
+
+  // 그래프 데이터 생성 함수 추가
+  const getChartData = useCallback(() => {
+    if (!startDate || !endDate || !monthlyEfforts) return null;
+
+    const months = getMonthsBetween(startDate, endDate);
+    
+    return {
+      labels: months,
+      datasets: [
+        {
+          label: '기획',
+          data: months.map(month => monthlyEfforts['기획']?.[month] || 0),
+          borderColor: '#4E49E7',
+          backgroundColor: 'rgba(78, 73, 231, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '디자이너',
+          data: months.map(month => monthlyEfforts['디자이너']?.[month] || 0),
+          borderColor: '#FF6B6B',
+          backgroundColor: 'rgba(255, 107, 107, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '퍼블리셔',
+          data: months.map(month => monthlyEfforts['퍼블리셔']?.[month] || 0),
+          borderColor: '#51CF66',
+          backgroundColor: 'rgba(81, 207, 102, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
+          label: '개발',
+          data: months.map(month => monthlyEfforts['개발']?.[month] || 0),
+          borderColor: '#339AF0',
+          backgroundColor: 'rgba(51, 154, 240, 0.1)',
+          tension: 0.4,
+          fill: false
+        }
+      ]
+    };
+  }, [startDate, endDate, monthlyEfforts]);
+
+  // 입력 필드 핸들러 수정
+  const handlePaymentChange = (value: string, setter: (value: string) => void) => {
+    const numericValue = value.replace(/[^\d,]/g, '')
+    if (numericValue === '') {
+      setter('')
+      return
+    }
+    const number = parseInt(numericValue.replace(/,/g, ''))
+    if (!isNaN(number)) {
+      setter(number.toLocaleString())
+    }
+  }
+
+  // 상태 추가 (기존 상태 선언부 근처에 추가)
+  const [budget, setBudget] = useState<string>('');
+
+  // budget 입력 핸들러 추가
+  const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numericValue = value.replace(/[^\d]/g, '');
+    if (numericValue) {
+      const formattedValue = Number(numericValue).toLocaleString();
+      setBudget(formattedValue);
+    } else {
+      setBudget('');
+    }
+  };
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -1489,26 +1684,8 @@ export default function AddProjectSlideOver({
                                   <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
                                     <input
                                       type="text"
-                                      value={contractAmount}
-                                      onChange={(e) => {
-                                        // 숫자와 쉼표를 제외한 모든 문자 제거
-                                        let value = e.target.value.replace(/[^\d,]/g, '')
-                                        
-                                        // 쉼표 제거
-                                        value = value.replace(/,/g, '')
-                                        
-                                        if (value) {
-                                          try {
-                                            // 천단위 쉼표 추가
-                                            const formattedValue = Number(value).toLocaleString()
-                                            setContractAmount(formattedValue)
-                                          } catch (error) {
-                                            setContractAmount(value)
-                                          }
-                                        } else {
-                                          setContractAmount('')
-                                        }
-                                      }}
+                                      value={budget}
+                                      onChange={handleBudgetChange}
                                       className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
                                       placeholder="계약 금액"
                                     />
@@ -1577,15 +1754,7 @@ export default function AddProjectSlideOver({
                                         <input
                                           type="text"
                                           value={downPayment}
-                                          onChange={(e) => {
-                                            const value = e.target.value.replace(/[^\d,]/g, '')
-                                            const number = parseInt(value.replace(/,/g, ''))
-                                            if (!isNaN(number)) {
-                                              setDownPayment(number.toLocaleString())
-                                            } else {
-                                              setDownPayment('')
-                                            }
-                                          }}
+                                          onChange={(e) => handlePaymentChange(e.target.value, setDownPayment)}
                                           className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
                                           placeholder="착수금"
                                         />
@@ -1612,13 +1781,11 @@ export default function AddProjectSlideOver({
                                             <input
                                               type="text"
                                               value={payment}
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^\d,]/g, '')
-                                                const number = parseInt(value.replace(/,/g, ''))
+                                              onChange={(e) => handlePaymentChange(e.target.value, (value) => {
                                                 const newPayments = [...intermediatePayments]
-                                                newPayments[index] = !isNaN(number) ? number.toLocaleString() : ''
+                                                newPayments[index] = value
                                                 setIntermediatePayments(newPayments)
-                                              }}
+                                              })}
                                               className="w-full bg-transparent border-0 focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
                                               placeholder={`${index + 1}차 중도금`}
                                             />
@@ -1641,15 +1808,7 @@ export default function AddProjectSlideOver({
                                         <input
                                           type="text"
                                           value={finalPayment}
-                                          onChange={(e) => {
-                                            const value = e.target.value.replace(/[^\d,]/g, '')
-                                            const number = parseInt(value.replace(/,/g, ''))
-                                            if (!isNaN(number)) {
-                                              setFinalPayment(number.toLocaleString())
-                                            } else {
-                                              setFinalPayment('')
-                                            }
-                                          }}
+                                          onChange={(e) => handlePaymentChange(e.target.value, setFinalPayment)}
                                           className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
                                           placeholder="잔금"
                                         />
@@ -1723,15 +1882,7 @@ export default function AddProjectSlideOver({
                                         <input
                                           type="text"
                                           value={periodicAmount}
-                                          onChange={(e) => {
-                                            const value = e.target.value.replace(/[^\d,]/g, '')
-                                            const number = parseInt(value.replace(/,/g, ''))
-                                            if (!isNaN(number)) {
-                                              setPeriodicAmount(number.toLocaleString())
-                                            } else {
-                                              setPeriodicAmount('')
-                                            }
-                                          }}
+                                          onChange={(e) => handlePaymentChange(e.target.value, setPeriodicAmount)}
                                           className="block w-full rounded-md border-gray-300 pr-12 focus:border-[#4E49E7] focus:ring-[#4E49E7] sm:text-sm"
                                           placeholder="0"
                                         />
@@ -1790,22 +1941,58 @@ export default function AddProjectSlideOver({
                                     <div className="h-[200px] mb-6">
                                       <Line
                                         data={{
-                                          labels: Array.from({ length: 12 }, (_, i) => `${i + 1}월`),
-                                          datasets: [{
-                                            label: '월별 M/M',
-                                            data: Array.from({ length: 12 }, () => 0),
-                                            borderColor: '#4E49E7',
-                                            backgroundColor: 'rgba(78, 73, 231, 0.1)',
-                                            tension: 0.4,
-                                            fill: true
-                                          }]
+                                          labels: startDate && endDate ? getMonthsBetween(startDate, endDate) : [],
+                                          datasets: [
+                                            {
+                                              label: '기획',
+                                              data: startDate && endDate ? 
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['기획']?.[month] || 0) : [],
+                                              borderColor: '#4E49E7',
+                                              backgroundColor: 'rgba(78, 73, 231, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
+                                            {
+                                              label: '디자이너',
+                                              data: startDate && endDate ?
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['디자이너']?.[month] || 0) : [],
+                                              borderColor: '#FF6B6B',
+                                              backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
+                                            {
+                                              label: '퍼블리셔',
+                                              data: startDate && endDate ?
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['퍼블리셔']?.[month] || 0) : [],
+                                              borderColor: '#51CF66',
+                                              backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
+                                            {
+                                              label: '개발',
+                                              data: startDate && endDate ?
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['개발']?.[month] || 0) : [],
+                                              borderColor: '#339AF0',
+                                              backgroundColor: 'rgba(51, 154, 240, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            }
+                                          ]
                                         }}
                                         options={{
                                           responsive: true,
                                           maintainAspectRatio: false,
                                           plugins: {
                                             legend: {
-                                              display: false
+                                              display: true,
+                                              position: 'top',
+                                              align: 'end'
                                             }
                                           },
                                           scales: {
@@ -1814,7 +2001,7 @@ export default function AddProjectSlideOver({
                                               max: 1.5,
                                               ticks: {
                                                 callback: value => `${value} M/M`,
-                                                stepSize: 0.3
+                                                stepSize: 0.2
                                               }
                                             }
                                           }

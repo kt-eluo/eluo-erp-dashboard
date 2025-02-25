@@ -381,4 +381,3 @@ const theme = extendTheme({
 
 ---
 
-# 폰트 사이즈 사용 규칙
