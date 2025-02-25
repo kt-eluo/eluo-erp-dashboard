@@ -1140,6 +1140,14 @@ export default function AddProjectSlideOver({
       labels: months,
       datasets: [
         {
+          label: 'PM(PL)',
+          data: months.map(month => monthlyEfforts['PM(PL)']?.[month] || 0),
+          borderColor: '#FF3B9A',
+          backgroundColor: 'rgba(255, 59, 154, 0.1)',
+          tension: 0.4,
+          fill: false
+        },
+        {
           label: '기획',
           data: months.map(month => monthlyEfforts['기획']?.[month] || 0),
           borderColor: '#4E49E7',
@@ -2052,6 +2060,16 @@ export default function AddProjectSlideOver({
                                         data={{
                                           labels: startDate && endDate ? getMonthsBetween(startDate, endDate) : [],
                                           datasets: [
+                                            {
+                                              label: 'PM(PL)',
+                                              data: startDate && endDate ? 
+                                                getMonthsBetween(startDate, endDate)
+                                                  .map(month => monthlyEfforts['PM(PL)']?.[month] || 0) : [],
+                                              borderColor: '#FF3B9A',
+                                              backgroundColor: 'rgba(255, 59, 154, 0.1)',
+                                              tension: 0.4,
+                                              fill: false
+                                            },
                                             {
                                               label: '기획',
                                               data: startDate && endDate ? 
