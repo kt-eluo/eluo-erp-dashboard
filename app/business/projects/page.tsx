@@ -19,6 +19,53 @@ const LoadingSpinner = () => (
   </div>
 )
 
+interface AddProjectSlideOverProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (project: Project & { _action?: 'delete' }) => Promise<void>;
+  project?: Project | null;
+  mode?: 'create' | 'edit';
+  openManpowerModal?: boolean;
+}
+
+interface LocalProjectManpower {
+  id: string;
+  role: keyof typeof workersByRole;
+  workers: {
+    id: string;
+    name: string;
+    job_type: string;
+  };
+  project_monthly_efforts?: Array<{
+    year: number;
+    month: number;
+    mm_value: number;
+  }>;
+}
+
+interface Worker {
+  id: string;
+  name: string;
+  job_type: string;
+  total_mm_value?: number;
+}
+
+const workersByRole: {
+  'BD(BM)': Worker[];
+  'PM(PL)': Worker[];
+  '기획': Worker[];
+  '디자이너': Worker[];
+  '퍼블리셔': Worker[];
+  '개발': Worker[];
+} = {
+  'BD(BM)': [],
+  'PM(PL)': [],
+  '기획': [],
+  '디자이너': [],
+  '퍼블리셔': [],
+  '개발': []
+};
+
 export default function ProjectsManagementPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -135,10 +182,49 @@ export default function ProjectsManagementPage() {
     }
   }
 
-  const handleProjectDetail = (project: Project) => {
-    setSelectedProject(project)
-    setIsDetailSlideOverOpen(true)
-  }
+  const handleProjectDetail = async (project: Project) => {
+    try {
+      // 먼저 기본 데이터로 슬라이드오버를 열고
+      setSelectedProject(project);
+      setIsDetailSlideOverOpen(true);
+
+      // 그 다음 상세 데이터를 가져옴
+      const { data: projectData, error } = await supabase
+        .from('projects')
+        .select(`
+          *,
+          project_manpower (
+            id,
+            role,
+            workers (
+              id,
+              name,
+              job_type
+            ),
+            project_monthly_efforts (
+              year,
+              month,
+              mm_value
+            )
+          )
+        `)
+        .eq('id', project.id)
+        .single();
+
+      if (error) throw error;
+
+      if (projectData) {
+        // 데이터를 받아온 후 상태 업데이트
+        setSelectedProject({
+          ...projectData,
+          project_manpower: projectData.project_manpower || []
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      toast.error('프로젝트 상세 정보를 불러오는데 실패했습니다.');
+    }
+  };
 
   // 카테고리 변경 핸들러 추가
   const handleCategoryChange = async (category: ProjectCategory | 'all') => {
@@ -216,18 +302,9 @@ export default function ProjectsManagementPage() {
           setSelectedProject(projectData);
 
           // 실무자 데이터 처리
-          const workersByRole = {
-            'BD(BM)': [],
-            'PM(PL)': [],
-            '기획': [],
-            '디자이너': [],
-            '퍼블리셔': [],
-            '개발': []
-          };
-
-          projectData.project_manpower?.forEach(mp => {
-            if (mp.workers && mp.role) {  // role 존재 여부 체크 추가
-              const totalEffort = mp.project_monthly_efforts?.reduce((sum, effort) => {
+          projectData.project_manpower?.forEach((mp: LocalProjectManpower) => {
+            if (mp.workers && mp.role) {
+              const totalEffort = mp.project_monthly_efforts?.reduce((sum: number, effort) => {
                 return sum + (Number(effort.mm_value) || 0);
               }, 0) || 0;
 
@@ -338,7 +415,7 @@ export default function ProjectsManagementPage() {
         '개발': []
       };
 
-      projectData.project_manpower?.forEach((mp: any) => {
+      projectData.project_manpower?.forEach((mp: LocalProjectManpower) => {
         if (mp.workers) {
           workersByRole[mp.role].push({
             id: mp.workers.id,
@@ -515,7 +592,7 @@ export default function ProjectsManagementPage() {
                       className="cursor-pointer"
                       onClick={() => handleProjectDetail(project)}
                     >
-                      <h3 className="text-lg font-medium text-gray-900">{project.name}</h3>
+                      <h3 className="font-bold text-gray-900 text-[20px] leading-[23.87px]">{project.name}</h3>
                     </div>
                     <button
                       onClick={(e) => {

@@ -3,6 +3,16 @@ export type WorkerLevelType = '초급' | '중급' | '고급' | '특급'
 export type WorkerType = '임직원' | '협력사임직원' | '프리랜서(기업)' | '프리랜서(개인)'
 export type WorkerGrade = 'BD' | 'BM' | 'PM' | 'PL' | 'PA'
 
+export interface ProjectMonthlyEffort {
+  mm_value: number | null
+  year: number
+}
+
+export interface ProjectManpower {
+  id: string
+  project_monthly_efforts: ProjectMonthlyEffort[]
+}
+
 export interface Worker {
   id?: string
   name: string
@@ -15,6 +25,8 @@ export interface Worker {
   created_at?: string
   updated_at?: string
   deleted_at?: string | null
+  yearly_effort?: number
+  project_manpower?: ProjectManpower[]
 }
 
 export interface WorkerMMRecord {

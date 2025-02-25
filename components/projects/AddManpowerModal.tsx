@@ -24,9 +24,15 @@ interface AddManpowerModalProps {
   startDate: Date | null
   endDate: Date | null
   selectedWorkers: {
-    [key: string]: Array<{ id: string; name: string; job_type: string }>
+    [key: string]: Array<{
+      id: string;
+      name: string;
+      job_type: string;
+      mm_value?: number;
+      monthlyEfforts?: { [key: string]: number | null };
+    }>
   }
-  onManpowerUpdate?: (updatedWorkers: { [key: string]: Array<{ id: string; name: string; job_type: string }> }) => void
+  onManpowerUpdate?: (updatedWorkers: { [key: string]: Array<{ id: string; name: string; job_type: string; mm_value?: number; monthlyEfforts?: { [key: string]: number | null } }> }) => void
 }
 
 interface WorkerEffortData {
@@ -68,17 +74,16 @@ export default function AddManpowerModal({
   selectedWorkers,
   onManpowerUpdate
 }: AddManpowerModalProps) {
-  // 초기 탭을 실무자가 있는 첫 번째 직무로 설정
-  const [selectedTab, setSelectedTab] = useState<Role>(() => {
-    const firstRoleWithWorkers = Object.entries(selectedWorkers || {})
-      .find(([_, workers]) => workers.length > 0)?.[0] as Role
-    return firstRoleWithWorkers || '기획'
-  })
+  // selectedTab을 'all'로 고정
+  const [selectedTab] = useState<Role>('all')
   
   // state 키 형식 변경: `${workerId}-${role}`
   const [workersEffort, setWorkersEffort] = useState<{
     [workerIdWithRole: string]: WorkerEffortData;
   }>({})
+
+  // 수정 모드 상태 추가
+  const [isEditMode, setIsEditMode] = useState(false)
 
   const grades: Grade[] = ['BD', 'BM', 'PM', 'PL', 'PA']
   const positions: Position[] = ['부장', '차장', '과장', '대리', '주임', '사원']
@@ -102,7 +107,7 @@ export default function AddManpowerModal({
     '초급': 6_500_000
   } as const
 
-  // Role 라벨 매핑 추가 (필요한 경우)
+  // Role 라벨 매핑 추가
   const roleLabels: Record<Role, string> = {
     'BD(BM)': 'BD(BM)',
     'PM(PL)': 'PM(PL)',
@@ -110,84 +115,24 @@ export default function AddManpowerModal({
     '디자이너': '디자이너',
     '퍼블리셔': '퍼블리셔',
     '개발': '개발',
+    'all': '전체',
     '': '선택'
   }
 
-  // 기존 데이터 로딩 수정
-  useEffect(() => {
-    const loadManpowerData = async () => {
-      if (!projectId) return;
-
-      try {
-        const { data: manpowerData } = await supabase
-          .from('project_manpower')
-          .select(`
-            id,
-            worker_id,
-            role,
-            grade,
-            position,
-            unit_price,
-            project_monthly_efforts (
-              year,
-              month,
-              mm_value
-            )
-          `)
-          .eq('project_id', projectId);
-
-        if (manpowerData) {
-          // 기존 데이터로 workersEffort 상태 초기화
-          const newWorkersEffort: { [key: string]: WorkerEffortData } = {};
-          
-          manpowerData.forEach(mp => {
-            const key = `${mp.worker_id}-${mp.role}`;
-            const monthlyEfforts: { [key: string]: number | null } = {};
-            
-            mp.project_monthly_efforts?.forEach(effort => {
-              const monthKey = `${effort.year}-${effort.month}`;
-              monthlyEfforts[monthKey] = effort.mm_value;
-            });
-
-            newWorkersEffort[key] = {
-              grade: mp.grade,
-              position: mp.position,
-              unitPrice: mp.unit_price,
-              monthlyEfforts
-            };
-          });
-
-          setWorkersEffort(newWorkersEffort);
-        }
-      } catch (error) {
-        console.error('Error loading manpower data:', error);
-      }
-    };
-
-    loadManpowerData();
-  }, [projectId]);
-
-  // selectedTab 설정 로직 수정
-  useEffect(() => {
-    const firstRoleWithWorkers = Object.entries(selectedWorkers)
-      .find(([_, workers]) => workers.length > 0)?.[0] as Role;
-    
-    if (firstRoleWithWorkers) {
-      setSelectedTab(firstRoleWithWorkers);
-    }
-  }, [selectedWorkers]);
-
-  // 월별 공수 데이터 가져오는 함수 추가
-  const fetchMonthlyEfforts = async () => {
+  // loadManpowerData 함수를 useEffect 밖으로 이동
+  const loadManpowerData = async () => {
     if (!projectId) return;
 
     try {
-      const { data: manpowerData, error } = await supabase
+      const { data: manpowerData } = await supabase
         .from('project_manpower')
         .select(`
           id,
           worker_id,
           role,
+          grade,
+          position,
+          unit_price,
           project_monthly_efforts (
             year,
             month,
@@ -196,40 +141,47 @@ export default function AddManpowerModal({
         `)
         .eq('project_id', projectId);
 
-      if (error) throw error;
+      if (manpowerData) {
+        // 기존 데이터로 workersEffort 상태 초기화
+        const newWorkersEffort: { [key: string]: WorkerEffortData } = {};
+        
+        manpowerData.forEach(mp => {
+          const key = `${mp.worker_id}-${mp.role}`;
+          const monthlyEfforts: { [key: string]: number | null } = {};
+          
+          mp.project_monthly_efforts?.forEach((effort: { year: number; month: number; mm_value: number | null }) => {
+            const monthKey = `${effort.year}-${effort.month}`;
+            monthlyEfforts[monthKey] = effort.mm_value;
+          });
 
-      // 기존 workersEffort 상태 업데이트
-      const newWorkersEffort = { ...workersEffort };
-
-      manpowerData?.forEach(mp => {
-        const key = `${mp.worker_id}-${mp.role}`;
-        const monthlyEfforts: { [key: string]: number } = {};
-
-        mp.project_monthly_efforts?.forEach(effort => {
-          const monthKey = `${effort.year}-${String(effort.month).padStart(2, '0')}`;
-          monthlyEfforts[monthKey] = effort.mm_value;
+          newWorkersEffort[key] = {
+            grade: mp.grade,
+            position: mp.position,
+            unitPrice: mp.unit_price,
+            monthlyEfforts
+          };
         });
 
-        newWorkersEffort[key] = {
-          ...newWorkersEffort[key],
-          monthlyEfforts
-        };
-      });
-
-      setWorkersEffort(newWorkersEffort);
+        setWorkersEffort(newWorkersEffort);
+      }
     } catch (error) {
-      console.error('Error fetching monthly efforts:', error);
+      console.error('Error loading manpower data:', error);
     }
   };
 
-  // useEffect에 추가
+  // 기존 데이터 로딩 수정
   useEffect(() => {
     if (projectId && startDate && endDate) {
-      fetchMonthlyEfforts();
+      loadManpowerData();
     }
   }, [projectId, startDate, endDate]);
 
-  // 저장 핸들러
+  // 월별 공수 데이터 가져오는 함수 수정 - fetchMonthlyEfforts는 이제 loadManpowerData에 통합
+  const fetchMonthlyEfforts = async () => {
+    await loadManpowerData();
+  };
+
+  // 저장 핸들러 수정
   const handleSave = async () => {
     try {
       for (const [role, workers] of Object.entries(selectedWorkers)) {
@@ -237,27 +189,10 @@ export default function AddManpowerModal({
           const workerData = workersEffort[`${worker.id}-${role}`];
           if (!workerData) continue;
 
-          // 1. 기존 데이터 확인
-          const { data: existingData, error: fetchError } = await supabase
-            .from('project_manpower')
-            .select('id')
-            .match({
-              project_id: projectId,
-              worker_id: worker.id,
-              role: role
-            })
-            .single();
-
-          if (fetchError && fetchError.code !== 'PGRST116') {
-            console.error('Error fetching existing data:', fetchError);
-            throw fetchError;
-          }
-
-          // 2. project_manpower 데이터 저장/업데이트
+          // 1. project_manpower 데이터 저장/업데이트
           const { data: manpower, error: manpowerError } = await supabase
             .from('project_manpower')
             .upsert({
-              id: existingData?.id,
               project_id: projectId,
               worker_id: worker.id,
               role: role,
@@ -275,7 +210,7 @@ export default function AddManpowerModal({
             throw manpowerError;
           }
 
-          // 3. 기존 월별 공수 데이터 삭제 (해당 project_manpower_id의 데이터만)
+          // 2. 기존 월별 공수 데이터 삭제
           if (manpower.id) {
             const { error: deleteError } = await supabase
               .from('project_monthly_efforts')
@@ -286,53 +221,51 @@ export default function AddManpowerModal({
               console.error('Error deleting existing monthly efforts:', deleteError);
               throw deleteError;
             }
-          }
 
-          // 4. 새로운 월별 공수 데이터 저장
-          if (workerData.monthlyEfforts && Object.keys(workerData.monthlyEfforts).length > 0) {
-            const monthlyEffortsData = Object.entries(workerData.monthlyEfforts)
-              .filter(([_, value]) => value !== null && value !== 0) // null이나 0이 아닌 값만 저장
-              .map(([monthKey, value]) => {
-                const [year, month] = monthKey.split('-').map(Number);
-                return {
-                  project_manpower_id: manpower.id,
-                  year,
-                  month,
-                  mm_value: value,
-                };
-              });
+            // 3. 새로운 월별 공수 데이터 저장
+            if (workerData.monthlyEfforts && Object.keys(workerData.monthlyEfforts).length > 0) {
+              const monthlyEffortsData = Object.entries(workerData.monthlyEfforts)
+                .filter(([_, value]) => value !== null && value !== 0)
+                .map(([monthKey, value]) => {
+                  const [year, month] = monthKey.split('-').map(Number);
+                  return {
+                    project_manpower_id: manpower.id,
+                    year,
+                    month,
+                    mm_value: value
+                  };
+                });
 
-            if (monthlyEffortsData.length > 0) {
-              const { error: insertError } = await supabase
-                .from('project_monthly_efforts')
-                .insert(monthlyEffortsData);
+              if (monthlyEffortsData.length > 0) {
+                const { error: insertError } = await supabase
+                  .from('project_monthly_efforts')
+                  .insert(monthlyEffortsData);
 
-              if (insertError) {
-                console.error('Error saving monthly efforts:', insertError);
-                throw insertError;
+                if (insertError) {
+                  console.error('Error saving monthly efforts:', insertError);
+                  throw insertError;
+                }
               }
             }
           }
         }
       }
 
-      // 저장 완료 후 부모 컴포넌트에 업데이트된 데이터 전달
+      // 저장 완료 후 데이터 업데이트
       const updatedWorkers = {...selectedWorkers};
       Object.keys(updatedWorkers).forEach(role => {
-        updatedWorkers[role] = updatedWorkers[role].map(worker => {
-          const monthKey = `${currentYear}-${currentMonth}`;  // 이제 정의된 상수 사용 가능
-          const currentMonthEffort = workersEffort[`${worker.id}-${role}`]?.monthlyEfforts[monthKey];
-          
-          return {
-            ...worker,
-            monthlyEfforts: workersEffort[`${worker.id}-${role}`]?.monthlyEfforts || {},
-            total_mm_value: currentMonthEffort || 0
-          };
-        });
+        updatedWorkers[role] = updatedWorkers[role].map(worker => ({
+          ...worker,
+          monthlyEfforts: workersEffort[`${worker.id}-${role}`]?.monthlyEfforts || {},
+          total_mm_value: calculateTotalEffort(worker.id, role)
+        }));
       });
 
-      onManpowerUpdate?.(updatedWorkers);
-      onClose();
+      // 부모 컴포넌트에 업데이트 알림
+      if (onManpowerUpdate) {
+        await onManpowerUpdate(updatedWorkers);
+      }
+
       toast.success('공수가 저장되었습니다.');
     } catch (error) {
       console.error('Error saving manpower:', error);
@@ -382,7 +315,7 @@ export default function AddManpowerModal({
       const currentEffort = prev[workerKey] || {};
       const currentMonthlyEfforts = currentEffort.monthlyEfforts || {};
 
-      return {
+      const newWorkersEffort = {
         ...prev,
         [workerKey]: {
           ...currentEffort,
@@ -392,19 +325,26 @@ export default function AddManpowerModal({
           }
         }
       };
-    });
 
-    // 전체 탭의 데이터도 동기화
-    const updatedWorkers = {...selectedWorkers};
-    Object.keys(updatedWorkers).forEach(r => {
-      const worker = updatedWorkers[r].find(w => w.id === workerId);
-      if (worker) {
-        const totalEffort = calculateTotalMM(workersEffort[`${workerId}-${role}`]?.monthlyEfforts || {});
-        worker.mm_value = totalEffort;
-      }
+      // 상태 업데이트 후 즉시 부모에게 알림
+      const updatedWorkers = {...selectedWorkers};
+      updatedWorkers[role] = updatedWorkers[role].map(w => {
+        if (w.id === workerId) {
+          return {
+            ...w,
+            monthlyEfforts: newWorkersEffort[workerKey]?.monthlyEfforts || {},
+            total_mm_value: calculateTotalMM(newWorkersEffort[workerKey]?.monthlyEfforts || {})
+          };
+        }
+        return w;
+      });
+      onManpowerUpdate?.(updatedWorkers);
+
+      return newWorkersEffort;
     });
-    onManpowerUpdate?.(updatedWorkers);
   };
+
+  // 부모 컴포넌트 상태 업데이트를 위한 useEffect 제거 (불필요)
 
   // 투입비용 계산 함수 수정
   const calculateTotalCost = (workerId: string, role: string) => {
@@ -469,6 +409,27 @@ export default function AddManpowerModal({
       .reduce((sum: number, val: number | null) => sum + (Number(val) || 0), 0);
   };
 
+  // 수정 완료 핸들러
+  const handleEditComplete = async () => {
+    await handleSave();
+    await loadManpowerData(); // 데이터 즉시 업데이트
+    setIsEditMode(false);
+  };
+
+  // 직무별 총 공수 계산 함수 추가
+  const calculateRoleTotalEffort = (role: string) => {
+    return selectedWorkers[role]?.reduce((total, worker) => {
+      return total + calculateTotalEffort(worker.id, role);
+    }, 0) || 0;
+  };
+
+  // 직무별 총 투입 금액 계산 함수 추가
+  const calculateRoleTotalCost = (role: string) => {
+    return selectedWorkers[role]?.reduce((total, worker) => {
+      return total + calculateTotalCost(worker.id, role);
+    }, 0) || 0;
+  };
+
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[999999] pointer-events-auto">
       {/* 배경 오버레이의 z-index 설정 */}
@@ -478,18 +439,18 @@ export default function AddManpowerModal({
       />
       
       {/* 모달 컨테이너의 z-index를 더 높게 설정하고 중복 제거 */}
-      <div className="relative bg-white rounded-lg pl-6 pr-6 pb-6 w-[700px] max-h-[90vh] overflow-y-auto z-[999999]">
+      <div className="relative bg-white rounded-lg pl-6 pr-6 pb-6 w-[1000px] max-h-[90vh] overflow-y-auto z-[999999]">
         {/* 헤더 */}
         <div className="flex justify-between items-center pt-6 pb-6 sticky top-0 bg-white z-20">
           <h2 className="text-lg font-semibold">공수 관리</h2>
           <div className="flex items-center gap-2">
-            {/* 저장 버튼 */}
+            {/* 수정/수정완료 버튼 */}
             <button
               type="button"
               className="px-4 h-[32px] bg-[#4E49E7] text-white rounded-[6px] text-sm font-medium hover:bg-[#3F3ABE] transition-colors"
-              onClick={handleSave}
+              onClick={isEditMode ? handleEditComplete : () => setIsEditMode(true)}
             >
-              저장
+              {isEditMode ? '수정완료' : '수정'}
             </button>
             {/* 닫기 버튼 */}
             <button
@@ -502,233 +463,126 @@ export default function AddManpowerModal({
           </div>
         </div>
 
-        {/* 탭 네비게이션 */}
-        <div className="border-b border-gray-200 mb-6 sticky top-[60px] bg-white z-20">
-          <nav className="flex space-x-8">
-            {Object.entries(selectedWorkers || {}).map(([role, workers]) => (
-              workers.length > 0 && (
-                <button
-                  key={role}
-                  onClick={() => setSelectedTab(role as Role)}
-                  className={`py-2 px-1 text-sm font-medium border-b-2 relative ${
-                    selectedTab === role
-                      ? 'border-[#4E49E7] text-[#4E49E7]'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {role} ({workers.length})
-                </button>
-              )
-            ))}
-            <button
-              onClick={() => setSelectedTab('all')}
-              className={`py-2 px-1 text-sm font-medium border-b-2 relative ${
-                selectedTab === 'all'
-                  ? 'border-[#4E49E7] text-[#4E49E7]'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              전체
-            </button>
-          </nav>
-        </div>
-
         {/* 컨텐츠 영역 */}
         <div className="relative z-10">
-          {/* 기존 탭 컨텐츠 */}
-          {selectedTab !== 'all' && selectedWorkers[selectedTab]?.map((worker, index) => (
-            <div 
-              key={worker.id}
-              className="p-6 rounded-lg border border-gray-200 bg-white mb-4 hover:border-gray-300 transition-all"
-            >
-              {/* 실무자 정보 섹션 */}
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100">
-                <div className="flex items-center gap-4">
-                  <span className="text-[16px] font-bold text-gray-900">{worker.name}</span>
-                  <span className="text-xs text-gray-500 px-2 py-1 bg-gray-50 rounded-full">{worker.job_type}</span>
-                </div>
-              </div>
-
-              {/* 등급/직급/단가 섹션 */}
-              <div className="grid grid-cols-3 gap-6 mb-8">
-                {/* 등급 선택 */}
-                <div className="space-y-2">
-                  <span className="text-[13px] font-medium text-gray-700">등급</span>
-                  <div className="relative">
-                    <select
-                      value={workersEffort[`${worker.id}-${selectedTab}`]?.grade || ''}
-                      onChange={(e) => handleGradeChange(worker.id, selectedTab, e.target.value as Grade)}
-                      className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                    >
-                      <option value="">선택</option>
-                      {grades.map((grade) => (
-                        <option key={grade} value={grade}>{gradeLabels[grade]}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* 직급 선택 */}
-                <div className="space-y-2">
-                  <span className="text-[13px] font-medium text-gray-700">직급</span>
-                  <div className="relative">
-                    <select
-                      value={workersEffort[`${worker.id}-${selectedTab}`]?.position || ''}
-                      onChange={(e) => handlePositionChange(worker.id, selectedTab, e.target.value as Position)}
-                      className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                    >
-                      <option value="">선택</option>
-                      {positions.map((position) => (
-                        <option key={position} value={position}>
-                          {position}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* 단가 입력 */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-medium text-gray-700">단가</span>
-                    {/* 도움말 아이콘 */}
-                    <div className="group relative">
-                      <span className="inline-flex items-center justify-center w-4 h-4 text-xs font-medium text-gray-400 bg-gray-100 rounded-full border border-gray-300 hover:text-gray-600 hover:bg-gray-50 cursor-help transition-colors">?</span>
-                      <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute right-0 w-[300px] bg-white rounded-lg shadow-lg border border-gray-200 p-3 text-sm text-gray-600 z-50">
-                        <p className="mb-2">직급별 기본 단가가 자동으로 적용됩니다.<br />필요한 경우 수정이 가능합니다.</p>
-                        <div className="mt-2">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b">
-                                <th className="py-1 text-left font-medium">직급</th>
-                                <th className="py-1 text-right font-medium">기본 단가</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {Object.entries(POSITION_UNIT_PRICES).map(([position, price]) => (
-                                <tr key={position} className="border-b last:border-0">
-                                  <td className="py-1 text-left">{position}</td>
-                                  <td className="py-1 text-right">{price.toLocaleString()}원</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={workersEffort[`${worker.id}-${selectedTab}`]?.unitPrice?.toLocaleString() || ''}
-                      onChange={(e) => handleUnitPriceChange(worker.id, selectedTab, e.target.value)}
-                      className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                      placeholder="단가 입력"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 공수 입력 섹션 */}
-              <div className="space-y-2">
-                <span className="text-[13px] font-medium text-gray-700">공수</span>
-                <div className="bg-gray-50 rounded-lg p-4 overflow-x-auto">
-                  <div className="flex gap-4 min-w-max">
-                    {getMonths().map((monthKey) => {
-                      const [year, month] = monthKey.split('-');
-                      const displayText = `${year}년 ${month}월`;
+          {/* 전체 탭 컨텐츠 */}
+          <div className="mt-4">
+            <div className="overflow-x-auto whitespace-nowrap" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <table className="min-w-full divide-y divide-gray-200 border-t border-gray-200 border-b">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <td className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50">직무 구분</td>
+                    <td className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">실무자</td>
+                    <td className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">등급</td>
+                    <td className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">직급</td>
+                    <td className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">단가</td>
+                    {startDate && endDate && getMonths().map((month) => (
+                      <td key={month} className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        {month}
+                      </td>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {Object.entries(selectedWorkers).map(([role, workers]) =>
+                    workers.map((worker) => {
+                      const workerKey = `${worker.id}-${role}`;
+                      const workerData = workersEffort[workerKey] || {};
                       
                       return (
-                        <div key={`${worker.id}-${selectedTab}-${monthKey}`} className="text-center flex-shrink-0">
-                          <div className="text-[13px] text-gray-600 mb-2">{displayText}</div>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={workersEffort[`${worker.id}-${selectedTab}`]?.monthlyEfforts[monthKey] || ''}
-                            onChange={(e) => handleWorkerEffortChange(worker.id, selectedTab, monthKey, e.target.value)}
-                            className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                          />
-                        </div>
+                        <tr key={`${role}-${worker.id}`}>
+                          <td className="px-2 py-2 text-sm text-gray-900 sticky left-0 bg-white">{role}</td>
+                          <td className="px-2 py-2 text-sm text-gray-900 whitespace-nowrap">{worker.name}</td>
+                          <td className="px-2 py-2 text-sm text-gray-900 whitespace-nowrap">
+                            {isEditMode ? (
+                              <select
+                                value={workerData.grade || ''}
+                                onChange={(e) => handleGradeChange(worker.id, role, e.target.value as Grade)}
+                                className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                              >
+                                <option value="">선택</option>
+                                {grades.map((grade) => (
+                                  <option key={grade} value={grade}>{gradeLabels[grade]}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span>{workerData.grade || '-'}</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-sm text-gray-900 whitespace-nowrap">
+                            {isEditMode ? (
+                              <select
+                                value={workerData.position || ''}
+                                onChange={(e) => handlePositionChange(worker.id, role, e.target.value as Position)}
+                                className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                              >
+                                <option value="">선택</option>
+                                {positions.map((position) => (
+                                  <option key={position} value={position}>{position}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span>{workerData.position || '-'}</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-sm text-gray-900 whitespace-nowrap">
+                            {isEditMode ? (
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={workerData.unitPrice?.toLocaleString() || ''}
+                                  onChange={(e) => handleUnitPriceChange(worker.id, role, e.target.value)}
+                                  className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  placeholder="단가 입력"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
+                              </div>
+                            ) : (
+                              <span>{workerData.unitPrice?.toLocaleString() || '-'} 원</span>
+                            )}
+                          </td>
+                          {startDate && endDate && getMonths().map((monthKey) => (
+                            <td key={monthKey} className="px-2 py-2 text-center text-sm text-gray-900 whitespace-nowrap">
+                              {isEditMode ? (
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  value={workerData.monthlyEfforts?.[monthKey] || ''}
+                                  onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
+                                  className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                />
+                              ) : (
+                                <span>{workerData.monthlyEfforts?.[monthKey] || '-'}</span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
                       );
-                    })}
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 프로젝트 총 합산 영역 추가 */}
+          <div className="mt-8 border-t pt-6">
+            <div className="flex gap-5 bg-gray-50 p-4 rounded-lg">
+              {['PM(PL)', '기획', '디자이너', '퍼블리셔', '개발'].map((role) => (
+                <div key={role} className="flex-1 bg-white rounded-lg p-2">
+                  <div className="text-center">
+                    <div className="text-[28px] font-bold mb-1">
+                      {calculateRoleTotalEffort(role).toFixed(1)}
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2">
+                      {calculateRoleTotalCost(role).toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-500">{role}</div>
                   </div>
                 </div>
-              </div>
-
-              {/* 투입소계 & 투입비용 섹션 */}
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-8">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[13px] text-gray-600">투입소계</span>
-                    <span className="text-[15px] font-medium text-gray-900">
-                      {(calculateTotalEffort(worker.id, selectedTab) || 0).toFixed(1)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[13px] text-gray-600">투입비용</span>
-                    <span className="text-[15px] font-medium text-gray-900">
-                      {calculateTotalCost(worker.id, selectedTab).toLocaleString()} 원
-                    </span>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-
-          {/* 전체 탭 컨텐츠 */}
-          {selectedTab === 'all' && (
-            <div className="mt-4">
-              <div className="overflow-x-auto whitespace-nowrap" style={{ WebkitOverflowScrolling: 'touch' }}>
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50">직무 구분</td>
-                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">실무자</td>
-                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">등급</td>
-                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">직급</td>
-                      <td className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">단가</td>
-                      {startDate && endDate && getMonths().map((month) => (
-                        <td key={month} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
-                          {month}
-                        </td>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {Object.entries(selectedWorkers).map(([role, workers]) =>
-                      workers.map((worker) => {
-                        const workerKey = `${worker.id}-${role}`;
-                        const workerData = workersEffort[workerKey] || {};
-                        
-                        return (
-                          <tr key={`${role}-${worker.id}`}>
-                            <td className="px-4 py-3 text-sm text-gray-900 sticky left-0 bg-white">{role}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{worker.name}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                              {workerData.grade || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                              {workerData.position || '-'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-                              {workerData.unitPrice?.toLocaleString() || '-'}
-                            </td>
-                            {startDate && endDate && getMonths().map((monthKey) => (
-                              <td key={monthKey} className="px-4 py-3 text-center text-sm text-gray-900 whitespace-nowrap">
-                                {workerData.monthlyEfforts?.[monthKey] || '-'}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

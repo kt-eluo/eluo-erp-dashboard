@@ -21,6 +21,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
+import { ChartData } from 'chart.js'
 
 // Chart.js 컴포넌트 등록
 ChartJS.register(
@@ -591,15 +592,37 @@ export default function AddProjectSlideOver({
       if (manpowerDevelopment !== null) projectData.development_manpower = manpowerDevelopment;
 
       if (mode === 'create') {
-        const { data, error } = await supabase
+        // 1. 새 프로젝트 생성
+        const { data: newProject, error: projectError } = await supabase
           .from('projects')
           .insert([projectData])
           .select()
           .single();
 
-        if (error) throw error;
-        onSubmit(data);
+        if (projectError) throw projectError;
+
+        // 2. 직무별 실무자 데이터 추가 (신규 추가 시에도 동작하도록 수정)
+        if (newProject?.id) {
+          const manpowerData = Object.entries(selectedWorkers).flatMap(([role, workers]) =>
+            workers.map(worker => ({
+              project_id: newProject.id,
+              worker_id: worker.id,
+              role: role
+            }))
+          );
+
+          if (manpowerData.length > 0) {
+            const { error: manpowerError } = await supabase
+              .from('project_manpower')
+              .insert(manpowerData);
+
+            if (manpowerError) throw manpowerError;
+          }
+        }
+
+        onSubmit(newProject);
       } else if (project?.id) {
+        // 수정 모드 코드는 기존과 동일하게 유지
         const { data, error } = await supabase
           .from('projects')
           .update(projectData)
@@ -612,7 +635,7 @@ export default function AddProjectSlideOver({
       }
 
       toast.success(mode === 'create' ? '프로젝트가 생성되었습니다.' : '프로젝트가 수정되었습니다.');
-      onClose();
+      //onClose();
 
     } catch (error: any) {
       console.error('Error saving project:', error);
@@ -936,26 +959,7 @@ export default function AddProjectSlideOver({
     }
   }, [isOpen, openManpowerModal])
 
-  // 직무별 전체 공수 입력 핸들러들 수정
-  const handleManpowerPlanningChange = (value: string) => {
-    const numValue = value === '' ? null : Number(value);
-    setManpowerPlanning(numValue);
-  };
 
-  const handleManpowerDesignChange = (value: string) => {
-    const numValue = value === '' ? null : Number(value);
-    setManpowerDesign(numValue);
-  };
-
-  const handleManpowerPublishingChange = (value: string) => {
-    const numValue = value === '' ? null : Number(value);
-    setManpowerPublishing(numValue);
-  };
-
-  const handleManpowerDevelopmentChange = (value: string) => {
-    const numValue = value === '' ? null : Number(value);
-    setManpowerDevelopment(numValue);
-  };
 
   // 검색 아이콘 클릭 시 사용할 함수 수정
   const handleSearchIconClick = async (jobType: string) => {
@@ -1199,14 +1203,118 @@ export default function AddProjectSlideOver({
     }
   };
 
+  // 현재 월의 공수 데이터를 가져오는 함수
+  const fetchCurrentMonthEfforts = useCallback(async () => {
+    if (!project?.id) return;
+    
+    try {
+      const { data: projectData, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          id,
+          role,
+          workers (
+            id,
+            name,
+            job_type
+          ),
+          project_monthly_efforts (
+            year,
+            month,
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (error) throw error;
+
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      const updatedWorkers = {
+        'BD(BM)': [] as Worker[],
+        'PM(PL)': [] as Worker[],
+        '기획': [] as Worker[],
+        '디자이너': [] as Worker[],
+        '퍼블리셔': [] as Worker[],
+        '개발': [] as Worker[]
+      };
+
+      projectData?.forEach((mp: { 
+        role: keyof typeof updatedWorkers; 
+        workers: { 
+          id: string; 
+          name: string; 
+          job_type: string; 
+        }; 
+        project_monthly_efforts?: Array<{
+          year: number;
+          month: number;
+          mm_value: number;
+        }>;
+      }) => {
+        if (!mp.workers || !mp.role || !updatedWorkers[mp.role]) return;
+
+        const currentMonthEffort = mp.project_monthly_efforts?.find(
+          effort => effort.year === currentYear && effort.month === currentMonth
+        )?.mm_value || 0;
+
+        updatedWorkers[mp.role].push({
+          id: mp.workers.id,
+          name: mp.workers.name,
+          job_type: mp.workers.job_type || '',
+          total_mm_value: currentMonthEffort
+        });
+      });
+
+      setSelectedWorkers(updatedWorkers);
+    } catch (error) {
+      console.error('Error fetching monthly efforts:', error);
+    }
+  }, [project?.id]);
+
+  // 공수 데이터 변경 시 자동 업데이트
+  useEffect(() => {
+    if (isOpen && project?.id) {
+      fetchCurrentMonthEfforts();
+    }
+  }, [isOpen, project?.id, fetchCurrentMonthEfforts]);
+
+  // AddManpowerModal에서 데이터 업데이트 시 호출될 핸들러
+  const handleManpowerModalUpdate = useCallback(async () => {
+    await fetchCurrentMonthEfforts();
+  }, [fetchCurrentMonthEfforts]);
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
+
+      {/* 공수 관리 모달 */}
+      {showManpowerModal && (
+        <AddManpowerModal
+          isOpen={showManpowerModal}
+          onClose={() => {
+            setShowManpowerModal(false);
+            fetchCurrentMonthEfforts(); // 모달이 닫힐 때도 데이터 업데이트
+          }}
+          projectId={project?.id || ''}
+          startDate={startDate}
+          endDate={endDate}
+          selectedWorkers={selectedWorkers}
+          onManpowerUpdate={handleManpowerModalUpdate}
+        />
+      )}
+
       {/* 스타일 태그 추가 */}
       <style>
         {datePickerWrapperStyles}
         {commonInputStyles}
       </style>
       
+
+
+
+
       <Dialog 
         as="div" 
         className="relative z-50" 
@@ -1509,67 +1617,7 @@ export default function AddProjectSlideOver({
                                       직무 정보
                                     </div>
 
-                                {/* 직무별 전체 공수 */}
-                                <div className="space-y-6">
-                                  <div className="text-black mb-4 text-[16px]">직무별 전체 공수</div>
-                                  <div className="grid grid-cols-4 gap-4 pb-5">
-                                    {/* 기획 */}
-                                    <div className="w-full flex items-center">
-                                      <div className="text-[13px] text-gray-500 mr-[8px]">기획</div>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.1"
-                                        value={manpowerPlanning ?? ''}
-                                        onChange={(e) => handleManpowerPlanningChange(e.target.value)}
-                                        className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
-                                        placeholder=""
-                                      />
-                                    </div>
 
-                                    {/* 디자인 */}
-                                    <div className="w-full flex items-center">
-                                      <div className="text-[13px] text-gray-500 mr-[8px]">디자인</div>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.1"
-                                        value={manpowerDesign ?? ''}
-                                        onChange={(e) => handleManpowerDesignChange(e.target.value)}
-                                        className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
-                                        placeholder=""
-                                      />
-                                    </div>
-
-                                    {/* 퍼블리싱 */}
-                                    <div className="w-full flex items-center">
-                                      <div className="text-[13px] text-gray-500 mr-[8px]">퍼블리싱</div>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.1"
-                                        value={manpowerPublishing ?? ''}
-                                        onChange={(e) => handleManpowerPublishingChange(e.target.value)}
-                                        className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
-                                        placeholder=""
-                                      />
-                                    </div>
-
-                                    {/* 개발 */}
-                                    <div className="w-full flex items-center">
-                                      <div className="text-[13px] text-gray-500 mr-[8px]">개발</div>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.1"
-                                        value={manpowerDevelopment ?? ''}
-                                        onChange={(e) => handleManpowerDevelopmentChange(e.target.value)}
-                                        className="w-[84px] h-[31px] rounded-[6px] border border-[#B8B8B8] text-center bg-transparent outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
-                                        placeholder=""
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
 
                               {/* 직무별 실무자 */}
                               <div className="space-y-6 mt-[25px] pb-[15px]">
@@ -1654,6 +1702,67 @@ export default function AddProjectSlideOver({
                                 </div>
                               </div>
 
+                              {/* 직무별 전체 투입 인원 섹션 */}
+                              <div className="mt-6 border-gray-200 pt-6">
+                                <div className="text-black text-[16px] font-normal leading-[19.09px] mb-4">직무별 전체 투입 인원</div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  {/* PM(PL) */}
+                                  <div className="bg-gray-50 rounded-lg p-4 flex justify-between items-center">
+                                    <div className="text-[14px] text-gray-600">PM(PL)</div>
+                                    <div className="text-[16px] font-semibold">
+                                      {selectedWorkers['PM(PL)']?.length || 0}
+                                      <span className="text-[12px] text-gray-500 ml-1">명</span>
+                                    </div>
+                                  </div>
+
+                                  {/* 기획 */}
+                                  <div className="bg-gray-50 rounded-lg p-4 flex justify-between items-center">
+                                    <div className="text-[14px] text-gray-600">기획</div>
+                                    <div className="text-[16px] font-semibold">
+                                      {selectedWorkers['기획']?.length || 0}
+                                      <span className="text-[12px] text-gray-500 ml-1">명</span>
+                                    </div>
+                                  </div>
+
+                                  {/* 디자이너 */}
+                                  <div className="bg-gray-50 rounded-lg p-4 flex justify-between items-center">
+                                    <div className="text-[14px] text-gray-600">디자이너</div>
+                                    <div className="text-[16px] font-semibold">
+                                      {selectedWorkers['디자이너']?.length || 0}
+                                      <span className="text-[12px] text-gray-500 ml-1">명</span>
+                                    </div>
+                                  </div>
+
+                                  {/* 퍼블리셔 */}
+                                  <div className="bg-gray-50 rounded-lg p-4 flex justify-between items-center">
+                                    <div className="text-[14px] text-gray-600">퍼블리셔</div>
+                                    <div className="text-[16px] font-semibold">
+                                      {selectedWorkers['퍼블리셔']?.length || 0}
+                                      <span className="text-[12px] text-gray-500 ml-1">명</span>
+                                    </div>
+                                  </div>
+
+                                  {/* 개발 */}
+                                  <div className="bg-gray-50 rounded-lg p-4 flex justify-between items-center">
+                                    <div className="text-[14px] text-gray-600">개발</div>
+                                    <div className="text-[16px] font-semibold">
+                                      {selectedWorkers['개발']?.length || 0}
+                                      <span className="text-[12px] text-gray-500 ml-1">명</span>
+                                    </div>
+                                  </div>
+
+                                  {/* 전체 합계 */}
+                                  <div className="bg-[#4E49E7] text-white rounded-lg p-4 flex justify-between items-center">
+                                    <div className="text-[14px]">전체</div>
+                                    <div className="text-[16px] font-semibold">
+                                      {Object.entries(selectedWorkers)
+                                        .filter(([key]) => ['PM(PL)', '기획', '디자이너', '퍼블리셔', '개발'].includes(key))
+                                        .reduce((acc, [_, workers]) => acc + (workers?.length || 0), 0)}
+                                      <span className="text-[12px] ml-1">명</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
 
 
@@ -2070,13 +2179,38 @@ export default function AddProjectSlideOver({
 
                             {/* 직무별 공수 목록 */}
                             <div className="space-y-4 flex flex-row items-baseline gap-2 flex-wrap">
+                              {/* PM(PL) */}
+                              {selectedWorkers['PM(PL)']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    PM(PL)
+                                  </span>
+                                  <ul className="space-y-1 rounded-[8px] p-4">
+                                    {selectedWorkers['PM(PL)'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
                               {/* 기획 */}
                               {selectedWorkers['기획']?.length > 0 && (
                                 <div className="w-[100%]">
                                   <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
                                     기획
                                   </span>
-                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['기획'].map(worker => (
                                       <li key={worker.id} className="flex justify-between relative pl-3">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
@@ -2101,7 +2235,7 @@ export default function AddProjectSlideOver({
                                   <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
                                     디자이너
                                   </span>
-                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['디자이너'].map(worker => (
                                       <li key={worker.id} className="flex justify-between relative pl-3">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
@@ -2126,7 +2260,7 @@ export default function AddProjectSlideOver({
                                   <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
                                     퍼블리셔
                                   </span>
-                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['퍼블리셔'].map(worker => (
                                       <li key={worker.id} className="flex justify-between relative pl-3">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
@@ -2151,7 +2285,7 @@ export default function AddProjectSlideOver({
                                   <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
                                     개발
                                   </span>
-                                  <ul className="space-y-1 bg-[#ECECEC] rounded-[8px] p-4">
+                                  <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['개발'].map(worker => (
                                       <li key={worker.id} className="flex justify-between relative pl-3">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
@@ -2182,18 +2316,7 @@ export default function AddProjectSlideOver({
         </div>
       </Dialog>
 
-      {/* 공수 관리 모달 */}
-      {showManpowerModal && (
-        <AddManpowerModal
-          isOpen={showManpowerModal}
-          onClose={() => setShowManpowerModal(false)}
-          projectId={project?.id || ''}
-          startDate={startDate}
-          endDate={endDate}
-          selectedWorkers={selectedWorkers}
-          onManpowerUpdate={handleManpowerUpdate}
-        />
-      )}
+
     </Transition.Root>
   )
 } 

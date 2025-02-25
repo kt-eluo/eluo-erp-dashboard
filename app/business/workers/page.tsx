@@ -693,7 +693,7 @@ export default function WorkersManagementPage() {
                     </div>
                     <div className="flex items-center text-[13px] text-gray-500">
                       <span className="w-16">파견여부</span>
-                      <span className="text-gray-900">{worker.is_dispatched ? '파견' : '자사'}</span>
+                      <span className="text-gray-900">{worker.is_dispatched ? '파견중' : '파견안함'}</span>
                     </div>
 
                     {/* 년도 공수 표시 */}
