@@ -3,7 +3,7 @@
 import { useState, useEffect, Fragment } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import type { Project, ProjectStatus, ProjectManpower, ProjectCategory } from '@/types/project'
+import type { ProjectStatus, ProjectManpower, ProjectCategory, ProjectMajorCategory } from '@/types/project'
 import { Search, Plus, LayoutGrid, Table, FileSpreadsheet, Filter } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import AddProjectSlideOver from '@/components/projects/AddProjectSlideOver'
@@ -19,11 +19,35 @@ const LoadingSpinner = () => (
   </div>
 )
 
+interface ExtendedProject {
+  id: string;
+  name: string;
+  client: string;
+  description: string;
+  status: ProjectStatus;
+  major_category: ProjectMajorCategory;
+  category: ProjectCategory;
+  start_date: string | null;
+  end_date: string | null;
+  project_manpower: ProjectManpower[];
+  planning_manpower: number | null;
+  design_manpower: number | null;
+  publishing_manpower: number | null;
+  development_manpower: number | null;
+  budget?: number;
+  manpower?: {
+    [key: string]: Array<{
+      name: string;
+      worker_type: '협력사임직원' | '프리랜서(기업)' | '프리랜서(개인)';
+    }>;
+  };
+}
+
 interface AddProjectSlideOverProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (project: Project & { _action?: 'delete' }) => Promise<void>;
-  project?: Project | null;
+  onSubmit: (project: ExtendedProject & { _action?: 'delete' }) => Promise<void>;
+  project?: ExtendedProject | null;
   mode?: 'create' | 'edit';
   openManpowerModal?: boolean;
 }
@@ -47,6 +71,7 @@ interface Worker {
   id: string;
   name: string;
   job_type: string;
+  worker_type: '협력사임직원' | '프리랜서(기업)' | '프리랜서(개인)';
   total_mm_value?: number;
 }
 
@@ -66,8 +91,15 @@ const workersByRole: {
   '개발': []
 };
 
+// Worker type 색상 매핑 추가
+const WORKER_TYPE_COLORS = {
+  '협력사임직원': '#3DAF07',
+  '프리랜서(기업)': '#1D89EA',
+  '프리랜서(개인)': '#FF00BF'
+} as const;
+
 export default function ProjectsManagementPage() {
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<ExtendedProject[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchInput, setSearchInput] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -76,7 +108,7 @@ export default function ProjectsManagementPage() {
   const [viewType, setViewType] = useState<'table' | 'card'>('card')
   const [selectedCategory, setSelectedCategory] = useState<ProjectCategory | 'all'>('all')
   const [isAddSlideOverOpen, setIsAddSlideOverOpen] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [selectedProject, setSelectedProject] = useState<ExtendedProject | null>(null)
   const [isDetailSlideOverOpen, setIsDetailSlideOverOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null)
@@ -95,7 +127,6 @@ export default function ProjectsManagementPage() {
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
   const categoryTypes: ProjectCategory[] = ['운영', '구축', '개발', '기타']
 
-
   // 공수 추가 버튼 클릭 핸들러
   const handleAddManpowerClick = () => {
     setShowManpowerModal(true)
@@ -110,9 +141,13 @@ export default function ProjectsManagementPage() {
           *,
           project_manpower (
             id,
-            worker_id,
             role,
-            mm_value
+            workers (
+              id,
+              name,
+              job_type,
+              worker_type
+            )
           )
         `)
         .order('created_at', { ascending: false })
@@ -136,9 +171,18 @@ export default function ProjectsManagementPage() {
       if (data) {
         const transformedData = data.map(project => ({
           ...project,
-          manpower: project.project_manpower || []
+          manpower: project.project_manpower?.reduce((acc: { [key: string]: Array<{ name: string; worker_type: string }> }, mp: any) => {
+            if (mp.workers && mp.role) {
+              if (!acc[mp.role]) acc[mp.role] = [];
+              acc[mp.role].push({
+                name: mp.workers.name,
+                worker_type: mp.workers.worker_type
+              });
+            }
+            return acc;
+          }, {})
         }))
-        setProjects(transformedData as Project[])
+        setProjects(transformedData as ExtendedProject[])
       }
     } catch (error: any) {
       console.error('Error fetching projects:', error.message || error)
@@ -159,7 +203,7 @@ export default function ProjectsManagementPage() {
     }
   }
 
-  const handleProjectSubmit = async (projectData: Project & { _action?: 'delete' }) => {
+  const handleProjectSubmit = async (projectData: ExtendedProject & { _action?: 'delete' }) => {
     try {
       if (projectData._action === 'delete') {
         // 삭제 로직
@@ -182,7 +226,7 @@ export default function ProjectsManagementPage() {
     }
   }
 
-  const handleProjectDetail = async (project: Project) => {
+  const handleProjectDetail = async (project: ExtendedProject) => {
     try {
       // 먼저 기본 데이터로 슬라이드오버를 열고
       setSelectedProject(project);
@@ -312,6 +356,7 @@ export default function ProjectsManagementPage() {
                 id: mp.workers.id,
                 name: mp.workers.name,
                 job_type: mp.workers.job_type || '',
+                worker_type: mp.workers.worker_type,
                 total_mm_value: totalEffort
               });
             }
@@ -383,7 +428,7 @@ export default function ProjectsManagementPage() {
   };
 
   // 실무자 공수 관리 버튼 클릭 핸들러 추가
-  const handleManpowerClick = async (project: Project) => {
+  const handleManpowerClick = async (project: ExtendedProject) => {
     try {
       const { data: projectData, error } = await supabase
         .from('projects')
@@ -420,7 +465,8 @@ export default function ProjectsManagementPage() {
           workersByRole[mp.role].push({
             id: mp.workers.id,
             name: mp.workers.name,
-            job_type: mp.workers.job_type || ''
+            job_type: mp.workers.job_type || '',
+            worker_type: mp.workers.worker_type
           });
         }
       });
@@ -721,17 +767,37 @@ export default function ProjectsManagementPage() {
           <div>
             {/* 테이블 뷰 */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              {/* Worker Type 범례 추가 */}
+              <div className="px-6 py-3 flex justify-end items-center space-x-4">
+                <ul className="flex items-center space-x-4">
+                  <li className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#3DAF07] mr-2"></span>
+                    <span className="text-[13px] text-gray-600">협력사임직원</span>
+                  </li>
+                  <li className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#1D89EA] mr-2"></span>
+                    <span className="text-[13px] text-gray-600">프리랜서(기업)</span>
+                  </li>
+                  <li className="flex items-center">
+                    <span className="w-3 h-3 rounded-full bg-[#FF00BF] mr-2"></span>
+                    <span className="text-[13px] text-gray-600">프리랜서(개인)</span>
+                  </li>
+                </ul>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr className="bg-gray-50/50">
                       <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">번호</th>
-                      <th className="w-[250px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">프로젝트명</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">시작일</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">종료일</th>
-                      <th className="w-[120px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
-                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">예산</th>
-                      <th className="w-[150px] px-6 py-4 text-right text-[13px] font-medium text-gray-500">관리</th>
+                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">프로젝트명</th>
+                      <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">구분</th>
+                      <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
+                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">BD(BM)</th>
+                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">PM(PL)</th>
+                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">기획자</th>
+                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">디자이너</th>
+                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">퍼블리셔</th>
+                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">개발자</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -744,23 +810,15 @@ export default function ProjectsManagementPage() {
                           <span className="text-[14px] text-gray-500">{index + 1}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-900">{project.name}</span>
+                          <button 
+                            className="text-[14px] text-gray-900 hover:text-[#4E49E7] text-left font-bold"
+                            onClick={() => handleProjectDetail(project)}
+                          >
+                            {project.name}
+                          </button>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-900">
-                            {project.start_date ? 
-                              new Date(project.start_date).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1) 
-                              : '-'
-                            }
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-900">
-                            {project.end_date ? 
-                              new Date(project.end_date).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1) 
-                              : '-'
-                            }
-                          </span>
+                          <span className="text-[14px] text-gray-900">{project.category}</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium
@@ -772,17 +830,106 @@ export default function ProjectsManagementPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-900">
-                            {project.budget ? `${project.budget.toLocaleString()}원` : '-'}
-                          </span>
+                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                            {project.manpower?.['BD(BM)']?.map((worker, i) => (
+                              <button 
+                                key={i} 
+                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManpowerClick(project);
+                                }}
+                              >
+                                {worker.name}
+                              </button>
+                            )) || '-'}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          <button 
-                            className="text-[13px] text-[#4E49E7] hover:text-[#3F3ABE]"
-                            onClick={() => handleProjectDetail(project)}
-                          >
-                            상세보기
-                          </button>
+                        <td className="px-6 py-4">
+                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                            {project.manpower?.['PM(PL)']?.map((worker, i) => (
+                              <button 
+                                key={i} 
+                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManpowerClick(project);
+                                }}
+                              >
+                                {worker.name}
+                              </button>
+                            )) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                            {project.manpower?.['기획']?.map((worker, i) => (
+                              <button 
+                                key={i} 
+                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManpowerClick(project);
+                                }}
+                              >
+                                {worker.name}
+                              </button>
+                            )) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                            {project.manpower?.['디자이너']?.map((worker, i) => (
+                              <button 
+                                key={i} 
+                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManpowerClick(project);
+                                }}
+                              >
+                                {worker.name}
+                              </button>
+                            )) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                            {project.manpower?.['퍼블리셔']?.map((worker, i) => (
+                              <button 
+                                key={i} 
+                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManpowerClick(project);
+                                }}
+                              >
+                                {worker.name}
+                              </button>
+                            )) || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                            {project.manpower?.['개발']?.map((worker, i) => (
+                              <button 
+                                key={i} 
+                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleManpowerClick(project);
+                                }}
+                              >
+                                {worker.name}
+                              </button>
+                            )) || '-'}
+                          </div>
                         </td>
                       </tr>
                     ))}
