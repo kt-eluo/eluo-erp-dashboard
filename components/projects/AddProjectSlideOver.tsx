@@ -829,11 +829,15 @@ export default function AddProjectSlideOver({
 
   // handleManpowerUpdate 함수 수정
   const handleManpowerUpdate = async (updatedWorkers: SelectedWorkers) => {
-    setSelectedWorkers(updatedWorkers);
-    // 데이터 업데이트 후 즉시 새로운 데이터 fetch
-    await fetchWorkerEfforts();
-    await fetchRoleEfforts();
-  };
+    try {
+      setSelectedWorkers(updatedWorkers)
+      await fetchWorkerEfforts()
+      await fetchRoleEfforts()
+    } catch (error) {
+      console.error('Error updating manpower:', error)
+      toast.error('공수 업데이트 중 오류가 발생했습니다.')
+    }
+  }
 
   // fetchWorkerEfforts 함수 수정
   const fetchWorkerEfforts = async () => {
@@ -1325,6 +1329,54 @@ export default function AddProjectSlideOver({
     await fetchCurrentMonthEfforts();
   }, [fetchCurrentMonthEfforts]);
 
+  // selectedWorkers가 변경될 때마다 그래프 데이터 업데이트
+  useEffect(() => {
+    const updateGraphData = async () => {
+      if (project?.id) {
+        try {
+          const { data: monthlyData, error: monthlyError } = await supabase
+            .from('project_monthly_efforts')
+            .select(`
+              id,
+              year,
+              month,
+              mm_value,
+              project_manpower!inner (
+                role,
+                project_id
+              )
+            `)
+            .eq('project_manpower.project_id', project.id)
+
+          if (monthlyError) throw monthlyError
+
+          const monthlyEfforts: MonthlyEffort = {}
+          
+          monthlyData?.forEach((effort: any) => {
+            const role = effort.project_manpower.role
+            const monthKey = `${effort.year}-${String(effort.month).padStart(2, '0')}`
+            
+            if (!monthlyEfforts[role]) {
+              monthlyEfforts[role] = {}
+            }
+            
+            if (!monthlyEfforts[role][monthKey]) {
+              monthlyEfforts[role][monthKey] = 0
+            }
+            
+            monthlyEfforts[role][monthKey] += effort.mm_value || 0
+          })
+
+          setMonthlyEfforts(monthlyEfforts)
+        } catch (error) {
+          console.error('Error fetching monthly efforts:', error)
+        }
+      }
+    }
+
+    updateGraphData()
+  }, [project?.id, selectedWorkers])
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
 
@@ -1451,7 +1503,7 @@ export default function AddProjectSlideOver({
                             </div>
                           </div>
 
-                          <div className="px-4 pb-[50px] pt-6 sm:px-6 space-y-6">
+                          <div className={`px-4 pt-6 sm:px-6 space-y-6 project_formWrapper pb-[150px]`}>
                             {/* 프로젝트명 입력 */}
                             <div>
                               <input
@@ -2174,7 +2226,7 @@ export default function AddProjectSlideOver({
                           </div>
 
                           {/* 하단 버튼 */}
-                          <div className="bottom-0 left-0 w-[100%] bg-white border-t border-gray-200">
+                          <div className={`bottom-0 w-[100%] bg-white border-t border-gray-200 project_btnWrapper fixed bottom-0 right-0 w-screen max-w-6xl z-10`}>
                             <div className="px-4 py-4">
                               <div className="flex flex-row gap-2">
                                 <button
