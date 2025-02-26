@@ -133,6 +133,11 @@ interface MonthlyEffort {
   };
 }
 
+// 현재 날짜 관련 상수를 컴포넌트 외부에서 선언
+const NOW = new Date();
+const CURRENT_YEAR = NOW.getFullYear();
+const CURRENT_MONTH = NOW.getMonth() + 1;
+
 export default function AddProjectSlideOver({
   isOpen,
   onClose,
@@ -839,9 +844,16 @@ export default function AddProjectSlideOver({
     }
   }
 
-  // fetchWorkerEfforts 함수 수정
+  // 로딩 상태 관리를 위한 state 추가
+  const [isEffortsLoading, setIsEffortsLoading] = useState(false);
+  const [hasEffortsError, setHasEffortsError] = useState(false);
+
+  // 공수 데이터 로딩 함수 수정
   const fetchWorkerEfforts = async () => {
     if (!project?.id) return;
+    
+    setIsEffortsLoading(true);
+    setHasEffortsError(false);
     
     try {
       const { data, error } = await supabase
@@ -876,33 +888,57 @@ export default function AddProjectSlideOver({
         '개발': []
       };
 
-      const currentYear = new Date().getFullYear();
-      const currentMonth = new Date().getMonth() + 1;
-
       data.forEach(mp => {
         if (mp.workers) {
-          // 현재 월의 공수만 찾기
           const currentMonthEffort = mp.project_monthly_efforts?.find(
-            effort => effort.year === currentYear && effort.month === currentMonth
+            (effort: { year: number; month: number; mm_value: number }) => 
+              effort.year === CURRENT_YEAR && effort.month === CURRENT_MONTH
           );
 
-          workersByRole[mp.role].push({
-            id: mp.workers.id,
-            name: mp.workers.name,
-            job_type: mp.workers.job_type || '',
-            grade: mp.grade,
-            position: mp.position,
-            unit_price: mp.unit_price,
-            total_mm_value: Number(currentMonthEffort?.mm_value) || 0
-          });
+          if (workersByRole[mp.role]) {
+            workersByRole[mp.role].push({
+              id: mp.workers.id,
+              name: mp.workers.name,
+              job_type: mp.workers.job_type || '',
+              total_mm_value: Number(currentMonthEffort?.mm_value) || 0
+            });
+          }
         }
       });
 
       setSelectedWorkers(workersByRole);
     } catch (error) {
       console.error('Error fetching worker efforts:', error);
+      setHasEffortsError(true);
+      toast.error('공수 데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setIsEffortsLoading(false);
     }
   };
+
+  // 데이터 로딩 useEffect 수정
+  useEffect(() => {
+    if (isOpen && project?.id && mode === 'edit') {
+      fetchWorkerEfforts();
+    }
+  }, [isOpen, project?.id, mode]);
+
+  // 에러 발생 시 자동 재시도 로직
+  useEffect(() => {
+    let retryTimeout: NodeJS.Timeout;
+    
+    if (hasEffortsError && isOpen && project?.id) {
+      retryTimeout = setTimeout(() => {
+        fetchWorkerEfforts();
+      }, 3000); // 3초 후 재시도
+    }
+
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
+  }, [hasEffortsError, isOpen, project?.id]);
 
   // useEffect 추가
   useEffect(() => {
@@ -1271,10 +1307,6 @@ export default function AddProjectSlideOver({
 
       if (error) throw error;
 
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1;
-
       const updatedWorkers = {
         'BD(BM)': [] as Worker[],
         'PM(PL)': [] as Worker[],
@@ -1300,13 +1332,13 @@ export default function AddProjectSlideOver({
         if (!mp.workers || !mp.role || !updatedWorkers[mp.role]) return;
 
         const currentMonthEffort = mp.project_monthly_efforts?.find(
-          effort => effort.year === currentYear && effort.month === currentMonth
+          effort => effort.year === CURRENT_YEAR && effort.month === CURRENT_MONTH
         )?.mm_value || 0;
 
         updatedWorkers[mp.role].push({
           id: mp.workers.id,
           name: mp.workers.name,
-          job_type: mp.workers.job_type || '',
+          job_type: mp.workers.job_type,
           total_mm_value: currentMonthEffort
         });
       });

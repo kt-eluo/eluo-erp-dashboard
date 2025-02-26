@@ -161,6 +161,10 @@ export default function AddWorkerSlideOver({
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
 
+  // 상단에 상태 추가
+  const [isMMRecordsLoading, setIsMMRecordsLoading] = useState(false);
+  const [hasMMRecordsError, setHasMMRecordsError] = useState(false);
+
   // body 스크롤 제어
   useEffect(() => {
     const body = document.body;
@@ -255,26 +259,82 @@ export default function AddWorkerSlideOver({
     }
   }, [level, isEdit])
 
-  // M/M 기록 가져오기
+  // M/M 기록 가져오기 함수 수정
   useEffect(() => {
     const fetchMMRecords = async () => {
-      if (workerId) {
+      if (!workerId) return;
+      
+      setIsMMRecordsLoading(true);
+      setHasMMRecordsError(false);
+      
+      try {
         const { data, error } = await supabase
           .from('worker_mm_records')
           .select('*')
           .eq('worker_id', workerId)
-          .eq('year', currentYear)
+          .eq('year', currentYear);
 
-        if (!error && data) {
-          setMMRecords(data)
+        if (error) throw error;
+        
+        if (data) {
+          setMMRecords(data);
         }
-      } else {
-        setMMRecords([])
+      } catch (error) {
+        console.error('Error fetching MM records:', error);
+        setHasMMRecordsError(true);
+        toast.error('공수 데이터를 불러오는데 실패했습니다.');
+      } finally {
+        setIsMMRecordsLoading(false);
       }
+    };
+
+    if (workerId) {
+      fetchMMRecords();
+    } else {
+      setMMRecords([]);
+    }
+  }, [workerId]);
+
+  // 에러 발생 시 자동 재시도 로직
+  useEffect(() => {
+    let retryTimeout: NodeJS.Timeout;
+    
+    if (hasMMRecordsError && workerId) {
+      retryTimeout = setTimeout(() => {
+        const fetchMMRecords = async () => {
+          setIsMMRecordsLoading(true);
+          setHasMMRecordsError(false);
+          
+          try {
+            const { data, error } = await supabase
+              .from('worker_mm_records')
+              .select('*')
+              .eq('worker_id', workerId)
+              .eq('year', currentYear);
+
+            if (error) throw error;
+            
+            if (data) {
+              setMMRecords(data);
+            }
+          } catch (error) {
+            console.error('Error retrying MM records fetch:', error);
+            setHasMMRecordsError(true);
+          } finally {
+            setIsMMRecordsLoading(false);
+          }
+        };
+        
+        fetchMMRecords();
+      }, 3000); // 3초 후 재시도
     }
 
-    fetchMMRecords()
-  }, [workerId])
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
+  }, [hasMMRecordsError, workerId]);
 
   // 프로젝트 상태 카운트를 가져오는 함수
   const fetchProjectStatusCounts = async (workerId: string) => {
@@ -1250,84 +1310,94 @@ export default function AddWorkerSlideOver({
                             />
                           </div>
 
-
                           {/* 년도 공수 투입 테이블 */}
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-[14px]">
-                              <tbody>
-                                {/* 1분기 */}
-                                <tr className="bg-gray-50">
-                                  <td className="px-4 py-2 border">1월</td>
-                                  <td className="px-4 py-2 border">2월</td>
-                                  <td className="px-4 py-2 border">3월</td>
-                                  <td className="px-4 py-2 border font-medium">1분기 합계</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 1)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 2)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 3)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center font-medium">
-                                    {mmRecords.filter(r => r.month <= 3).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
-                                  </td>
-                                </tr>
+                          <div className="mt-6">
+                            {isMMRecordsLoading ? (
+                              <div className="flex justify-center items-center h-40">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4E49E7]"></div>
+                              </div>
+                            ) : hasMMRecordsError ? (
+                              <div className="flex flex-col items-center justify-center h-40 space-y-4">
+                                <p className="text-red-500 text-sm">데이터를 불러오는데 실패했습니다.</p>
+                                <p className="text-gray-500 text-xs">잠시 후 자동으로 다시 시도합니다.</p>
+                              </div>
+                            ) : (
+                              <table className="w-full text-[14px]">
+                                <tbody>
+                                  {/* 1분기 */}
+                                  <tr className="bg-gray-50">
+                                    <td className="px-4 py-2 border">1월</td>
+                                    <td className="px-4 py-2 border">2월</td>
+                                    <td className="px-4 py-2 border">3월</td>
+                                    <td className="px-4 py-2 border font-medium">1분기 합계</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 1)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 2)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 3)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center font-medium">
+                                      {mmRecords.filter(r => r.month <= 3).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                    </td>
+                                  </tr>
 
-                                {/* 2분기 */}
-                                <tr className="bg-gray-50">
-                                  <td className="px-4 py-2 border">4월</td>
-                                  <td className="px-4 py-2 border">5월</td>
-                                  <td className="px-4 py-2 border">6월</td>
-                                  <td className="px-4 py-2 border font-medium">2분기 합계</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 4)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 5)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 6)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center font-medium">
-                                    {mmRecords.filter(r => r.month > 3 && r.month <= 6).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
-                                  </td>
-                                </tr>
+                                  {/* 2분기 */}
+                                  <tr className="bg-gray-50">
+                                    <td className="px-4 py-2 border">4월</td>
+                                    <td className="px-4 py-2 border">5월</td>
+                                    <td className="px-4 py-2 border">6월</td>
+                                    <td className="px-4 py-2 border font-medium">2분기 합계</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 4)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 5)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 6)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center font-medium">
+                                      {mmRecords.filter(r => r.month > 3 && r.month <= 6).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                    </td>
+                                  </tr>
 
-                                {/* 3분기 */}
-                                <tr className="bg-gray-50">
-                                  <td className="px-4 py-2 border">7월</td>
-                                  <td className="px-4 py-2 border">8월</td>
-                                  <td className="px-4 py-2 border">9월</td>
-                                  <td className="px-4 py-2 border font-medium">3분기 합계</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 7)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 8)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 9)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center font-medium">
-                                    {mmRecords.filter(r => r.month > 6 && r.month <= 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
-                                  </td>
-                                </tr>
+                                  {/* 3분기 */}
+                                  <tr className="bg-gray-50">
+                                    <td className="px-4 py-2 border">7월</td>
+                                    <td className="px-4 py-2 border">8월</td>
+                                    <td className="px-4 py-2 border">9월</td>
+                                    <td className="px-4 py-2 border font-medium">3분기 합계</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 7)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 8)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 9)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center font-medium">
+                                      {mmRecords.filter(r => r.month > 6 && r.month <= 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                    </td>
+                                  </tr>
 
-                                {/* 4분기 */}
-                                <tr className="bg-gray-50">
-                                  <td className="px-4 py-2 border">10월</td>
-                                  <td className="px-4 py-2 border">11월</td>
-                                  <td className="px-4 py-2 border">12월</td>
-                                  <td className="px-4 py-2 border font-medium">4분기 합계</td>
-                                </tr>
-                                <tr>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 10)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 11)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 12)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                  <td className="px-4 py-2 border text-center font-medium">
-                                    {mmRecords.filter(r => r.month > 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
-                                  </td>
-                                </tr>
+                                  {/* 4분기 */}
+                                  <tr className="bg-gray-50">
+                                    <td className="px-4 py-2 border">10월</td>
+                                    <td className="px-4 py-2 border">11월</td>
+                                    <td className="px-4 py-2 border">12월</td>
+                                    <td className="px-4 py-2 border font-medium">4분기 합계</td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 10)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 11)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 12)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center font-medium">
+                                      {mmRecords.filter(r => r.month > 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                    </td>
+                                  </tr>
 
-                                {/* 연간 합계 */}
-                                <tr className="bg-gray-50">
-                                  <td colSpan={2} className="px-4 py-2 border font-medium">연간 합계</td>
-                                  <td colSpan={2} className="px-4 py-2 border text-center font-medium">
-                                    {mmRecords.reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
+                                  {/* 연간 합계 */}
+                                  <tr className="bg-gray-50">
+                                    <td colSpan={2} className="px-4 py-2 border font-medium">연간 합계</td>
+                                    <td colSpan={2} className="px-4 py-2 border text-center font-medium">
+                                      {mmRecords.reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1359,8 +1429,6 @@ export default function AddWorkerSlideOver({
                       ))}
                     </nav>
                   </div>
-
-
 
                   {/* 우측 프로젝트 정보 영역 */}
                   <div className="flex-1 overflow-y-auto">
