@@ -2258,7 +2258,106 @@ export default function AddProjectSlideOver({
                                   </ul>
                                 </div>
                               )}
-                              {/* 나머지 기존 코드 유지 */}
+
+                              {/* 기획 */}
+                              {selectedWorkers['기획']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    기획
+                                  </span>
+                                  <ul className="space-y-1 rounded-[8px] p-4">
+                                    {selectedWorkers['기획'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* 디자이너 */}
+                              {selectedWorkers['디자이너']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    디자이너
+                                  </span>
+                                  <ul className="space-y-1 rounded-[8px] p-4">
+                                    {selectedWorkers['디자이너'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* 퍼블리셔 */}
+                              {selectedWorkers['퍼블리셔']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    퍼블리셔
+                                  </span>
+                                  <ul className="space-y-1 rounded-[8px] p-4">
+                                    {selectedWorkers['퍼블리셔'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* 개발 */}
+                              {selectedWorkers['개발']?.length > 0 && (
+                                <div className="w-[100%]">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                    개발
+                                  </span>
+                                  <ul className="space-y-1 rounded-[8px] p-4">
+                                    {selectedWorkers['개발'].map(worker => (
+                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                        <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                          {worker.name}
+                                        </span>
+                                        <div className="flex items-baseline">
+                                          <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
+                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                          </span>
+                                          <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
