@@ -766,7 +766,7 @@ export default function ProjectsManagementPage() {
         ) : (
           <div>
             {/* 테이블 뷰 */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl overflow-hidden">
               {/* Worker Type 범례 추가 */}
               <div className="px-6 py-3 flex justify-end items-center space-x-4">
                 <ul className="flex items-center space-x-4">
@@ -785,16 +785,16 @@ export default function ProjectsManagementPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr className="bg-gray-50/50">
-                      <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">번호</th>
+                      <th className="w-[25px]  text-left text-[13px] font-medium text-gray-500">번호</th>
                       <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">프로젝트명</th>
-                      <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">구분</th>
-                      <th className="w-[100px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">BD(BM)</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">PM(PL)</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">기획자</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">디자이너</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">퍼블리셔</th>
-                      <th className="w-[150px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">개발자</th>
+                      <th className="w-[40px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">구분</th>
+                      <th className="w-[40px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
+                      <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">BD(BM)</th>
+                      <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">PM(PL)</th>
+                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">기획자</th>
+                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">디자이너</th>
+                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">퍼블리셔</th>
+                      <th className="w-[150px] text-left text-[13px] font-medium text-gray-500">개발자</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -803,35 +803,31 @@ export default function ProjectsManagementPage() {
                         key={project.id}
                         className="hover:bg-gray-50/50 transition-colors duration-150"
                       >
-                        <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-500">{index + 1}</span>
+                        <td>
+                          <span className="text-[13px] text-gray-500">{index + 1}</span>
                         </td>
                         <td className="px-6 py-4">
                           <button 
-                            className="text-[14px] text-gray-900 hover:text-[#4E49E7] text-left font-bold"
+                            className="text-[13px] text-gray-900 hover:text-[#4E49E7] text-left font-bold"
                             onClick={() => handleProjectDetail(project)}
                           >
                             {project.name}
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[14px] text-gray-900">{project.category}</span>
+                          <span className="text-[13px] text-gray-900">{project.category}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-medium
-                            ${project.status === '진행중' ? 'bg-green-50 text-green-700' :
-                              project.status === '준비중' ? 'bg-yellow-50 text-yellow-700' :
-                              project.status === '보류' ? 'bg-gray-50 text-gray-700' :
-                              'bg-blue-50 text-blue-700'}`}>
+                          <span className="inline-flex items-center text-[12px] font-medium text-gray-700">
                             {project.status || '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                          <div className="text-[13px] text-gray-900 flex flex-col gap-1">
                             {project.manpower?.['BD(BM)']?.map((worker, i) => (
                               <button 
                                 key={i} 
-                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                className="px-2 py-1 hover:font-bold transition-colors w-full text-left whitespace-nowrap overflow-hidden text-ellipsis"
                                 style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -844,11 +840,11 @@ export default function ProjectsManagementPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                          <div className="text-[13px] text-gray-900 flex flex-col gap-1">
                             {project.manpower?.['PM(PL)']?.map((worker, i) => (
                               <button 
                                 key={i} 
-                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                className="rounded hover:font-bold transition-colors w-full text-left whitespace-nowrap overflow-hidden text-ellipsis text-left"
                                 style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -861,11 +857,11 @@ export default function ProjectsManagementPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                          <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['기획']?.map((worker, i) => (
                               <button 
                                 key={i} 
-                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                className="rounded hover:font-bold transition-colors w-[calc(25%-4px)] whitespace-nowrap overflow-hidden text-ellipsis text-left"
                                 style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -878,11 +874,11 @@ export default function ProjectsManagementPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                          <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['디자이너']?.map((worker, i) => (
                               <button 
                                 key={i} 
-                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                className="rounded hover:font-bold transition-colors w-[calc(25%-4px)] whitespace-nowrap overflow-hidden text-ellipsis text-left"
                                 style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -895,11 +891,11 @@ export default function ProjectsManagementPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                          <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['퍼블리셔']?.map((worker, i) => (
                               <button 
                                 key={i} 
-                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                className="rounded hover:font-bold transition-colors w-[calc(25%-4px)] whitespace-nowrap overflow-hidden text-ellipsis text-left"
                                 style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -911,12 +907,12 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-[14px] text-gray-900 flex flex-wrap gap-1">
+                        <td>
+                          <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[150px] sm:max-w-[180px] md:max-w-[200px]">
                             {project.manpower?.['개발']?.map((worker, i) => (
                               <button 
                                 key={i} 
-                                className="px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                className="rounded hover:font-bold transition-colors w-[calc(33.33%-4px)] whitespace-nowrap overflow-hidden text-ellipsis text-left"
                                 style={{ color: WORKER_TYPE_COLORS[worker.worker_type as keyof typeof WORKER_TYPE_COLORS] || 'inherit' }}
                                 onClick={(e) => {
                                   e.stopPropagation();
