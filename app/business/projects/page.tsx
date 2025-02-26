@@ -771,16 +771,13 @@ export default function ProjectsManagementPage() {
               <div className="px-6 py-3 flex justify-end items-center space-x-4">
                 <ul className="flex items-center space-x-4">
                   <li className="flex items-center">
-                    <span className="w-3 h-3 rounded-full bg-[#3DAF07] mr-2"></span>
-                    <span className="text-[13px] text-gray-600">협력사임직원</span>
+                    <span className="text-[13px] text-[#3DAF07]">협력사임직원</span>
                   </li>
                   <li className="flex items-center">
-                    <span className="w-3 h-3 rounded-full bg-[#1D89EA] mr-2"></span>
-                    <span className="text-[13px] text-gray-600">프리랜서(기업)</span>
+                    <span className="text-[13px] text-[#1D89EA]">프리랜서(기업)</span>
                   </li>
                   <li className="flex items-center">
-                    <span className="w-3 h-3 rounded-full bg-[#FF00BF] mr-2"></span>
-                    <span className="text-[13px] text-gray-600">프리랜서(개인)</span>
+                    <span className="text-[13px] text-[#FF00BF]">프리랜서(개인)</span>
                   </li>
                 </ul>
               </div>

@@ -234,8 +234,28 @@ export default function WorkersManagementPage() {
 
   // 수정 버튼 클릭 시 호출되는 함수 (SlideOver를 여는 함수)
   const handleEditClick = (worker: Worker) => {
+    // 먼저 worker 설정
     setSelectedWorker(worker)
+    // 그 다음 슬라이드 오픈
     setIsAddSlideOverOpen(true)
+  }
+
+  // 추가 버튼 클릭 시 호출되는 함수
+  const handleAddClick = () => {
+    // 먼저 worker 초기화
+    setSelectedWorker(null)
+    // 그 다음 슬라이드 오픈
+    setIsAddSlideOverOpen(true)
+  }
+
+  // SlideOver 닫기 함수
+  const handleSlideOverClose = () => {
+    // 먼저 슬라이드 닫기
+    setIsAddSlideOverOpen(false)
+    // 약간의 지연 후 worker 초기화
+    setTimeout(() => {
+      setSelectedWorker(null)
+    }, 300) // 슬라이드 애니메이션 시간과 동일하게 설정
   }
 
   // SlideOver에서 실제 수정 처리하는 함수
@@ -437,7 +457,8 @@ export default function WorkersManagementPage() {
             여러명 추가
           </button>
           <button 
-            onClick={() => setIsAddSlideOverOpen(true)}
+            type="button"
+            onClick={handleAddClick}
             className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-[12px] bg-[#4E49E7] text-white rounded-lg hover:bg-[#3F3ABE] transition-colors border border-black"
           >
             추가
@@ -746,7 +767,7 @@ export default function WorkersManagementPage() {
 
       <AddWorkerSlideOver
         isOpen={isAddSlideOverOpen}
-        onClose={() => setIsAddSlideOverOpen(false)}
+        onClose={handleSlideOverClose}
         onSubmit={handleWorkerSubmit}
         onDelete={handleDeleteWorker}
         isEdit={!!selectedWorker}

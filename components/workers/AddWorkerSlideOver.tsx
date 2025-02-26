@@ -209,7 +209,8 @@ export default function AddWorkerSlideOver({
 
   // worker 데이터가 변경될 때마다 form 값 업데이트
   useEffect(() => {
-    if (worker) {
+    if (worker && isEdit) {
+      // 수정 모드일 때는 worker 데이터로 폼 설정
       console.log('Worker data received:', worker)
       setName(worker.name || '')
       setWorkerType(worker.worker_type || '')
@@ -217,10 +218,8 @@ export default function AddWorkerSlideOver({
       setJobType(worker.job_type || '')
       setLevel(worker.level || '')
       
-      // price 처리 수정
       if (typeof worker.price === 'number') {
         const formattedPrice = worker.price.toLocaleString('ko-KR')
-        console.log('Setting price:', worker.price, 'Formatted:', formattedPrice)
         setPrice(formattedPrice)
         setTempPrice(formattedPrice)
       } else {
@@ -230,17 +229,18 @@ export default function AddWorkerSlideOver({
       
       setIsDispatched(worker.is_dispatched)
     } else {
-      // 새로운 실무자 추가 시 초기화
-      setName('')
-      setWorkerType('')
-      setGrade('')
-      setJobType('')
-      setLevel('')
-      setPrice('')
-      setTempPrice('')
-      setIsDispatched(null)
+      // 신규 등록 모드일 때는 폼 초기화
+      resetForm()
     }
-  }, [worker])
+  }, [worker, isEdit])
+
+  // 슬라이드 오픈/클로즈 시 초기화
+  useEffect(() => {
+    if (isOpen && !isEdit) {
+      // 신규 등록 모드로 열릴 때 초기화
+      resetForm()
+    }
+  }, [isOpen, isEdit])
 
   // level에 따른 기본 단가 설정
   useEffect(() => {
@@ -677,6 +677,30 @@ export default function AddWorkerSlideOver({
       fetchMonthlyEfforts();
     }
   }, [workerId]);
+
+  // 슬라이드 오픈/클로즈 시 초기화
+  const resetForm = () => {
+    setName('')
+    setWorkerType('')
+    setGrade('')
+    setJobType('')
+    setLevel('')
+    setPrice('')
+    setTempPrice('')
+    setIsDispatched(false)
+    setIsDuplicateName(false)
+    // 프로젝트 정보 영역 초기화 추가
+    setWorkerProjects([])
+    setStatusCounts({
+      준비중: 0,
+      진행중: 0,
+      완료: 0,
+      보류: 0
+    })
+    setCurrentMonthEffort(0)
+    setIsOverloaded(false)
+    setActiveTab('준비중')
+  }
 
   return (
     <div className={`fixed inset-0 overflow-hidden z-50 ${!isOpen && 'pointer-events-none'}`}>
@@ -1336,6 +1360,9 @@ export default function AddWorkerSlideOver({
                     </nav>
                   </div>
 
+
+
+                  {/* 우측 프로젝트 정보 영역 */}
                   <div className="flex-1 overflow-y-auto">
                     {workerProjects.length > 0 ? (
                       <div className="p-6">
@@ -1395,7 +1422,12 @@ export default function AddWorkerSlideOver({
                                           <li key={index} className="flex items-center before:content-['•'] before:mr-1 before:text-[#6F6F6F]">
                                             <span className="w-[40px] text-[#6F6F6F] text-[14px]">{worker.grade}</span>{' '}
                                             <span className='flex-1 font-bold text-[16px] leading-normal text-black whitespace-nowrap'>{worker.name}</span>
-                                            <span className='w-[90px] text-[#6F6F6F] text-[11px] ml-1'>{worker.worker_type}</span>
+                                            <span className={`w-[90px] text-[11px] ml-1 ${
+                                              worker.worker_type === '협력사임직원' ? 'text-[#3DAF07]' :
+                                              worker.worker_type === '프리랜서(기업)' ? 'text-[#1D89EA]' :
+                                              worker.worker_type === '프리랜서(개인)' ? 'text-[#FF00BF]' :
+                                              'text-[#6F6F6F]'
+                                            }`}>{worker.worker_type}</span>
                                           </li>
                                         ))}
                                       </ul>
