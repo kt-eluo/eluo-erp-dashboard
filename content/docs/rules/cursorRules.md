@@ -381,3 +381,417 @@ const theme = extendTheme({
 
 ---
 
+# sql 관련 규칙
+
+1. Read Access Policy for Test Table
+CREATE POLICY "Enable read access for all users" ON "test_table"
+FOR SELECT USING (true);
+
+2. User Profiles Table
+-- 기존 user_profiles 테이블 삭제 (필요한 경우)
+DROP TABLE IF EXISTS user_profiles;
+DROP TYPE IF EXISTS user_role;
+
+-- ENUM 타입 생성 (기존과 동일)
+CREATE TYPE user_role AS ENUM ('CPO', 'BD', 'PM', 'PA', 'CLIENT');
+
+-- 사용자 프로필 테이블 생성 (이메일 필드 추가)
+CREATE TABLE user_profiles (
+  id UUID REFERENCES auth.users ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  role user_role NOT NULL DEFAULT 'CLIENT',  -- 기본값을 CLIENT로 설정
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id)
+);
+
+-- RLS 정책 설정
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- 사용자가 자신의 프로필을 볼 수 있도록 정책 설정 (기존과 동일)
+CREATE POLICY "Users can view own profile"
+ON user_profiles FOR SELECT
+USING (auth.uid() = id);
+
+-- CPO는 모든 프로필을 볼 수 있도록 정책 설정 (기존과 동일)
+CREATE POLICY "CPO can view all profiles"
+ON user_profiles FOR SELECT
+USING (
+  auth.uid() IN (
+    SELECT id FROM user_profiles WHERE role = 'CPO'
+  )
+);
+
+-- 사용자가 자신의 프로필을 생성할 수 있도록 정책 추가
+CREATE POLICY "Users can insert their own profile"
+ON user_profiles FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+-- 사용자가 자신의 프로필을 수정할 수 있도록 정책 추가
+CREATE POLICY "Users can update own profile"
+ON user_profiles FOR UPDATE
+USING (auth.uid() = id);
+
+-- CPO가 모든 프로필을 수정할 수 있도록 정책 추가
+CREATE POLICY "CPO can update all profiles"
+ON user_profiles FOR UPDATE
+USING (
+  auth.uid() IN (
+    SELECT id FROM user_profiles WHERE role = 'CPO'
+  )
+);
+
+3. User Profile Access Policies
+-- 기존 정책이 있다면 삭제 (선택사항)
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
+
+-- 새로운 정책들 추가
+CREATE POLICY "Users can insert their own profile"
+ON user_profiles
+FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile"
+ON user_profiles
+FOR UPDATE
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can view own profile"
+ON user_profiles
+FOR SELECT
+USING (auth.uid() = id);
+
+4. User Profiles Row Level Security Policies
+-- 기존 정책 삭제 (있다면)
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
+
+-- RLS 활성화 확인
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- INSERT 정책 추가
+CREATE POLICY "Enable insert for authenticated users only"
+ON user_profiles
+FOR INSERT
+WITH CHECK (auth.role() = 'authenticated');
+
+-- SELECT 정책 추가
+CREATE POLICY "Enable select for authenticated users only"
+ON user_profiles
+FOR SELECT
+USING (auth.role() = 'authenticated');
+
+-- UPDATE 정책 추가
+CREATE POLICY "Enable update for users based on id"
+ON user_profiles
+FOR UPDATE
+USING (auth.uid() = id);
+
+5. Disable RLS and Grant Accesss
+-- RLS 비활성화
+ALTER TABLE user_profiles DISABLE ROW LEVEL SECURITY;
+
+-- 모든 사용자에게 접근 권한 부여
+GRANT ALL ON user_profiles TO authenticated;
+GRANT ALL ON user_profiles TO anon;
+
+6. User Profiles Table
+-- 기존 테이블이 있다면 삭제
+DROP TABLE IF EXISTS user_profiles;
+
+-- user_profiles 테이블 생성
+CREATE TABLE user_profiles (
+    id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'Client'
+    CHECK (role IN ('CPO', 'BD/BM', 'PM/PL', 'PA', 'Client')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS 비활성화 (테스트를 위해)
+ALTER TABLE user_profiles DISABLE ROW LEVEL SECURITY;
+
+-- 모든 사용자에게 접근 권한 부여
+GRANT ALL ON user_profiles TO authenticated;
+GRANT ALL ON user_profiles TO anon;
+
+7. User Profiles Access Control
+-- 기존 정책들 제거
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
+
+-- RLS 활성화
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- 기본 정책 설정
+CREATE POLICY "Enable insert access for all users" ON user_profiles
+    FOR INSERT 
+    WITH CHECK (true);  -- 모든 사용자가 INSERT 가능
+
+CREATE POLICY "Enable select access for all users" ON user_profiles
+    FOR SELECT
+    USING (true);  -- 모든 사용자가 SELECT 가능
+
+-- 테이블 권한 부여
+GRANT ALL ON user_profiles TO authenticated;
+GRANT ALL ON user_profiles TO anon;
+
+8. User Profiles Role Management
+alter table public.user_profiles
+add column role text not null default 'Client'
+check (role in ('CPO', 'BD/BM', 'PM/PL', 'PA', 'Client'));
+
+9. Row Level Security for User Profiles
+-- 기존 CPO 정책들만 삭제
+DROP POLICY IF EXISTS "CPO can view all profiles" ON user_profiles;
+DROP POLICY IF EXISTS "CPO can update all profiles" ON user_profiles;
+
+-- CPO 정책들 새로 생성
+CREATE POLICY "CPO can view all profiles"
+ON user_profiles FOR SELECT
+TO authenticated
+USING (
+  (SELECT role FROM user_profiles WHERE id = auth.uid()) = 'CPO'
+);
+
+CREATE POLICY "CPO can update all profiles"
+ON user_profiles FOR UPDATE
+TO authenticated
+USING (
+  (SELECT role FROM user_profiles WHERE id = auth.uid()) = 'CPO'
+);
+
+10. Update User Role to CPO
+-- 테이블 확인
+SELECT * FROM user_profiles;
+
+-- 특정 사용자의 role 수정
+UPDATE user_profiles 
+SET role = 'CPO' 
+WHERE id = '5c07a0ee-0ecd-4cae-9696-ae1eb5bcd283';
+
+11. Update User Role
+update auth.users
+set raw_user_meta_data = jsonb_set(
+  raw_user_meta_data,
+  '{role}',
+  '"CPO"'
+)
+where id = '5c07a0ee-0ecd-4cae-9696-ae1eb5bcd283';
+
+12. Annual M/M Records Table
+-- 기존 테이블 삭제 후 재생성
+drop table if exists worker_mm_records;
+
+create table worker_mm_records (
+  id uuid default uuid_generate_v4() primary key,
+  worker_id uuid references workers(id) on delete cascade,
+  project_id uuid references projects(id) on delete cascade,
+  year int not null,
+  month int not null,
+  mm_value decimal(5,2) not null default 0,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  
+  unique(worker_id, project_id, year, month)
+);
+
+13. Worker Management Schema
+
+-- 1. 기존 테이블/타입 삭제
+DROP TABLE IF EXISTS worker_mm_records;
+DROP TABLE IF EXISTS workers;
+DROP TYPE IF EXISTS worker_job_type;
+DROP TYPE IF EXISTS worker_level_type;
+DROP TYPE IF EXISTS worker_type;
+DROP TYPE IF EXISTS worker_grade_type;
+
+-- 2. ENUM 타입 생성
+CREATE TYPE worker_job_type AS ENUM ('기획', '디자인', '퍼블리싱', '개발', '기타');
+CREATE TYPE worker_level_type AS ENUM ('초급', '중급', '고급', '특급');
+CREATE TYPE worker_type AS ENUM ('임직원', '협력사임직원', '프리랜서(기업)', '프리랜서(개인)');
+CREATE TYPE worker_grade_type AS ENUM ('BD', 'BM', 'PM', 'PL', 'PA');
+
+-- 3. workers 테이블 생성
+CREATE TABLE workers (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name VARCHAR NOT NULL,
+  worker_type worker_type,
+  grade worker_grade_type,
+  job_type worker_job_type,
+  level worker_level_type,
+  price INTEGER,
+  is_dispatched BOOLEAN DEFAULT false,
+  deleted_at TIMESTAMPTZ DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. worker_mm_records 테이블 생성
+CREATE TABLE worker_mm_records (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL,
+  mm_value NUMERIC NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. 활성 상태의 실무자 이름에 대한 유니크 인덱스 생성
+CREATE UNIQUE INDEX workers_active_name_idx ON workers (name) 
+WHERE deleted_at IS NULL;
+
+14. Projects Table
+-- 기존 테이블들과 타입 삭제
+DROP TABLE IF EXISTS project_manpower;
+DROP TABLE IF EXISTS project_workers;
+DROP TABLE IF EXISTS projects;
+DROP TYPE IF EXISTS project_role_type;
+
+-- 직무 타입 생성
+CREATE TYPE project_role_type AS ENUM (
+  'BD(BM)',
+  'PM(PL)',
+  '기획',
+  '디자이너',
+  '퍼블리셔',
+  '개발'
+);
+
+-- projects 테이블 생성
+CREATE TABLE projects (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name VARCHAR NOT NULL,
+  client VARCHAR,
+  start_date DATE,
+  end_date DATE,
+  status VARCHAR CHECK (status IN ('준비중', '진행중', '완료', '보류')),
+  budget BIGINT,
+  category VARCHAR CHECK (category IN ('운영', '구축', '개발', '기타')),
+  major_category VARCHAR CHECK (major_category IN ('금융', '커머스', 'AI', '기타')),
+  description TEXT,
+  
+  -- 계약 관련 정보
+  contract_type VARCHAR CHECK (contract_type IN ('회차 정산형', '정기 결제형')),
+  is_vat_included BOOLEAN DEFAULT false,
+  common_expense BIGINT,
+  
+  -- 회차 정산형 정보
+  down_payment BIGINT,
+  intermediate_payments BIGINT[],
+  final_payment BIGINT,
+  
+  -- 정기 결제형 정보
+  periodic_unit VARCHAR CHECK (periodic_unit IN ('month', 'week')),
+  periodic_interval INTEGER,
+  periodic_amount BIGINT,
+  
+  -- 직무별 전체 공수 정보
+  planning_manpower NUMERIC,              -- 기획 전체 공수
+  design_manpower NUMERIC,                -- 디자인 전체 공수
+  publishing_manpower NUMERIC,            -- 퍼블리싱 전체 공수
+  development_manpower NUMERIC,           -- 개발 전체 공수
+  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
+);
+
+-- 프로젝트-실무자 연결 및 공수 정보 테이블
+CREATE TABLE project_manpower (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  worker_id UUID REFERENCES workers(id) ON DELETE CASCADE,
+  role project_role_type NOT NULL,
+  mm_value NUMERIC NOT NULL DEFAULT 0 CHECK (mm_value >= 0),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
+  
+  UNIQUE(project_id, worker_id, role)
+);
+
+-- updated_at 트리거
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = TIMEZONE('utc'::text, NOW());
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- projects 테이블 트리거
+CREATE TRIGGER update_projects_updated_at
+    BEFORE UPDATE ON projects
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- project_manpower 테이블 트리거
+CREATE TRIGGER update_project_manpower_updated_at
+    BEFORE UPDATE ON project_manpower
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS 정책 설정
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_manpower ENABLE ROW LEVEL SECURITY;
+
+-- 모든 사용자에게 접근 권한을 주는 새로운 정책
+CREATE POLICY "Enable access for all users" ON projects
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Enable access for all users" ON project_manpower
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+-- 모든 사용자(익명 포함)에게 권한 부여
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+
+15. Access Control Policeies for Projects
+-- 기존 정책 삭제
+DROP POLICY IF EXISTS "Enable all access for authenticated users" ON projects;
+DROP POLICY IF EXISTS "Enable all access for authenticated users" ON project_manpower;
+
+-- 모든 사용자에게 접근 권한 부여하는 새로운 정책
+CREATE POLICY "Enable access for all users" ON projects
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Enable access for all users" ON project_manpower
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+-- 익명 사용자에게도 권한 부여
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;
+
+16. Add columms and create project monthly efforts table
+-- NULL 데이터 삭제 및 테이블 구조 수정을 위한 통합 SQL
+-- 1. NULL 데이터 삭제
+DELETE FROM project_manpower 
+WHERE project_id IS NULL;
+
+-- 2. project_manpower 테이블 수정
+ALTER TABLE project_manpower 
+ALTER COLUMN project_id SET NOT NULL,
+ALTER COLUMN role DROP NOT NULL,
+ALTER COLUMN grade DROP NOT NULL;
+
+-- 3. 복합 유니크 제약조건 추가
+ALTER TABLE project_manpower
+ADD CONSTRAINT unique_project_worker_role 
+UNIQUE (project_id, worker_id, role);
+
+-- 4. project_monthly_efforts 테이블 수정
+ALTER TABLE project_monthly_efforts 
+ALTER COLUMN mm_value DROP NOT NULL,
+ALTER COLUMN mm_value SET DEFAULT NULL;
