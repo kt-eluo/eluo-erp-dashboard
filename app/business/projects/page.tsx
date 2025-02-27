@@ -786,14 +786,14 @@ export default function ProjectsManagementPage() {
                   <thead>
                     <tr className="bg-gray-50/50">
                       <th className="w-[25px]  text-left text-[13px] font-medium text-gray-500">번호</th>
-                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">프로젝트명</th>
-                      <th className="w-[40px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">구분</th>
-                      <th className="w-[40px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
-                      <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">BD(BM)</th>
-                      <th className="w-[60px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">PM(PL)</th>
-                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">기획자</th>
-                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">디자이너</th>
-                      <th className="w-[200px] px-6 py-4 text-left text-[13px] font-medium text-gray-500">퍼블리셔</th>
+                      <th className="w-[200px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">프로젝트명</th>
+                      <th className="w-[40px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">구분</th>
+                      <th className="w-[40px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">상태</th>
+                      <th className="w-[60px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">BD(BM)</th>
+                      <th className="w-[60px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">PM(PL)</th>
+                      <th className="w-[200px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">기획자</th>
+                      <th className="w-[200px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">디자이너</th>
+                      <th className="w-[200px] px-3 py-4 text-left text-[13px] font-medium text-gray-500">퍼블리셔</th>
                       <th className="w-[150px] text-left text-[13px] font-medium text-gray-500">개발자</th>
                     </tr>
                   </thead>
@@ -806,7 +806,7 @@ export default function ProjectsManagementPage() {
                         <td>
                           <span className="text-[13px] text-gray-500">{index + 1}</span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <button 
                             className="text-[13px] text-gray-900 hover:text-[#4E49E7] text-left font-bold"
                             onClick={() => handleProjectDetail(project)}
@@ -814,15 +814,15 @@ export default function ProjectsManagementPage() {
                             {project.name}
                           </button>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <span className="text-[13px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">{project.category}</span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <span className="inline-flex items-center text-[12px] font-medium text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
                             {project.status || '-'}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <div className="text-[13px] text-gray-900 flex flex-col gap-1">
                             {project.manpower?.['BD(BM)']?.map((worker, i) => (
                               <button 
@@ -839,7 +839,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <div className="text-[13px] text-gray-900 flex flex-col gap-1">
                             {project.manpower?.['PM(PL)']?.map((worker, i) => (
                               <button 
@@ -856,7 +856,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px] ">
                             {project.manpower?.['기획']?.map((worker, i) => (
                               <button 
@@ -873,7 +873,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['디자이너']?.map((worker, i) => (
                               <button 
@@ -890,7 +890,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-4">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['퍼블리셔']?.map((worker, i) => (
                               <button 
