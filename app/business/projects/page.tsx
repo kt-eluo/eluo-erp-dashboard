@@ -857,7 +857,7 @@ export default function ProjectsManagementPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
+                          <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px] ">
                             {project.manpower?.['기획']?.map((worker, i) => (
                               <button 
                                 key={i} 
