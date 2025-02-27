@@ -815,10 +815,10 @@ export default function ProjectsManagementPage() {
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-[13px] text-gray-900">{project.category}</span>
+                          <span className="text-[13px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">{project.category}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="inline-flex items-center text-[12px] font-medium text-gray-700">
+                          <span className="inline-flex items-center text-[12px] font-medium text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
                             {project.status || '-'}
                           </span>
                         </td>
