@@ -69,6 +69,7 @@ export default function WorkersManagementPage() {
           )
         `)
         .is('deleted_at', null)
+        .order('created_at', { ascending: false })
 
       if (error) throw error
 
@@ -419,15 +420,24 @@ export default function WorkersManagementPage() {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
     const endIndex = startIndex + ITEMS_PER_PAGE
     return workers.filter(worker => {
-      if (selectedJobType === 'all') return true
-      return worker.job_type === selectedJobType
+      // 직무 타입 필터링
+      const jobTypeMatch = selectedJobType === 'all' || worker.job_type === selectedJobType
+      
+      // 검색어 필터링 (이름 기준)
+      const searchMatch = !searchTerm || 
+        worker.name.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      return jobTypeMatch && searchMatch
     }).slice(startIndex, endIndex)
   }
 
   // totalPages 계산 로직 수정
   const filteredWorkers = workers.filter(worker => {
-    if (selectedJobType === 'all') return true
-    return worker.job_type === selectedJobType
+    const jobTypeMatch = selectedJobType === 'all' || worker.job_type === selectedJobType
+    const searchMatch = !searchTerm || 
+      worker.name.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    return jobTypeMatch && searchMatch
   })
   const totalPages = Math.ceil(filteredWorkers.length / ITEMS_PER_PAGE)
 
