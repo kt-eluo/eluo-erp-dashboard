@@ -1146,7 +1146,7 @@ export default function ProjectsManagementPage() {
                       </h4>
 
                       {/* 프로그램 진행 그래프 */}
-                      <div className="relative w-full h-2 bg-gray-200 rounded-full">
+                      <div className="relative w-full h-1.5 bg-gray-200 rounded-full">
                         {project.start_date && project.end_date && (
                           <>
                             {/* 진행률 바 */}
