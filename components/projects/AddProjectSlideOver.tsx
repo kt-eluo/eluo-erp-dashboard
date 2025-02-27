@@ -1409,6 +1409,103 @@ export default function AddProjectSlideOver({
     updateGraphData()
   }, [project?.id, selectedWorkers])
 
+  // 모든 드롭다운 닫기 함수
+  const closeAllDropdowns = () => {
+    setIsStatusOpen(false);
+    setIsMajorCategoryOpen(false);
+    setIsCategoryOpen(false);
+    setIsContractTypeOpen(false);
+    setIsPeriodicUnitOpen(false);
+  };
+
+  // 특정 드롭다운 열기 함수
+  const openDropdown = (setter: (value: boolean) => void) => {
+    closeAllDropdowns();
+    setter(true);
+  };
+
+  // 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
+        setIsStatusOpen(false);
+      }
+      if (majorCategoryRef.current && !majorCategoryRef.current.contains(event.target as Node)) {
+        setIsMajorCategoryOpen(false);
+      }
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setIsCategoryOpen(false);
+      }
+      if (contractTypeRef.current && !contractTypeRef.current.contains(event.target as Node)) {
+        setIsContractTypeOpen(false);
+      }
+      if (periodicUnitRef.current && !periodicUnitRef.current.contains(event.target as Node)) {
+        setIsPeriodicUnitOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // 전체 공수 상태 추가
+  const [totalEfforts, setTotalEfforts] = useState<{[key: string]: number}>({
+    'PM(PL)': 0,
+    '기획': 0,
+    '디자이너': 0,
+    '퍼블리셔': 0,
+    '개발': 0
+  });
+
+  // 전체 공수 데이터 가져오기
+  const fetchTotalEfforts = useCallback(async () => {
+    if (!project?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          role,
+          project_monthly_efforts (
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (error) throw error;
+
+      const totals = {
+        'PM(PL)': 0,
+        '기획': 0,
+        '디자이너': 0,
+        '퍼블리셔': 0,
+        '개발': 0
+      };
+
+      data?.forEach(item => {
+        if (item.role && item.project_monthly_efforts) {
+          totals[item.role] = item.project_monthly_efforts.reduce(
+            (sum: number, effort: { mm_value: number }) => sum + (effort.mm_value || 0),
+            0
+          );
+        }
+      });
+
+      setTotalEfforts(totals);
+    } catch (error) {
+      console.error('Error fetching total efforts:', error);
+    }
+  }, [project?.id]);
+
+  // 데이터 로딩
+  useEffect(() => {
+    if (project?.id) {
+      fetchTotalEfforts();
+    }
+  }, [project?.id, fetchTotalEfforts]);
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
 
@@ -1560,7 +1657,7 @@ export default function AddProjectSlideOver({
                                 <div className="relative" ref={statusRef}>
                                   <button
                                     type="button"
-                                    onClick={() => setIsStatusOpen(!isStatusOpen)}
+                                    onClick={() => openDropdown(setIsStatusOpen)}
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
                                     <span className={status ? 'text-gray-900' : 'text-gray-400'}>
@@ -1594,7 +1691,7 @@ export default function AddProjectSlideOver({
                                 <div className="relative" ref={majorCategoryRef}>
                                   <button
                                     type="button"
-                                    onClick={() => setIsMajorCategoryOpen(!isMajorCategoryOpen)}
+                                    onClick={() => openDropdown(setIsMajorCategoryOpen)}
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
                                     <span className={majorCategory ? 'text-gray-900' : 'text-gray-400'}>
@@ -1625,7 +1722,7 @@ export default function AddProjectSlideOver({
                                 <div className="relative" ref={categoryRef}>
                                   <button
                                     type="button"
-                                    onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+                                    onClick={() => openDropdown(setIsCategoryOpen)}
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
                                     <span className={category ? 'text-gray-900' : 'text-gray-400'}>
@@ -1938,7 +2035,7 @@ export default function AddProjectSlideOver({
                                 <div className="relative" ref={contractTypeRef}>
                                   <button
                                     type="button"
-                                    onClick={() => setIsContractTypeOpen(!isContractTypeOpen)}
+                                    onClick={() => openDropdown(setIsContractTypeOpen)}
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
                                     <span className="text-gray-400">
@@ -2057,7 +2154,7 @@ export default function AddProjectSlideOver({
                                         <div className="relative" ref={periodicUnitRef}>
                                           <button
                                             type="button"
-                                            onClick={() => setIsPeriodicUnitOpen(!isPeriodicUnitOpen)}
+                                            onClick={() => openDropdown(setIsPeriodicUnitOpen)}
                                             className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                           >
                                             <span className={periodicUnit ? 'text-gray-900' : 'text-gray-400'}>
@@ -2295,11 +2392,30 @@ export default function AddProjectSlideOver({
                                 <button
                                   type="button"
                                   className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[16px] leading-[19.09px] text-white"
-                                  onClick={() => setActiveTab('milestone')}
+                                  onClick={() => window.open('https://eluo-sn-projects-six.vercel.app/', '_blank')}
                                 >
-                                  마일스톤 등록 및 확인
+                                  요건 등록 및 확인
                                 </button>
                               </div>
+                            </div>
+                          </div>
+
+                          {/* 전체 공수 섹션 */}
+                          <h4 className="font-pretendard font-bold text-[20px] leading-[23.87px] text-black mt-8 mb-6">
+                              전체 공수
+                            </h4>
+                          <div className=" bg-[#F8F8F8] rounded-[8px] p-6">
+                            <div className="flex justify-center flex-wrap gap-8">
+                              {Object.entries(totalEfforts).map(([role, value]) => value > 0 && (
+                                <div key={role} className="flex flex-col items-center">
+                                  <span className="font-pretendard font-bold text-[32px] leading-[38.19px] text-black mb-2">
+                                    {value.toFixed(1)}
+                                  </span>
+                                  <span className="font-pretendard font-normal text-[13px] leading-[16.71px] text-[#666666]">
+                                    {role}
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           </div>
 
@@ -2321,14 +2437,14 @@ export default function AddProjectSlideOver({
                               {/* PM(PL) */}
                               {selectedWorkers['PM(PL)']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
                                     PM(PL)
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['PM(PL)'].map(worker => (
-                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                      <li key={worker.id} className="flex relative pl-3 gap-4">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A] min-w-[100px]">
                                           {worker.name}
                                         </span>
                                         <div className="flex items-baseline">
@@ -2346,14 +2462,14 @@ export default function AddProjectSlideOver({
                               {/* 기획 */}
                               {selectedWorkers['기획']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
                                     기획
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['기획'].map(worker => (
-                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                      <li key={worker.id} className="flex relative pl-3 gap-4">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A] min-w-[100px]">
                                           {worker.name}
                                         </span>
                                         <div className="flex items-baseline">
@@ -2371,14 +2487,14 @@ export default function AddProjectSlideOver({
                               {/* 디자이너 */}
                               {selectedWorkers['디자이너']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
                                     디자이너
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['디자이너'].map(worker => (
-                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                      <li key={worker.id} className="flex relative pl-3 gap-4">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A] min-w-[100px]">
                                           {worker.name}
                                         </span>
                                         <div className="flex items-baseline">
@@ -2396,14 +2512,14 @@ export default function AddProjectSlideOver({
                               {/* 퍼블리셔 */}
                               {selectedWorkers['퍼블리셔']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
                                     퍼블리셔
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['퍼블리셔'].map(worker => (
-                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                      <li key={worker.id} className="flex relative pl-3 gap-4">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A] min-w-[100px]">
                                           {worker.name}
                                         </span>
                                         <div className="flex items-baseline">
@@ -2421,14 +2537,14 @@ export default function AddProjectSlideOver({
                               {/* 개발 */}
                               {selectedWorkers['개발']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#6F6F6F] mb-2 block">
+                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
                                     개발
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
                                     {selectedWorkers['개발'].map(worker => (
-                                      <li key={worker.id} className="flex justify-between relative pl-3">
+                                      <li key={worker.id} className="flex relative pl-3 gap-4">
                                         <div className="absolute left-0 top-[0.6em] w-[3px] h-[3px] rounded-full bg-[#5A5A5A]" />
-                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A]">
+                                        <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#5A5A5A] min-w-[100px]">
                                           {worker.name}
                                         </span>
                                         <div className="flex items-baseline">

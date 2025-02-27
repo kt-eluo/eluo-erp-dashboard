@@ -703,7 +703,14 @@ export default function ProjectsManagementPage() {
                         >
                           실무자 공수 관리
                         </button>
-                        <button type="button" className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-white">마일스톤 등록 및 확인</button>
+
+                        <button 
+                          type="button" 
+                          onClick={() => window.open('https://eluo-sn-projects-six.vercel.app/', '_blank')}
+                          className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-white"
+                        >
+                          업무 요건 등록 및 확인
+                        </button>
                       </div>
                     </div>
 
@@ -803,10 +810,10 @@ export default function ProjectsManagementPage() {
                         key={project.id}
                         className="hover:bg-gray-50/50 transition-colors duration-150"
                       >
-                        <td>
+                        <td className="align-baseline">
                           <span className="text-[13px] text-gray-500">{index + 1}</span>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <button 
                             className="text-[13px] text-gray-900 hover:text-[#4E49E7] text-left font-bold"
                             onClick={() => handleProjectDetail(project)}
@@ -814,15 +821,15 @@ export default function ProjectsManagementPage() {
                             {project.name}
                           </button>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <span className="text-[13px] text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis">{project.category}</span>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <span className="inline-flex items-center text-[12px] font-medium text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
                             {project.status || '-'}
                           </span>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <div className="text-[13px] text-gray-900 flex flex-col gap-1">
                             {project.manpower?.['BD(BM)']?.map((worker, i) => (
                               <button 
@@ -839,7 +846,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <div className="text-[13px] text-gray-900 flex flex-col gap-1">
                             {project.manpower?.['PM(PL)']?.map((worker, i) => (
                               <button 
@@ -856,7 +863,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px] ">
                             {project.manpower?.['기획']?.map((worker, i) => (
                               <button 
@@ -873,7 +880,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['디자이너']?.map((worker, i) => (
                               <button 
@@ -890,7 +897,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-baseline">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[200px] sm:max-w-[250px] md:max-w-[300px]">
                             {project.manpower?.['퍼블리셔']?.map((worker, i) => (
                               <button 
@@ -907,7 +914,7 @@ export default function ProjectsManagementPage() {
                             )) || '-'}
                           </div>
                         </td>
-                        <td>
+                        <td className="align-baseline">
                           <div className="text-[13px] text-gray-900 flex flex-wrap gap-1 max-w-[150px] sm:max-w-[180px] md:max-w-[200px]">
                             {project.manpower?.['개발']?.map((worker, i) => (
                               <button 

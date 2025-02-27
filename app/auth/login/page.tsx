@@ -145,30 +145,17 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="mt-6 sm:mt-8 relative z-30">
-            <div className="flex items-center justify-center space-x-4">
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <Image 
-                  src="/images/google-icon.png" 
-                  alt="Google 로그인" 
-                  width={24} 
-                  height={24}
-                  className="w-6 h-6"
-                />
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <Image 
-                  src="/images/naver-icon.png" 
-                  alt="네이버 로그인" 
-                  width={24} 
-                  height={24}
-                  className="w-6 h-6"
-                />
-              </button>
-            </div>
-            <p className="mt-3 sm:mt-4 text-center text-xs text-gray-500">
-              로그인 시 eluo의 서비스 이용약관과<br />
-              개인정보 처리방침에 동의하게 됩니다.
+          <div className="mt-6 relative">
+            <p className="text-center text-xs text-gray-500 leading-relaxed">
+              로그인 시{' '}
+              <a href="#" className="text-blue-500 hover:text-blue-600 underline decoration-blue-500/30 transition-colors">
+                서비스 이용약관
+              </a>
+              과{' '}
+              <a href="#" className="text-blue-500 hover:text-blue-600 underline decoration-blue-500/30 transition-colors">
+                개인정보 처리방침
+              </a>
+              에 동의하게 됩니다.
             </p>
           </div>
         </div>
