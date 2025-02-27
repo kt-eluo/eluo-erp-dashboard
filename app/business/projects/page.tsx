@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, Fragment, useRef } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import type { ProjectStatus, ProjectManpower, ProjectCategory, ProjectMajorCategory } from '@/types/project'
@@ -9,6 +9,9 @@ import { toast } from 'react-hot-toast'
 import AddProjectSlideOver from '@/components/projects/AddProjectSlideOver'
 import { Dialog, Transition } from '@headlessui/react'
 import AddManpowerModal from '@/components/projects/AddManpowerModal'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { ko } from 'date-fns/locale'
 
 const ITEMS_PER_PAGE = 20
 
@@ -98,6 +101,214 @@ const WORKER_TYPE_COLORS = {
   '프리랜서(개인)': '#FF00BF'
 } as const;
 
+// 필터 모달 컴포넌트
+const FilterModal = ({ 
+  isOpen, 
+  onClose, 
+  onApply,
+  onReset
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  onApply: (filters: FilterValues) => void;
+  onReset: () => void;
+}) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [status, setStatus] = useState<ProjectStatus | ''>('');
+  const [majorCategory, setMajorCategory] = useState<ProjectMajorCategory | ''>('');
+  const [category, setCategory] = useState<ProjectCategory | ''>('');
+  const [workerName, setWorkerName] = useState('');
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsVisible(true);
+    } else {
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
+
+  const handleApply = () => {
+    onApply({
+      startDate,
+      endDate,
+      status,
+      majorCategory,
+      category,
+      workerName
+    });
+  };
+
+  const handleReset = () => {
+    setStartDate(null);
+    setEndDate(null);
+    setStatus('');
+    setMajorCategory('');
+    setCategory('');
+    setWorkerName('');
+    onReset();
+  };
+
+  if (!isOpen && !isVisible) return null;
+
+  return (
+    <div 
+      ref={modalRef} 
+      className={`absolute top-[calc(100%+8px)] right-0 w-[400px] bg-white rounded-lg shadow-lg border border-gray-200 p-6 z-50
+        transition-all duration-300 ease-out transform
+        ${isOpen 
+          ? 'opacity-100 translate-y-0' 
+          : 'opacity-0 -translate-y-4 pointer-events-none'
+        }
+      `}
+    >
+      {/* 프로젝트 기간 */}
+      <div className="mb-6">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-3">프로젝트 기간</h3>
+        <div className="flex items-center gap-2">
+          <DatePicker
+            selected={startDate}
+            onChange={setStartDate}
+            locale={ko}
+            dateFormat="yyyy.MM.dd"
+            placeholderText="날짜를 입력해주세요"
+            className="w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm"
+          />
+          <span className="text-gray-500">~</span>
+          <DatePicker
+            selected={endDate}
+            onChange={setEndDate}
+            locale={ko}
+            dateFormat="yyyy.MM.dd"
+            placeholderText="날짜를 입력해주세요"
+            className="w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm"
+          />
+        </div>
+      </div>
+
+      {/* 프로젝트 상태 */}
+      <div className="mb-6">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-3">프로젝트 상태</h3>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+          className="w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm"
+        >
+          <option value="">선택해주세요</option>
+          {['준비중', '진행중', '완료', '보류'].map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* 프로젝트 대분류 */}
+      <div className="mb-6">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-3">프로젝트 대분류</h3>
+        <select
+          value={majorCategory}
+          onChange={(e) => setMajorCategory(e.target.value as ProjectMajorCategory)}
+          className="w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm"
+        >
+          <option value="">선택해주세요</option>
+          {['금융', '커머스', 'AI', '기타'].map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* 프로젝트 카테고리 */}
+      <div className="mb-6">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-3">프로젝트 카테고리</h3>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as ProjectCategory)}
+          className="w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm"
+        >
+          <option value="">선택해주세요</option>
+          {['운영', '구축', '개발', '기타'].map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* 프로젝트 투입 실무자 */}
+      <div className="mb-6">
+        <h3 className="text-[14px] font-medium text-gray-900 mb-3">프로젝트 투입 실무자</h3>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={workerName}
+            onChange={(e) => setWorkerName(e.target.value)}
+            placeholder="실무자 이름을 입력하세요"
+            className="flex-1 h-[38px] px-3 border border-gray-300 rounded-md text-sm"
+          />
+          <button
+            onClick={() => handleApply()}
+            className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-700 hover:bg-gray-200"
+          >
+            검색
+          </button>
+        </div>
+      </div>
+
+      {/* 버튼 영역 */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={onClose}
+          className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+        >
+          닫기
+        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+          >
+            필터 초기화
+          </button>
+          <button
+            onClick={handleApply}
+            className="px-4 py-2 bg-[#4E49E7] text-white rounded-md text-sm hover:bg-[#3F3ABE]"
+          >
+            필터 적용하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 필터 값 타입 정의
+interface FilterValues {
+  startDate: Date | null;
+  endDate: Date | null;
+  status: ProjectStatus | '';
+  majorCategory: ProjectMajorCategory | '';
+  category: ProjectCategory | '';
+  workerName: string;
+}
+
 export default function ProjectsManagementPage() {
   const [projects, setProjects] = useState<ExtendedProject[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -123,6 +334,15 @@ export default function ProjectsManagementPage() {
   }>({ startDate: null, endDate: null })
   const router = useRouter()
   const supabase = createClientComponentClient()
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<FilterValues>({
+    startDate: null,
+    endDate: null,
+    status: '',
+    majorCategory: '',
+    category: '',
+    workerName: ''
+  });
 
   const statusTypes: ProjectStatus[] = ['준비중', '진행중', '완료', '보류']
   const categoryTypes: ProjectCategory[] = ['운영', '구축', '개발', '기타']
@@ -270,11 +490,71 @@ export default function ProjectsManagementPage() {
     }
   };
 
-  // 카테고리 변경 핸들러 추가
+  // 카테고리 변경 핸들러 수정
   const handleCategoryChange = async (category: ProjectCategory | 'all') => {
-    setIsLoading(true)  // 로딩 시작
-    setSelectedCategory(category)
-  }
+    try {
+      setIsLoading(true);
+      
+      // 필터 초기화
+      setActiveFilters({
+        startDate: null,
+        endDate: null,
+        status: '',
+        majorCategory: '',
+        category: '',
+        workerName: ''
+      });
+
+      setSelectedCategory(category);
+      
+      let query = supabase
+        .from('projects')
+        .select(`
+          *,
+          project_manpower (
+            id,
+            role,
+            workers (
+              id,
+              name,
+              job_type,
+              worker_type
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (category !== 'all') {
+        query = query.eq('category', category);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      if (data) {
+        const transformedData = data.map(project => ({
+          ...project,
+          manpower: project.project_manpower?.reduce((acc: { [key: string]: Array<{ name: string; worker_type: string }> }, mp: any) => {
+            if (mp.workers && mp.role) {
+              if (!acc[mp.role]) acc[mp.role] = [];
+              acc[mp.role].push({
+                name: mp.workers.name,
+                worker_type: mp.workers.worker_type
+              });
+            }
+            return acc;
+          }, {})
+        }));
+        setProjects(transformedData as ExtendedProject[]);
+      }
+    } catch (error: any) {
+      console.error('Error fetching projects:', error.message || error);
+      toast.error('프로젝트 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDeleteProject = async (projectId: string) => {
     try {
@@ -485,6 +765,134 @@ export default function ProjectsManagementPage() {
     }
   };
 
+  // 필터 적용 함수
+  const handleApplyFilters = async (filters: FilterValues) => {
+    try {
+      setIsLoading(true);
+      let query = supabase
+        .from('projects')
+        .select(`
+          *,
+          project_manpower (
+            id,
+            role,
+            workers (
+              id,
+              name,
+              job_type,
+              worker_type
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      // 날짜 필터
+      if (filters.startDate) {
+        query = query.gte('start_date', filters.startDate.toISOString());
+      }
+      if (filters.endDate) {
+        query = query.lte('end_date', filters.endDate.toISOString());
+      }
+
+      // 상태 필터
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+
+      // 대분류 필터
+      if (filters.majorCategory) {
+        query = query.eq('major_category', filters.majorCategory);
+      }
+
+      // 카테고리 필터
+      if (filters.category) {
+        query = query.eq('category', filters.category);
+      }
+
+      // 실무자 필터
+      if (filters.workerName) {
+        const { data: workerIds, error: workerError } = await supabase
+          .from('workers')
+          .select('id')
+          .ilike('name', `%${filters.workerName}%`);
+
+        if (workerError) throw workerError;
+
+        // 검색된 실무자가 없는 경우 빈 배열 반환
+        if (!workerIds || workerIds.length === 0) {
+          setProjects([]);
+          setActiveFilters(filters);
+          setIsFilterModalOpen(false);
+          toast.success('필터 내용이 적용되었어요.');
+          setIsLoading(false);
+          return;
+        }
+
+        const { data: projectIds, error: projectError } = await supabase
+          .from('project_manpower')
+          .select('project_id')
+          .in('worker_id', workerIds.map(w => w.id));
+
+        if (projectError) throw projectError;
+
+        // 검색된 프로젝트가 없는 경우 빈 배열 반환
+        if (!projectIds || projectIds.length === 0) {
+          setProjects([]);
+          setActiveFilters(filters);
+          setIsFilterModalOpen(false);
+          toast.success('필터 내용이 적용되었어요.');
+          setIsLoading(false);
+          return;
+        }
+
+        query = query.in('id', [...new Set(projectIds.map(p => p.project_id))]);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      if (data) {
+        const transformedData = data.map(project => ({
+          ...project,
+          manpower: project.project_manpower?.reduce((acc: { [key: string]: Array<{ name: string; worker_type: string }> }, mp: any) => {
+            if (mp.workers && mp.role) {
+              if (!acc[mp.role]) acc[mp.role] = [];
+              acc[mp.role].push({
+                name: mp.workers.name,
+                worker_type: mp.workers.worker_type
+              });
+            }
+            return acc;
+          }, {})
+        }));
+        setProjects(transformedData as ExtendedProject[]);
+      }
+
+      setActiveFilters(filters);
+      setIsFilterModalOpen(false);
+      toast.success('필터 내용이 적용되었어요.');
+    } catch (error) {
+      console.error('Error applying filters:', error);
+      toast.error('필터 적용 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 필터 초기화 함수
+  const handleResetFilters = () => {
+    setActiveFilters({
+      startDate: null,
+      endDate: null,
+      status: '',
+      majorCategory: '',
+      category: '',
+      workerName: ''
+    });
+    fetchProjects();
+  };
+
   if (isLoading) {
     return (
       <LoadingSpinner />
@@ -505,10 +913,23 @@ export default function ProjectsManagementPage() {
             </button>
             
             {/* 필터 버튼 */}
-            <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
-              <Filter className="w-4 h-4 mr-2" />
-              필터
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setIsFilterModalOpen(!isFilterModalOpen)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                필터
+              </button>
+              
+              {/* 필터 모달 */}
+              <FilterModal
+                isOpen={isFilterModalOpen}
+                onClose={() => setIsFilterModalOpen(false)}
+                onApply={handleApplyFilters}
+                onReset={handleResetFilters}
+              />
+            </div>
 
             {/* 추가 버튼 */}
             <button
@@ -692,25 +1113,28 @@ export default function ProjectsManagementPage() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex flex-row gap-2 w-[50%]">
+                      <div 
+                        className="flex flex-row gap-2 w-[50%]"
+                        onClick={(e) => e.stopPropagation()}  // 이 영역의 클릭 이벤트가 상위로 전파되지 않도록 함
+                      >
                         <button 
                           type="button" 
                           className="w-[49%] h-[44px] bg-[#FFFF01] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-black"
                           onClick={(e) => {
-                            e.stopPropagation();  // 카드 클릭 이벤트 전파 방지
                             handleManpowerClick(project);
                           }}
                         >
                           실무자 공수 관리
                         </button>
 
-                        <button 
-                          type="button" 
-                          onClick={() => window.open('https://eluo-sn-projects-six.vercel.app/', '_blank')}
-                          className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-white"
+                        <a 
+                          href="https://eluo-sn-projects-six.vercel.app/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-[49%] h-[44px] bg-[#4E49E7] rounded-[6px] font-pretendard font-semibold text-[14px] leading-[19.09px] text-white flex items-center justify-center"
                         >
                           업무 요건 등록 및 확인
-                        </button>
+                        </a>
                       </div>
                     </div>
 
