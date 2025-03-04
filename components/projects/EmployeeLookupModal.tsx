@@ -117,8 +117,11 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">
+            <h3 className="text-lg font-semibold flex items-center">
               {mode === 'all' ? '전체 인력' : '유휴 인력'}
+              <span className="ml-2 text-gray-500">
+                ({workers.length})
+              </span>
             </h3>
             <button 
               onClick={(e) => {
