@@ -22,6 +22,7 @@ import {
   Legend
 } from 'chart.js'
 import { ChartData } from 'chart.js'
+import EmployeeLookupModal from './EmployeeLookupModal'
 
 // Chart.js 컴포넌트 등록
 ChartJS.register(
@@ -269,7 +270,22 @@ export default function AddProjectSlideOver({
         }
       });
 
-      // 기존의 다른 ref 체크들...
+      // 각 ref에 대한 클릭 감지 확인
+      if (statusRef.current && !statusRef.current.contains(event.target as Node)) {
+        setIsStatusOpen(false)
+      }
+      if (majorCategoryRef.current && !majorCategoryRef.current.contains(event.target as Node)) {
+        setIsMajorCategoryOpen(false)
+      }
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setIsCategoryOpen(false)
+      }
+      if (contractTypeRef.current && !contractTypeRef.current.contains(event.target as Node)) {
+        setIsContractTypeOpen(false)
+      }
+      if (periodicUnitRef.current && !periodicUnitRef.current.contains(event.target as Node)) {
+        setIsPeriodicUnitOpen(false)
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -342,35 +358,98 @@ export default function AddProjectSlideOver({
   // 실무자 데이터 가져오기
   useEffect(() => {
     const fetchWorkers = async () => {
-      const { data, error } = await supabase
-        .from('workers')
-        .select('id, name, job_type')
-        .is('deleted_at', null)
-      
-      if (error) {
-        console.error('Error fetching workers:', error)
-        return
+      try {
+        // 1. 먼저 모든 workers 데이터를 가져옵니다
+        const { data: workersData, error: workersError } = await supabase
+          .from('workers')
+          .select('id, name, job_type')
+          .is('deleted_at', null);
+
+        if (workersError) {
+          console.error('Error fetching workers:', workersError);
+          return;
+        }
+
+        if (!workersData) {
+          console.error('No workers data found');
+          return;
+        }
+
+        // 2. 현재 프로젝트에 할당된 worker_ids를 가져옵니다
+        let assignedWorkerIds: string[] = [];
+        if (project?.id) {
+          const { data: projectManpower, error: manpowerError } = await supabase
+            .from('project_manpower')
+            .select('worker_id')
+            .eq('project_id', project.id);
+
+          if (manpowerError) {
+            console.error('Error fetching project manpower:', manpowerError);
+            return;
+          }
+
+          if (projectManpower) {
+            assignedWorkerIds = projectManpower.map(pm => pm.worker_id);
+          }
+        }
+
+        // 3. 할당되지 않은 workers만 필터링
+        const availableWorkers = workersData.filter(
+          worker => !assignedWorkerIds.includes(worker.id)
+        );
+
+        // 4. 상태 업데이트
+        setWorkers(availableWorkers.map(worker => ({
+          id: worker.id,
+          name: worker.name,
+          job_type: worker.job_type || ''
+        })));
+
+      } catch (error) {
+        console.error('Error in fetchWorkers:', error);
+        toast.error('실무자 목록을 불러오는데 실패했습니다.');
       }
-      
-      if (data) setWorkers(data)
-    }
+    };
     
-    fetchWorkers()
-  }, [])
+    fetchWorkers();
+  }, [project?.id]); // project.id가 변경될 때마다 실행
 
   // 검색어에 맞는 실무자 필터링
   const getFilteredWorkers = (jobType: string) => {
-    const searchTerm = searchTerms[jobType].toLowerCase();
+    // 검색어가 있는 경우 검색어로 필터링
+    const searchTerm = searchTerms[jobType]?.toLowerCase() || '';
     
-    // 검색어가 있을 때는 일반 검색 결과 반환
-    if (searchTerm) {
-      return workers.filter(worker => 
-        worker.name.toLowerCase().includes(searchTerm)
-      );
-    }
-    
-    // 검색 아이콘으로 열었을 때는 필터링된 목록 반환
-    return filteredWorkersList[jobType];
+    return workers.filter(worker => {
+      // 이름으로 검색 필터링
+      const nameMatch = worker.name.toLowerCase().includes(searchTerm);
+      
+      // 직무별 필터링
+      let jobTypeMatch = false;
+      switch(jobType) {
+        case 'BD(BM)':
+          // BD(BM)은 모든 job_type 허용 (기획, 디자인, 퍼블리싱, 개발, 기타)
+          jobTypeMatch = ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
+          break;
+        case 'PM(PL)':
+        case '기획':
+          // PM(PL)과 기획은 기획 job_type만 허용
+          jobTypeMatch = worker.job_type === '기획';
+          break;
+        case '디자이너':
+          jobTypeMatch = worker.job_type === '디자인';
+          break;
+        case '퍼블리셔':
+          jobTypeMatch = worker.job_type === '퍼블리싱';
+          break;
+        case '개발':
+          jobTypeMatch = worker.job_type === '개발';
+          break;
+        default:
+          jobTypeMatch = false;
+      }
+
+      return nameMatch && jobTypeMatch;
+    })
   };
 
   // 실무자 선택 핸들러 수정
@@ -1486,10 +1565,13 @@ export default function AddProjectSlideOver({
 
       data?.forEach(item => {
         if (item.role && item.project_monthly_efforts) {
-          totals[item.role] = item.project_monthly_efforts.reduce(
+          const roleEffort = item.project_monthly_efforts.reduce(
             (sum: number, effort: { mm_value: number }) => sum + (effort.mm_value || 0),
             0
           );
+          if (totals.hasOwnProperty(item.role)) {
+            totals[item.role] += roleEffort;
+          }
         }
       });
 
@@ -1497,14 +1579,18 @@ export default function AddProjectSlideOver({
     } catch (error) {
       console.error('Error fetching total efforts:', error);
     }
-  }, [project?.id]);
+  }, [project?.id, supabase]);
 
-  // 데이터 로딩
+  // useEffect 수정
   useEffect(() => {
-    if (project?.id) {
+    if (project?.id && mode === 'edit') {
       fetchTotalEfforts();
     }
-  }, [project?.id, fetchTotalEfforts]);
+  }, [project?.id, mode, fetchTotalEfforts]);
+
+  // 컴포넌트 내부에 상태 추가
+  const [showAllWorkersModal, setShowAllWorkersModal] = useState(false);
+  const [showAvailableWorkersModal, setShowAvailableWorkersModal] = useState(false);
 
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -1540,8 +1626,8 @@ export default function AddProjectSlideOver({
         className="relative z-50" 
         onClose={(event) => {
           // 모달이 열려있을 때는 Dialog의 onClose를 실행하지 않음
-          if (!showManpowerModal) {
-            onClose()
+          if (!showManpowerModal && !showAllWorkersModal && !showAvailableWorkersModal) {
+            onClose();
           }
         }}
       >
@@ -1873,7 +1959,7 @@ export default function AddProjectSlideOver({
                                           onClick={() => handleSearchIconClick(jobType)}
                                         />
                                         
-                                        {/* 검색 결과 드롭다운 */}
+                                        {/* 유효인력 검색 결과 드롭다운 */}
                                         {(searchTerms[jobType] || openDropdowns[jobType]) && (
                                           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
                                             {!searchTerms[jobType] && (  // 검색어가 없을 때만 유효인력 레이블 표시
@@ -1889,13 +1975,27 @@ export default function AddProjectSlideOver({
                                                     key={worker.id}
                                                     className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
                                                     onClick={() => {
-                                                      handleWorkerSelect(jobType, { id: worker.id, name: worker.name });
+                                                      handleWorkerSelect(jobType, { 
+                                                        id: worker.id, 
+                                                        name: worker.name,
+                                                        job_type: worker.job_type 
+                                                      });
                                                       handleCloseDropdown(jobType);
                                                     }}
                                                   >
-                                                    {worker.name}
+                                                    <span>{worker.name}</span>
+                                                    {worker.job_type && (
+                                                      <span className="ml-2 text-gray-500">({worker.job_type})</span>
+                                                    )}
                                                   </div>
                                                 ))}
+                                              {getFilteredWorkers(jobType)
+                                                .filter(worker => !selectedWorkers[jobType].some(w => w.id === worker.id))
+                                                .length === 0 && (
+                                                <div className="px-4 py-2 text-gray-500 text-[12px]">
+                                                  검색 결과가 없습니다.
+                                                </div>
+                                              )}
                                             </div>
                                           </div>
                                         )}
@@ -1920,6 +2020,24 @@ export default function AddProjectSlideOver({
                                     </div>
                                   ))}
                                 </div>
+                                {/* 버튼 추가 */}
+                                <div className="flex justify-end gap-2 mt-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAllWorkersModal(true)}
+                                    className="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                                  >
+                                    전체 인력 확인
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAvailableWorkersModal(true)}
+                                    className="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                                  >
+                                    유효 인력 확인
+                                  </button>
+                                </div>
+
                               </div>
 
                               {/* 직무별 전체 투입 인원 섹션 */}
@@ -2571,6 +2689,17 @@ export default function AddProjectSlideOver({
         </div>
       </Dialog>
 
+      {/* 모달 컴포넌트 추가 */}
+      <EmployeeLookupModal
+        isOpen={showAllWorkersModal}
+        onClose={() => setShowAllWorkersModal(false)}
+        mode="all"
+      />
+      <EmployeeLookupModal
+        isOpen={showAvailableWorkersModal}
+        onClose={() => setShowAvailableWorkersModal(false)}
+        mode="available"
+      />
 
     </Transition.Root>
   )
