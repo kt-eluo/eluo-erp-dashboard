@@ -183,7 +183,7 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
                             ? 'bg-[#1D89EA] text-white'
                             : 'bg-[#FF00BF] text-white'
                     }`}>
-                      {mode === 'available' ? '미투입' : worker.worker_type}
+                      {mode === 'available' ? '' : worker.worker_type}
                     </span>
                   )}
                 </div>

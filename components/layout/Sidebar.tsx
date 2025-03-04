@@ -82,7 +82,7 @@ export default function Sidebar({
           <nav className="flex-1 space-y-1 min-h-0">
             {[
               { href: '/dashboard', icon: Home, label: '대시보드' },
-              { href: '/business/resources', icon: FileText, label: '리소스 관리' },
+              // { href: '/business/resources', icon: FileText, label: '리소스 관리' },
               { href: '/business/projects', icon: Calendar, label: '프로젝트 관리' },
               { href: '/business/workers', icon: Users, label: '실무자 관리' },
             ].map(({ href, icon: Icon, label }) => (
