@@ -456,10 +456,28 @@ export default function AddProjectSlideOver({
     // 검색어가 있는 경우 검색어로 필터링
     const searchTerm = searchTerms[jobType]?.toLowerCase() || '';
     
-    return workers.filter(worker => {
-      // 이름으로만 검색 필터링
-      return worker.name.toLowerCase().includes(searchTerm);
-    });
+    return filteredWorkersList[jobType]
+      // 1. 이름으로 검색 필터링
+      .filter(worker => worker.name.toLowerCase().includes(searchTerm))
+      // 2. 직무별 필터링
+      .filter(worker => {
+        switch(jobType) {
+          case 'BD(BM)':
+            return ['BD', 'BM'].includes(worker.grade || '');
+          case 'PM(PL)': 
+            return ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
+          case '기획':
+            return worker.job_type === '기획';
+          case '디자이너':
+            return worker.job_type === '디자인';
+          case '퍼블리셔':
+            return worker.job_type === '퍼블리싱';
+          case '개발':
+            return worker.job_type === '개발';
+          default:
+            return false;
+        }
+      });
   };
 
   // 실무자 선택 핸들러 수정
@@ -1147,13 +1165,16 @@ export default function AddProjectSlideOver({
       const isCurrentlyOpen = openDropdowns[jobType];
 
       if (!isCurrentlyOpen) {
-        // 드롭다운이 닫혀있을 때만 데이터 fetch
+        // 1. 모든 프로젝트의 project_manpower에서 worker_id 가져오기
         const { data: activeWorkers } = await supabase
           .from('project_manpower')
           .select('worker_id')
           .not('worker_id', 'is', null);
 
+        // 2. 현재 어떤 프로젝트에든 투입된 worker_id 목록 생성
         const activeWorkerIds = new Set(activeWorkers?.map(w => w.worker_id) || []);
+        
+        // 3. 투입되지 않은 인력만 필터링
         const availableWorkers = workers.filter(worker => !activeWorkerIds.has(worker.id));
         
         setFilteredWorkersList(prev => ({
