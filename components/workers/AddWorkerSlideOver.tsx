@@ -1259,7 +1259,7 @@ export default function AddWorkerSlideOver({
                               {/* 이번달 투입 합계 */}
                               <div className="text-[14px] text-gray-500 mb-2">총 투입</div>
                               <div className={`text-[24px] font-bold ${isOverloaded ? 'text-[#FF6B6B]' : 'text-[#4E49E7]'}`}>
-                                {Number(currentMonthEffort.toFixed(10)).toString()}
+                                {Number(currentMonthEffort.toFixed(3)).toString().replace(/\.?0+$/, '')}
                                 <span className="text-[14px] font-normal ml-1">M/M</span>
                               </div>
                             </div>

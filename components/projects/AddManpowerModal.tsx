@@ -36,12 +36,11 @@ interface AddManpowerModalProps {
 }
 
 interface WorkerEffortData {
-  grade?: Grade | null;           // null 허용
-  position?: Position | null;     // null 허용
-  unitPrice?: number | null;      // null 허용
-  monthlyEfforts: {
-    [key: string]: number | null; // null 허용
-  };
+  grade?: Grade | null;
+  position?: Position | null;
+  unitPrice?: number | null;
+  monthlyEfforts: { [key: string]: number | null };
+  total_mm_value: number;
 }
 
 // 컴포넌트 상단에 현재 날짜 관련 상수 추가
@@ -78,9 +77,7 @@ export default function AddManpowerModal({
   const [selectedTab] = useState<Role>('all')
   
   // state 키 형식 변경: `${workerId}-${role}`
-  const [workersEffort, setWorkersEffort] = useState<{
-    [workerIdWithRole: string]: WorkerEffortData;
-  }>({})
+  const [workersEffort, setWorkersEffort] = useState<{ [key: string]: WorkerEffortData }>({})
 
   // 수정 모드 상태 추가
   const [isEditMode, setIsEditMode] = useState(false)
@@ -155,10 +152,8 @@ export default function AddManpowerModal({
           });
 
           newWorkersEffort[key] = {
-            grade: mp.grade,
-            position: mp.position,
-            unitPrice: mp.unit_price,
-            monthlyEfforts
+            monthlyEfforts,
+            total_mm_value: calculateTotalMMValue(monthlyEfforts)
           };
         });
 
@@ -257,7 +252,7 @@ export default function AddManpowerModal({
         updatedWorkers[role] = updatedWorkers[role].map(worker => ({
           ...worker,
           monthlyEfforts: workersEffort[`${worker.id}-${role}`]?.monthlyEfforts || {},
-          total_mm_value: calculateTotalEffort(worker.id, role)
+          total_mm_value: calculateTotalMMValue(workersEffort[`${worker.id}-${role}`]?.monthlyEfforts || {})
         }));
       });
 
@@ -308,41 +303,74 @@ export default function AddManpowerModal({
 
   // 월별 공수 데이터 처리 함수 수정
   const handleWorkerEffortChange = (workerId: string, role: string, monthKey: string, value: string) => {
-    // 소수점 10자리까지 허용하도록 수정
-    const numericValue = value === '' ? null : Number(parseFloat(value).toFixed(10));
-    
-    setWorkersEffort(prev => {
-      const workerKey = `${workerId}-${role}`;
-      const currentEffort = prev[workerKey] || {};
-      const currentMonthlyEfforts = currentEffort.monthlyEfforts || {};
+    const inputKey = `${workerId}-${role}-${monthKey}`;
+    const workerKey = `${workerId}-${role}`;
 
-      const newWorkersEffort = {
-        ...prev,
-        [workerKey]: {
-          ...currentEffort,
-          monthlyEfforts: {
-            ...currentMonthlyEfforts,
-            [monthKey]: numericValue
+    // 빈 문자열 처리
+    if (value === '') {
+      setTempInputs(prev => ({ ...prev, [inputKey]: '' }));
+      setWorkersEffort(prev => {
+        const currentEffort = prev[workerKey] || { 
+          monthlyEfforts: {}, 
+          total_mm_value: 0,
+          grade: null,
+          position: null,
+          unitPrice: null
+        };
+        const currentMonthlyEfforts = { ...currentEffort.monthlyEfforts };
+        currentMonthlyEfforts[monthKey] = null;
+
+        return {
+          ...prev,
+          [workerKey]: {
+            ...currentEffort,
+            monthlyEfforts: currentMonthlyEfforts,
+            total_mm_value: calculateTotalMMValue(currentMonthlyEfforts)
           }
-        }
-      };
-
-      // 상태 업데이트 후 즉시 부모에게 알림
-      const updatedWorkers = {...selectedWorkers};
-      updatedWorkers[role] = updatedWorkers[role].map(w => {
-        if (w.id === workerId) {
-          return {
-            ...w,
-            monthlyEfforts: newWorkersEffort[workerKey]?.monthlyEfforts || {},
-            total_mm_value: calculateTotalMM(newWorkersEffort[workerKey]?.monthlyEfforts || {})
-          };
-        }
-        return w;
+        };
       });
-      onManpowerUpdate?.(updatedWorkers);
+      return;
+    }
 
-      return newWorkersEffort;
-    });
+    // 유효한 입력값 검사 (소수점 또는 숫자만 허용)
+    if (!/^[0-9.]*$/.test(value)) {
+      return;
+    }
+
+    // 소수점이 하나만 있는지 확인
+    if ((value.match(/\./g) || []).length > 1) {
+      return;
+    }
+
+    // 임시 입력값 업데이트
+    setTempInputs(prev => ({ ...prev, [inputKey]: value }));
+
+    // 유효한 숫자인 경우에만 실제 상태 업데이트
+    if (value !== '.') {
+      const numericValue = parseFloat(value);
+      if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 1) {
+        setWorkersEffort(prev => {
+          const currentEffort = prev[workerKey] || { 
+            monthlyEfforts: {}, 
+            total_mm_value: 0,
+            grade: null,
+            position: null,
+            unitPrice: null
+          };
+          const currentMonthlyEfforts = { ...currentEffort.monthlyEfforts };
+          currentMonthlyEfforts[monthKey] = numericValue;
+
+          return {
+            ...prev,
+            [workerKey]: {
+              ...currentEffort,
+              monthlyEfforts: currentMonthlyEfforts,
+              total_mm_value: calculateTotalMMValue(currentMonthlyEfforts)
+            }
+          };
+        });
+      }
+    }
   };
 
   // 부모 컴포넌트 상태 업데이트를 위한 useEffect 제거 (불필요)
@@ -405,9 +433,10 @@ export default function AddManpowerModal({
   };
 
   // 공수 계산 로직 수정
-  const calculateTotalMM = (monthlyEfforts: Record<string, number | null>): number => {
-    return Object.values(monthlyEfforts)
-      .reduce((sum: number, val: number | null) => sum + (Number(val) || 0), 0);
+  const calculateTotalMMValue = (monthlyEfforts: { [key: string]: number | null }): number => {
+    return Object.values(monthlyEfforts).reduce((acc: number, curr: number | null) => {
+      return acc + (curr ?? 0);
+    }, 0);
   };
 
   // 수정 완료 핸들러
@@ -430,6 +459,8 @@ export default function AddManpowerModal({
       return total + calculateTotalCost(worker.id, role);
     }, 0) || 0;
   };
+
+  const [tempInputs, setTempInputs] = useState<{[key: string]: string}>({});
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[999999] pointer-events-auto">
@@ -533,7 +564,7 @@ export default function AddManpowerModal({
                                   type="text"
                                   value={workerData.unitPrice?.toLocaleString() || ''}
                                   onChange={(e) => handleUnitPriceChange(worker.id, role, e.target.value)}
-                                  className="w-[120px] h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  className="w-[160px] h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                                   placeholder="단가 입력"
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
@@ -546,14 +577,11 @@ export default function AddManpowerModal({
                             <td key={monthKey} className="px-2 py-2 text-center text-sm text-gray-900 whitespace-nowrap">
                               {isEditMode ? (
                                 <input
-                                  type="number"
-                                  step="0.0000000001"
-                                  min="0"
-                                  max="1"
-                                  value={workerData.monthlyEfforts?.[monthKey] || ''}
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
                                   onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
-                                  className="w-[60px] h-[38px] px-1 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                                  placeholder="0.0"
+                                  className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                                 />
                               ) : (
                                 <span>{workerData.monthlyEfforts?.[monthKey] || '-'}</span>
@@ -576,7 +604,7 @@ export default function AddManpowerModal({
                 <div key={role} className="flex-1 bg-white rounded-lg p-2">
                   <div className="text-center">
                     <div className="text-[28px] font-bold mb-1">
-                      {Number(calculateRoleTotalEffort(role).toFixed(10)).toString()}
+                      {Number(calculateRoleTotalEffort(role).toFixed(3)).toString()}
                     </div>
                     <div className="text-sm text-gray-600 mb-2">
                       {calculateRoleTotalCost(role).toLocaleString()}

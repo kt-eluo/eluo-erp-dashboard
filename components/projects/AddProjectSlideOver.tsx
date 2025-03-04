@@ -2586,7 +2586,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
+                                            {Number(worker.total_mm_value?.toFixed(3)).toString().replace(/\.?0+$/, '')}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2611,7 +2611,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
+                                            {Number(worker.total_mm_value?.toFixed(3)).toString().replace(/\.?0+$/, '')}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2636,7 +2636,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
+                                            {Number(worker.total_mm_value?.toFixed(3)).toString().replace(/\.?0+$/, '')}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2661,7 +2661,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
+                                            {Number(worker.total_mm_value?.toFixed(3)).toString().replace(/\.?0+$/, '')}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2686,7 +2686,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
+                                            {Number(worker.total_mm_value?.toFixed(3)).toString().replace(/\.?0+$/, '')}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
