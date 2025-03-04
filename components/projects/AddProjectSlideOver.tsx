@@ -77,7 +77,8 @@ interface Worker {
   id: string
   name: string
   job_type: string
-  total_mm_value?: number // 총 공수 값 추가
+  grade?: string
+  total_mm_value?: number
 }
 
 interface SelectedWorkers {
@@ -359,11 +360,27 @@ export default function AddProjectSlideOver({
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        // 1. 먼저 모든 workers 데이터를 가져옵니다
+        // 1. 먼저 모든 projects 데이터의 id를 가져옵니다
+        const { data: projectsData } = await supabase
+          .from('projects')
+          .select('id');
+
+        const projectIds = projectsData?.map(p => p.id) || [];
+
+        // 2. project_manpower 테이블에서 사용 중인 worker_ids를 가져옵니다
+        const { data: usedWorkers } = await supabase
+          .from('project_manpower')
+          .select('worker_id')
+          .in('project_id', projectIds);
+
+        const usedWorkerIds = new Set(usedWorkers?.map(w => w.worker_id) || []);
+
+        // 3. workers 테이블에서 사용되지 않은 worker 데이터를 가져옵니다 (grade 포함)
         const { data: workersData, error: workersError } = await supabase
           .from('workers')
-          .select('id, name, job_type')
-          .is('deleted_at', null);
+          .select('id, name, job_type, grade')
+          .is('deleted_at', null)
+          .not('id', 'in', `(${Array.from(usedWorkerIds).join(',')})`);
 
         if (workersError) {
           console.error('Error fetching workers:', workersError);
@@ -375,34 +392,12 @@ export default function AddProjectSlideOver({
           return;
         }
 
-        // 2. 현재 프로젝트에 할당된 worker_ids를 가져옵니다
-        let assignedWorkerIds: string[] = [];
-        if (project?.id) {
-          const { data: projectManpower, error: manpowerError } = await supabase
-            .from('project_manpower')
-            .select('worker_id')
-            .eq('project_id', project.id);
-
-          if (manpowerError) {
-            console.error('Error fetching project manpower:', manpowerError);
-            return;
-          }
-
-          if (projectManpower) {
-            assignedWorkerIds = projectManpower.map(pm => pm.worker_id);
-          }
-        }
-
-        // 3. 할당되지 않은 workers만 필터링
-        const availableWorkers = workersData.filter(
-          worker => !assignedWorkerIds.includes(worker.id)
-        );
-
         // 4. 상태 업데이트
-        setWorkers(availableWorkers.map(worker => ({
+        setWorkers(workersData.map(worker => ({
           id: worker.id,
           name: worker.name,
-          job_type: worker.job_type || ''
+          job_type: worker.job_type || '',
+          grade: worker.grade || ''
         })));
 
       } catch (error) {
@@ -427,14 +422,13 @@ export default function AddProjectSlideOver({
       let jobTypeMatch = false;
       switch(jobType) {
         case 'BD(BM)':
-          jobTypeMatch = ['BD', 'BM'].includes(worker.job_type);
+          jobTypeMatch = ['BD', 'BM'].includes(worker.grade || '');
           break;
         case 'PM(PL)': 
-        // BD(BM)은 모든 job_type 허용 (기획, 디자인, 퍼블리싱, 개발, 기타)
-        jobTypeMatch = ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
-        break;
+          // PM(PL)은 모든 job_type 허용 (기획, 디자인, 퍼블리싱, 개발, 기타)
+          jobTypeMatch = ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
+          break;
         case '기획':
-          // PM(PL)과 기획은 기획 job_type만 허용
           jobTypeMatch = worker.job_type === '기획';
           break;
         case '디자이너':
@@ -2023,22 +2017,24 @@ export default function AddProjectSlideOver({
                                       </div>
 
                                       {/* 직무별 실무자 이름 표시 영역 */}
-                                      <div className="flex-1 min-h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] bg-white overflow-x-auto whitespace-nowrap">
-                                        {selectedWorkers[jobType].map((worker) => (
-                                          <div
-                                            key={worker.id}
-                                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm mr-2 my-1"
-                                          >
-                                            <span>{worker.name}</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleRemoveWorker(jobType, worker.id)}
-                                              className="ml-1 p-0.5 hover:bg-gray-200 rounded-full transition-colors"
+                                      <div className="flex-1 min-h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] bg-white overflow-x-auto whitespace-nowrap no-scrollbar">
+                                        <div className="flex items-center gap-2 py-1">
+                                          {selectedWorkers[jobType].map((worker) => (
+                                            <div
+                                              key={worker.id}
+                                              className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm flex-shrink-0"
                                             >
-                                              <X className="w-3 h-3 text-gray-500" />
-                                            </button>
-                                          </div>
-                                        ))}
+                                              <span>{worker.name}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveWorker(jobType, worker.id)}
+                                                className="ml-1 p-0.5 hover:bg-gray-200 rounded-full transition-colors"
+                                              >
+                                                <X className="w-3 h-3 text-gray-500" />
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
                                     </div>
                                   ))}

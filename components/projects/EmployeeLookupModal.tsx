@@ -47,7 +47,7 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
     }
   };
 
-  // 유효 인력 조회 함수
+  // 유휴 인력 조회 함수
   const fetchAvailableWorkers = async () => {
     try {
       // 1. 전체 workers 조회
@@ -86,7 +86,7 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
       setWorkers(availableWorkers);
     } catch (error) {
       console.error('Error fetching available workers:', error);
-      toast.error('유효 인력 정보를 불러오는데 실패했습니다.');
+      toast.error('유휴 인력 정보를 불러오는데 실패했습니다.');
     }
   };
 
@@ -113,12 +113,12 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
           }} 
         />
         <div 
-          className="relative bg-white rounded-lg w-full max-w-xl p-6"
+          className="relative bg-white rounded-lg w-[150px] h-[150px] p-6"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">
-              {mode === 'all' ? '전체 인력' : '유효 인력'}
+              {mode === 'all' ? '전체 인력' : '유휴 인력'}
             </h3>
             <button 
               onClick={(e) => {
