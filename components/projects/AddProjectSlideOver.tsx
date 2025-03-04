@@ -453,31 +453,37 @@ export default function AddProjectSlideOver({
 
   // 검색어에 맞는 실무자 필터링
   const getFilteredWorkers = (jobType: string) => {
-    // 검색어가 있는 경우 검색어로 필터링
     const searchTerm = searchTerms[jobType]?.toLowerCase() || '';
     
-    return filteredWorkersList[jobType]
-      // 1. 이름으로 검색 필터링
-      .filter(worker => worker.name.toLowerCase().includes(searchTerm))
-      // 2. 직무별 필터링
-      .filter(worker => {
-        switch(jobType) {
-          case 'BD(BM)':
-            return ['BD', 'BM'].includes(worker.grade || '');
-          case 'PM(PL)': 
-            return ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
-          case '기획':
-            return worker.job_type === '기획';
-          case '디자이너':
-            return worker.job_type === '디자인';
-          case '퍼블리셔':
-            return worker.job_type === '퍼블리싱';
-          case '개발':
-            return worker.job_type === '개발';
-          default:
-            return false;
-        }
-      });
+    // 1. 이름 검색 모드일 때 (searchTerm이 있을 때)
+    if (searchTerm) {
+      // 전체 workers 배열에서 이름으로만 검색 (직무 무관)
+      return workers.filter(worker => 
+        worker.name.toLowerCase().includes(searchTerm)
+      );
+    }
+    
+    // 2. 유휴인력 모드일 때 (searchTerm이 없고 드롭다운이 열려있을 때)
+    // filteredWorkersList에는 이미 전체 프로젝트 기준으로 필터링된 유휴인력만 포함되어 있음
+    return filteredWorkersList[jobType].filter(worker => {
+      // 직무별 필터링
+      switch(jobType) {
+        case 'BD(BM)':
+          return ['BD', 'BM'].includes(worker.grade || '');
+        case 'PM(PL)': 
+          return ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
+        case '기획':
+          return worker.job_type === '기획';
+        case '디자이너':
+          return worker.job_type === '디자인';
+        case '퍼블리셔':
+          return worker.job_type === '퍼블리싱';
+        case '개발':
+          return worker.job_type === '개발';
+        default:
+          return false;
+      }
+    });
   };
 
   // 실무자 선택 핸들러 수정
