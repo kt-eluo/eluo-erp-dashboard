@@ -461,6 +461,7 @@ export default function AddManpowerModal({
   };
 
   const [tempInputs, setTempInputs] = useState<{[key: string]: string}>({});
+  const [copyEffortFlags, setCopyEffortFlags] = useState<{[key: string]: boolean}>({});
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[999999] pointer-events-auto">
@@ -573,16 +574,68 @@ export default function AddManpowerModal({
                               <span>{workerData.unitPrice?.toLocaleString() || '-'} 원</span>
                             )}
                           </td>
-                          {startDate && endDate && getMonths().map((monthKey) => (
+                          {startDate && endDate && getMonths().map((monthKey, index) => (
                             <td key={monthKey} className="px-2 py-2 text-center text-sm text-gray-900 whitespace-nowrap">
                               {isEditMode ? (
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
-                                  onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
-                                  className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                                />
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
+                                    onChange={(e) => {
+                                      handleWorkerEffortChange(worker.id, role, monthKey, e.target.value);
+                                      // 첫 번째 월의 공수가 변경되고 체크박스가 체크된 경우, 모든 월에 적용
+                                      if (index === 0 && copyEffortFlags[`${worker.id}-${role}`]) {
+                                        const months = getMonths();
+                                        months.forEach((month) => {
+                                          if (month !== monthKey) {
+                                            handleWorkerEffortChange(worker.id, role, month, e.target.value);
+                                          }
+                                        });
+                                      }
+                                    }}
+                                    className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  />
+                                  {index === 0 && (
+                                    <input
+                                      type="checkbox"
+                                      checked={copyEffortFlags[`${worker.id}-${role}`] || false}
+                                      onChange={(e) => {
+                                        const isChecked = e.target.checked;
+                                        setCopyEffortFlags(prev => ({
+                                          ...prev,
+                                          [`${worker.id}-${role}`]: isChecked
+                                        }));
+                                        
+                                        const months = getMonths();
+                                        if (isChecked) {
+                                          // 체크 시 첫 월의 공수값을 모든 월에 적용
+                                          const firstMonthValue = tempInputs[`${worker.id}-${role}-${monthKey}`] ?? 
+                                            (workerData.monthlyEfforts?.[monthKey]?.toString() || '');
+                                          if (firstMonthValue) {
+                                            months.forEach((month) => {
+                                              if (month !== monthKey) {
+                                                handleWorkerEffortChange(worker.id, role, month, firstMonthValue);
+                                              }
+                                            });
+                                          }
+                                        } else {
+                                          // 체크 해제 시 첫 월을 제외한 모든 월의 공수값을 초기화
+                                          months.forEach((month) => {
+                                            if (month !== monthKey) {
+                                              handleWorkerEffortChange(worker.id, role, month, '');
+                                              setTempInputs(prev => ({
+                                                ...prev,
+                                                [`${worker.id}-${role}-${month}`]: ''
+                                              }));
+                                            }
+                                          });
+                                        }
+                                      }}
+                                      className="w-4 h-4 text-[#4E49E7] rounded border-gray-300 focus:ring-[#4E49E7]"
+                                    />
+                                  )}
+                                </div>
                               ) : (
                                 <span>{workerData.monthlyEfforts?.[monthKey] || '-'}</span>
                               )}
