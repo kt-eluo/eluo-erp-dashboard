@@ -1973,7 +1973,7 @@ export default function AddProjectSlideOver({
                                                 .map(worker => (
                                                   <div
                                                     key={worker.id}
-                                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
+                                                    className="px-2 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
                                                     onClick={() => {
                                                       handleWorkerSelect(jobType, { 
                                                         id: worker.id, 
