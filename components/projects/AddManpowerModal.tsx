@@ -308,7 +308,8 @@ export default function AddManpowerModal({
 
   // 월별 공수 데이터 처리 함수 수정
   const handleWorkerEffortChange = (workerId: string, role: string, monthKey: string, value: string) => {
-    const numericValue = value === '' ? null : Number(value);
+    // 소수점 10자리까지 허용하도록 수정
+    const numericValue = value === '' ? null : Number(parseFloat(value).toFixed(10));
     
     setWorkersEffort(prev => {
       const workerKey = `${workerId}-${role}`;
@@ -546,10 +547,13 @@ export default function AddManpowerModal({
                               {isEditMode ? (
                                 <input
                                   type="number"
-                                  step="0.1"
+                                  step="0.0000000001"
+                                  min="0"
+                                  max="1"
                                   value={workerData.monthlyEfforts?.[monthKey] || ''}
                                   onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
-                                  className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  className="w-[60px] h-[38px] px-1 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  placeholder="0.0"
                                 />
                               ) : (
                                 <span>{workerData.monthlyEfforts?.[monthKey] || '-'}</span>

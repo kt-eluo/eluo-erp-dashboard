@@ -9,7 +9,7 @@ interface Worker {
   id: string;
   name: string;
   job_type: string;
-  worker_type: '협력사임직원' | '프리랜서(기업)' | '프리랜서(개인)';
+  worker_type: '임직원' | '협력사임직원' | '프리랜서(기업)' | '프리랜서(개인)';
   grade?: string;  // 직무 등급
   level?: string;  // 기술 등급
 }
@@ -177,11 +177,15 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
                     <span className={`text-sm px-2 py-1 rounded ${
                       mode === 'available'
                         ? 'bg-green-100 text-green-800'
-                        : worker.worker_type === '협력사임직원'
-                          ? 'bg-[#3DAF07] text-white'
-                          : worker.worker_type === '프리랜서(기업)'
-                            ? 'bg-[#1D89EA] text-white'
-                            : 'bg-[#FF00BF] text-white'
+                        : worker.worker_type === '임직원'
+                          ? 'bg-[#FF6B6B] text-white'
+                          : worker.worker_type === '협력사임직원'
+                            ? 'bg-[#3DAF07] text-white'
+                            : worker.worker_type === '프리랜서(기업)'
+                              ? 'bg-[#1D89EA] text-white'
+                              : worker.worker_type === '프리랜서(개인)'
+                                ? 'bg-[#FF00BF] text-white'
+                                : ''
                     }`}>
                       {mode === 'available' ? '' : worker.worker_type}
                     </span>
