@@ -567,7 +567,7 @@ export default function AddManpowerModal({
                                   className="w-[160px] h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                                   placeholder="단가 입력"
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
+                                <span className="absolute left-[170px] top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
                               </div>
                             ) : (
                               <span>{workerData.unitPrice?.toLocaleString() || '-'} 원</span>

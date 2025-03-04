@@ -44,10 +44,68 @@ interface AddProjectSlideOverProps {
   openManpowerModal?: boolean
 }
 
-// 스타일 추가
+// 스타일 추가 부분 수정
 const datePickerWrapperStyles = `
   .react-datepicker-wrapper {
     width: 100%;
+  }
+  .react-datepicker {
+    font-family: 'Pretendard', sans-serif;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  .react-datepicker__header {
+    background-color: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    border-radius: 0.5rem 0.5rem 0 0;
+    padding-top: 0.5rem;
+  }
+  .react-datepicker__current-month {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+  }
+  .react-datepicker__day-name {
+    color: #6b7280;
+    font-weight: 500;
+  }
+  .react-datepicker__day {
+    color: #374151;
+    border-radius: 0.375rem;
+  }
+  .react-datepicker__day:hover {
+    background-color: #f3f4f6;
+  }
+  .react-datepicker__day--selected {
+    background-color: #4E49E7 !important;
+    color: white !important;
+  }
+  .react-datepicker__day--keyboard-selected {
+    background-color: #4E49E7 !important;
+    color: white !important;
+  }
+  .react-datepicker__navigation {
+    top: 0.75rem;
+  }
+  .react-datepicker__navigation-icon::before {
+    border-color: #6b7280;
+  }
+  .react-datepicker__year-dropdown,
+  .react-datepicker__month-dropdown {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  .react-datepicker__year-option:hover,
+  .react-datepicker__month-option:hover {
+    background-color: #f3f4f6;
+  }
+  .react-datepicker__year-option--selected,
+  .react-datepicker__month-option--selected {
+    background-color: #4E49E7 !important;
+    color: white !important;
   }
 `
 
@@ -1450,10 +1508,58 @@ export default function AddProjectSlideOver({
     }
   }, [isOpen, project?.id, fetchCurrentMonthEfforts]);
 
-  // AddManpowerModal에서 데이터 업데이트 시 호출될 핸들러
+  // 기존 fetchTotalEfforts 함수 유지
+  const fetchTotalEfforts = useCallback(async () => {
+    if (!project?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('project_manpower')
+        .select(`
+          role,
+          project_monthly_efforts (
+            mm_value
+          )
+        `)
+        .eq('project_id', project.id);
+
+      if (error) throw error;
+
+      const totals = {
+        'PM(PL)': 0,
+        '기획': 0,
+        '디자이너': 0,
+        '퍼블리셔': 0,
+        '개발': 0
+      };
+
+      data?.forEach(item => {
+        if (item.role && item.project_monthly_efforts) {
+          const roleEffort = item.project_monthly_efforts.reduce(
+            (sum: number, effort: { mm_value: number }) => sum + (effort.mm_value || 0),
+            0
+          );
+          if (totals.hasOwnProperty(item.role)) {
+            totals[item.role] += roleEffort;
+          }
+        }
+      });
+
+      setTotalEfforts(totals);
+    } catch (error) {
+      console.error('Error fetching total efforts:', error);
+    }
+  }, [project?.id, supabase]);
+
+  // handleManpowerModalUpdate 함수를 fetchTotalEfforts 함수 이후로 이동
   const handleManpowerModalUpdate = useCallback(async () => {
-    await fetchCurrentMonthEfforts();
-  }, [fetchCurrentMonthEfforts]);
+    try {
+      await fetchCurrentMonthEfforts();
+      await fetchTotalEfforts();
+    } catch (err: unknown) {
+      console.error('Error updating manpower data:', err);
+    }
+  }, [fetchCurrentMonthEfforts, fetchTotalEfforts]);
 
   // selectedWorkers가 변경될 때마다 그래프 데이터 업데이트
   useEffect(() => {
@@ -1552,49 +1658,6 @@ export default function AddProjectSlideOver({
     '퍼블리셔': 0,
     '개발': 0
   });
-
-  // 전체 공수 데이터 가져오기
-  const fetchTotalEfforts = useCallback(async () => {
-    if (!project?.id) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('project_manpower')
-        .select(`
-          role,
-          project_monthly_efforts (
-            mm_value
-          )
-        `)
-        .eq('project_id', project.id);
-
-      if (error) throw error;
-
-      const totals = {
-        'PM(PL)': 0,
-        '기획': 0,
-        '디자이너': 0,
-        '퍼블리셔': 0,
-        '개발': 0
-      };
-
-      data?.forEach(item => {
-        if (item.role && item.project_monthly_efforts) {
-          const roleEffort = item.project_monthly_efforts.reduce(
-            (sum: number, effort: { mm_value: number }) => sum + (effort.mm_value || 0),
-            0
-          );
-          if (totals.hasOwnProperty(item.role)) {
-            totals[item.role] += roleEffort;
-          }
-        }
-      });
-
-      setTotalEfforts(totals);
-    } catch (error) {
-      console.error('Error fetching total efforts:', error);
-    }
-  }, [project?.id, supabase]);
 
   // useEffect 수정
   useEffect(() => {
