@@ -2207,20 +2207,33 @@ export default function AddProjectSlideOver({
                                 계약 정보
                               </div>
 
+
+
                               <div className="space-y-8">
                                 {/* 계약 유형 */}
                                 <div className="relative" ref={contractTypeRef}>
-                                  <button
-                                    type="button"
-                                    onClick={() => openDropdown(setIsContractTypeOpen)}
-                                    className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
-                                  >
-                                    <span className="text-gray-400 font-bold text-gray-500">
-                                      {contractType === '회차 정산형' ? '회차 정산형' : '정기 결제형'}
-                                    </span>
-                                    <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isContractTypeOpen ? 'rotate-180' : ''}`} />
-                                  </button>
-                                  
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      type="button"
+                                      onClick={() => openDropdown(setIsContractTypeOpen)}
+                                      className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
+                                    >
+                                      <span className="text-gray-400 font-bold text-gray-500">
+                                        {contractType === '회차 정산형' ? '회차 정산형' : '정기 결제형'}
+                                      </span>
+                                      <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isContractTypeOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    <div className="ml-4 flex items-center gap-1.5 flex-shrink-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isVatIncluded}
+                                        onChange={(e) => setIsVatIncluded(e.target.checked)}
+                                        className="rounded border-gray-300 text-[#4E49E7] focus:ring-0 w-4 h-4"
+                                      />
+                                      <span className="text-[13px] text-gray-500 whitespace-nowrap">VAT 포함</span>
+                                    </div>
+                                  </div>
+
                                   {isContractTypeOpen && (
                                     <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
                                       <button
@@ -2266,15 +2279,6 @@ export default function AddProjectSlideOver({
                                           placeholder="계약 금액"
                                         />
                                         <span className="text-gray-400 ml-2 flex-shrink-0">원</span>
-                                        <div className="ml-4 flex items-center gap-1.5 flex-shrink-0">
-                                          <input
-                                            type="checkbox"
-                                            checked={isVatIncluded}
-                                            onChange={(e) => setIsVatIncluded(e.target.checked)}
-                                            className="rounded border-gray-300 text-[#4E49E7] focus:ring-0 w-4 h-4"
-                                          />
-                                          <span className="text-[13px] text-gray-500 whitespace-nowrap">VAT 포함</span>
-                                        </div>
                                       </div>
                                     </div>
 
