@@ -597,43 +597,43 @@ export default function AddManpowerModal({
                                     className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                                   />
                                   {index === 0 && (
-                                    <input
-                                      type="checkbox"
-                                      checked={copyEffortFlags[`${worker.id}-${role}`] || false}
-                                      onChange={(e) => {
-                                        const isChecked = e.target.checked;
-                                        setCopyEffortFlags(prev => ({
-                                          ...prev,
-                                          [`${worker.id}-${role}`]: isChecked
-                                        }));
-                                        
-                                        const months = getMonths();
-                                        if (isChecked) {
-                                          // 체크 시 첫 월의 공수값을 모든 월에 적용
+                                    <div className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={copyEffortFlags[`${worker.id}-${role}`] || false}
+                                        onChange={(e) => {
+                                          const isChecked = e.target.checked;
+                                          const months = getMonths();
                                           const firstMonthValue = tempInputs[`${worker.id}-${role}-${monthKey}`] ?? 
                                             (workerData.monthlyEfforts?.[monthKey]?.toString() || '');
-                                          if (firstMonthValue) {
-                                            months.forEach((month) => {
+
+                                          // 체크박스 상태 업데이트
+                                          setCopyEffortFlags(prev => ({
+                                            ...prev,
+                                            [`${worker.id}-${role}`]: isChecked
+                                          }));
+
+                                          // 체크 상태에 따른 공수값 처리
+                                          if (isChecked && firstMonthValue) {
+                                            // 체크 시: 첫 월의 값을 다른 월에 복사
+                                            months.forEach(month => {
                                               if (month !== monthKey) {
                                                 handleWorkerEffortChange(worker.id, role, month, firstMonthValue);
                                               }
                                             });
+                                          } else if (!isChecked) {
+                                            // 체크 해제 시: 기존 저장된 값으로 복원
+                                            months.forEach(month => {
+                                              if (month !== monthKey) {
+                                                const savedValue = workerData.monthlyEfforts?.[month]?.toString() || '';
+                                                handleWorkerEffortChange(worker.id, role, month, savedValue);
+                                              }
+                                            });
                                           }
-                                        } else {
-                                          // 체크 해제 시 첫 월을 제외한 모든 월의 공수값을 초기화
-                                          months.forEach((month) => {
-                                            if (month !== monthKey) {
-                                              handleWorkerEffortChange(worker.id, role, month, '');
-                                              setTempInputs(prev => ({
-                                                ...prev,
-                                                [`${worker.id}-${role}-${month}`]: ''
-                                              }));
-                                            }
-                                          });
-                                        }
-                                      }}
-                                      className="w-4 h-4 text-[#4E49E7] rounded border-gray-300 focus:ring-[#4E49E7]"
-                                    />
+                                        }}
+                                        className="w-4 h-4 text-[#4E49E7] rounded border-gray-300 focus:ring-[#4E49E7] cursor-pointer"
+                                      />
+                                    </div>
                                   )}
                                 </div>
                               ) : (

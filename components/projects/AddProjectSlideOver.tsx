@@ -418,27 +418,11 @@ export default function AddProjectSlideOver({
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        // 1. 먼저 모든 projects 데이터의 id를 가져옵니다
-        const { data: projectsData } = await supabase
-          .from('projects')
-          .select('id');
-
-        const projectIds = projectsData?.map(p => p.id) || [];
-
-        // 2. project_manpower 테이블에서 사용 중인 worker_ids를 가져옵니다
-        const { data: usedWorkers } = await supabase
-          .from('project_manpower')
-          .select('worker_id')
-          .in('project_id', projectIds);
-
-        const usedWorkerIds = new Set(usedWorkers?.map(w => w.worker_id) || []);
-
-        // 3. workers 테이블에서 사용되지 않은 worker 데이터를 가져옵니다 (grade 포함)
+        // workers 테이블에서 모든 활성 worker 데이터를 가져옵니다
         const { data: workersData, error: workersError } = await supabase
           .from('workers')
           .select('id, name, job_type, grade')
-          .is('deleted_at', null)
-          .not('id', 'in', `(${Array.from(usedWorkerIds).join(',')})`);
+          .is('deleted_at', null);
 
         if (workersError) {
           console.error('Error fetching workers:', workersError);
