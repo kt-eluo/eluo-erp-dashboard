@@ -737,7 +737,7 @@ export default function WorkersManagementPage() {
                         }`}>
                           {(!worker.yearly_effort || worker.yearly_effort === 0)
                             ? '0'
-                            : worker.yearly_effort.toFixed(1)}
+                            : Number(worker.yearly_effort.toFixed(10)).toString()}
                         </span>
                         <span className="text-[13px] text-gray-500">MM</span>
                       </div>

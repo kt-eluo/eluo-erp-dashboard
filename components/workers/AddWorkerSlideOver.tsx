@@ -1259,7 +1259,7 @@ export default function AddWorkerSlideOver({
                               {/* 이번달 투입 합계 */}
                               <div className="text-[14px] text-gray-500 mb-2">총 투입</div>
                               <div className={`text-[24px] font-bold ${isOverloaded ? 'text-[#FF6B6B]' : 'text-[#4E49E7]'}`}>
-                                {currentMonthEffort.toFixed(1)}
+                                {Number(currentMonthEffort.toFixed(10)).toString()}
                                 <span className="text-[14px] font-normal ml-1">M/M</span>
                               </div>
                             </div>
@@ -1332,11 +1332,11 @@ export default function AddWorkerSlideOver({
                                     <td className="px-4 py-2 border font-medium">1분기 합계</td>
                                   </tr>
                                   <tr>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 1)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 2)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 3)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 1)?.mm_value ? Number(mmRecords.find(r => r.month === 1)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 2)?.mm_value ? Number(mmRecords.find(r => r.month === 2)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 3)?.mm_value ? Number(mmRecords.find(r => r.month === 3)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
                                     <td className="px-4 py-2 border text-center font-medium">
-                                      {mmRecords.filter(r => r.month <= 3).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                      {mmRecords.filter(r => r.month <= 3).reduce((sum, record) => sum + record.mm_value, 0) ? Number(mmRecords.filter(r => r.month <= 3).reduce((sum, record) => sum + record.mm_value, 0).toFixed(10)).toString() : '0'} M/M
                                     </td>
                                   </tr>
 
@@ -1348,11 +1348,11 @@ export default function AddWorkerSlideOver({
                                     <td className="px-4 py-2 border font-medium">2분기 합계</td>
                                   </tr>
                                   <tr>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 4)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 5)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 6)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 4)?.mm_value ? Number(mmRecords.find(r => r.month === 4)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 5)?.mm_value ? Number(mmRecords.find(r => r.month === 5)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 6)?.mm_value ? Number(mmRecords.find(r => r.month === 6)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
                                     <td className="px-4 py-2 border text-center font-medium">
-                                      {mmRecords.filter(r => r.month > 3 && r.month <= 6).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                      {mmRecords.filter(r => r.month > 3 && r.month <= 6).reduce((sum, record) => sum + record.mm_value, 0) ? Number(mmRecords.filter(r => r.month > 3 && r.month <= 6).reduce((sum, record) => sum + record.mm_value, 0).toFixed(10)).toString() : '0'} M/M
                                     </td>
                                   </tr>
 
@@ -1364,11 +1364,11 @@ export default function AddWorkerSlideOver({
                                     <td className="px-4 py-2 border font-medium">3분기 합계</td>
                                   </tr>
                                   <tr>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 7)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 8)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 9)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 7)?.mm_value ? Number(mmRecords.find(r => r.month === 7)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 8)?.mm_value ? Number(mmRecords.find(r => r.month === 8)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 9)?.mm_value ? Number(mmRecords.find(r => r.month === 9)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
                                     <td className="px-4 py-2 border text-center font-medium">
-                                      {mmRecords.filter(r => r.month > 6 && r.month <= 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                      {mmRecords.filter(r => r.month > 6 && r.month <= 9).reduce((sum, record) => sum + record.mm_value, 0) ? Number(mmRecords.filter(r => r.month > 6 && r.month <= 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(10)).toString() : '0'} M/M
                                     </td>
                                   </tr>
 
@@ -1380,11 +1380,11 @@ export default function AddWorkerSlideOver({
                                     <td className="px-4 py-2 border font-medium">4분기 합계</td>
                                   </tr>
                                   <tr>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 10)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 11)?.mm_value.toFixed(1) || '-'} M/M</td>
-                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 12)?.mm_value.toFixed(1) || '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 10)?.mm_value ? Number(mmRecords.find(r => r.month === 10)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 11)?.mm_value ? Number(mmRecords.find(r => r.month === 11)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
+                                    <td className="px-4 py-2 border text-center">{mmRecords.find(r => r.month === 12)?.mm_value ? Number(mmRecords.find(r => r.month === 12)?.mm_value.toFixed(10)).toString() : '-'} M/M</td>
                                     <td className="px-4 py-2 border text-center font-medium">
-                                      {mmRecords.filter(r => r.month > 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                      {mmRecords.filter(r => r.month > 9).reduce((sum, record) => sum + record.mm_value, 0) ? Number(mmRecords.filter(r => r.month > 9).reduce((sum, record) => sum + record.mm_value, 0).toFixed(10)).toString() : '0'} M/M
                                     </td>
                                   </tr>
 
@@ -1392,7 +1392,7 @@ export default function AddWorkerSlideOver({
                                   <tr className="bg-gray-50">
                                     <td colSpan={2} className="px-4 py-2 border font-medium">연간 합계</td>
                                     <td colSpan={2} className="px-4 py-2 border text-center font-medium">
-                                      {mmRecords.reduce((sum, record) => sum + record.mm_value, 0).toFixed(1)} M/M
+                                      {mmRecords.reduce((sum, record) => sum + record.mm_value, 0) ? Number(mmRecords.reduce((sum, record) => sum + record.mm_value, 0).toFixed(10)).toString() : '0'} M/M
                                     </td>
                                   </tr>
                                 </tbody>
@@ -1475,7 +1475,7 @@ export default function AddWorkerSlideOver({
                                           <span className="w-[90px] text-[#6F6F6F] text-[14px]">투입 공수</span>{' '}
                                           <span className='font-bold text-[16px] leading-normal text-black'>
                                             {project.project_manpower?.mm_value ? 
-                                              `${project.project_manpower.mm_value.toFixed(1)} M/M` : 
+                                              `${Number(project.project_manpower.mm_value.toFixed(10)).toString()} M/M` : 
                                               '-'}
                                           </span>
                                         </li>

@@ -967,23 +967,25 @@ export default function AddProjectSlideOver({
         '개발': []
       };
 
-      data.forEach(mp => {
-        if (mp.workers) {
-          const currentMonthEffort = mp.project_monthly_efforts?.find(
-            (effort: { year: number; month: number; mm_value: number }) => 
-              effort.year === CURRENT_YEAR && effort.month === CURRENT_MONTH
-          );
+      if (data) {
+        data.forEach(mp => {
+          if (mp.workers && mp.role) {
+            const currentMonthEffort = mp.project_monthly_efforts?.find(
+              (effort: { year: number; month: number; mm_value: number }) => 
+                effort.year === CURRENT_YEAR && effort.month === CURRENT_MONTH
+            );
 
-          if (workersByRole[mp.role]) {
-            workersByRole[mp.role].push({
-              id: mp.workers.id,
-              name: mp.workers.name,
-              job_type: mp.workers.job_type || '',
-              total_mm_value: Number(currentMonthEffort?.mm_value) || 0
-            });
+            if (workersByRole[mp.role]) {
+              workersByRole[mp.role].push({
+                id: mp.workers.id,
+                name: mp.workers.name,
+                job_type: mp.workers.job_type || '',
+                total_mm_value: Number(currentMonthEffort?.mm_value) || 0
+              });
+            }
           }
-        }
-      });
+        });
+      }
 
       setSelectedWorkers(workersByRole);
     } catch (error) {
@@ -997,20 +999,37 @@ export default function AddProjectSlideOver({
 
   // 데이터 로딩 useEffect 수정
   useEffect(() => {
-    if (isOpen && project?.id && mode === 'edit') {
-      fetchWorkerEfforts();
-    }
+    let isMounted = true;
+
+    const loadData = async () => {
+      if (isOpen && project?.id && mode === 'edit') {
+        await fetchWorkerEfforts();
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen, project?.id, mode]);
 
   // 에러 발생 시 자동 재시도 로직
   useEffect(() => {
     let retryTimeout: NodeJS.Timeout;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
     
-    if (hasEffortsError && isOpen && project?.id) {
-      retryTimeout = setTimeout(() => {
-        fetchWorkerEfforts();
-      }, 3000); // 3초 후 재시도
-    }
+    const retryFetch = () => {
+      if (hasEffortsError && isOpen && project?.id && retryCount < MAX_RETRIES) {
+        retryTimeout = setTimeout(() => {
+          fetchWorkerEfforts();
+          retryCount++;
+        }, 3000); // 3초 후 재시도
+      }
+    };
+
+    retryFetch();
 
     return () => {
       if (retryTimeout) {
