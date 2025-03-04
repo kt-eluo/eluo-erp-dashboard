@@ -427,10 +427,12 @@ export default function AddProjectSlideOver({
       let jobTypeMatch = false;
       switch(jobType) {
         case 'BD(BM)':
-          // BD(BM)은 모든 job_type 허용 (기획, 디자인, 퍼블리싱, 개발, 기타)
-          jobTypeMatch = ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
+          jobTypeMatch = ['BD', 'BM'].includes(worker.job_type);
           break;
-        case 'PM(PL)':
+        case 'PM(PL)': 
+        // BD(BM)은 모든 job_type 허용 (기획, 디자인, 퍼블리싱, 개발, 기타)
+        jobTypeMatch = ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
+        break;
         case '기획':
           // PM(PL)과 기획은 기획 job_type만 허용
           jobTypeMatch = worker.job_type === '기획';
@@ -1258,7 +1260,7 @@ export default function AddProjectSlideOver({
         '개발': {}
       };
 
-      // 3. 데이터 처리 및 유효성 검사
+      // 3. 데이터 처리 및 유휴성 검사
       manpowerData?.forEach(mp => {
         if (!mp.role || !mp.project_monthly_efforts) return;
 
@@ -1978,12 +1980,12 @@ export default function AddProjectSlideOver({
                                           onClick={() => handleSearchIconClick(jobType)}
                                         />
                                         
-                                        {/* 유효인력 검색 결과 드롭다운 */}
+                                        {/* 유휴인력 검색 결과 드롭다운 */}
                                         {(searchTerms[jobType] || openDropdowns[jobType]) && (
                                           <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-                                            {!searchTerms[jobType] && (  // 검색어가 없을 때만 유효인력 레이블 표시
+                                            {!searchTerms[jobType] && (  // 검색어가 없을 때만 유휴인력 레이블 표시
                                               <div className="p-2 text-xs text-gray-500 border-b">
-                                                [유효인력]
+                                                [유휴인력]
                                               </div>
                                             )}
                                             <div className="max-h-48 overflow-y-auto">
@@ -2019,11 +2021,13 @@ export default function AddProjectSlideOver({
                                           </div>
                                         )}
                                       </div>
-                                      <div className="flex-1 min-h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] bg-white flex items-center flex-wrap gap-2">
+
+                                      {/* 직무별 실무자 이름 표시 영역 */}
+                                      <div className="flex-1 min-h-[31px] px-3 rounded-[6px] border border-[#B8B8B8] bg-white overflow-x-auto whitespace-nowrap">
                                         {selectedWorkers[jobType].map((worker) => (
                                           <div
                                             key={worker.id}
-                                            className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm"
+                                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm mr-2 my-1"
                                           >
                                             <span>{worker.name}</span>
                                             <button
@@ -2053,7 +2057,7 @@ export default function AddProjectSlideOver({
                                     onClick={() => setShowAvailableWorkersModal(true)}
                                     className="px-3 py-1.5 text-sm text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                                   >
-                                    유효 인력 확인
+                                    유휴 인력 확인
                                   </button>
                                 </div>
 

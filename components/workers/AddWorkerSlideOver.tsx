@@ -130,13 +130,13 @@ export default function AddWorkerSlideOver({
   const [workerProjects, setWorkerProjects] = useState<WorkerProject[]>([]);
 
   // 상단에 상태 추가
-  const [activeTab, setActiveTab] = useState<'준비중' | '진행중' | '완료' | '보류'>('준비중');
+  const [activeTab, setActiveTab] = useState<'진행중' | '완료' | '준비중' | '보류'>('진행중');
 
   // 탭 데이터 정의
   const tabs = [
-    { id: '준비중', count: statusCounts.준비중 },
     { id: '진행중', count: statusCounts.진행중 },
     { id: '완료', count: statusCounts.완료 },
+    { id: '준비중', count: statusCounts.준비중 },
     { id: '보류', count: statusCounts.보류 }
   ];
 
@@ -752,14 +752,14 @@ export default function AddWorkerSlideOver({
     // 프로젝트 정보 영역 초기화 추가
     setWorkerProjects([])
     setStatusCounts({
-      준비중: 0,
       진행중: 0,
       완료: 0,
+      준비중: 0,
       보류: 0
     })
     setCurrentMonthEffort(0)
     setIsOverloaded(false)
-    setActiveTab('준비중')
+    setActiveTab('진행중')
   }
 
   return (
@@ -1465,7 +1465,7 @@ export default function AddWorkerSlideOver({
                                       <ul className="space-y-3">
                                         <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
                                           <span className="w-[90px] text-[#6F6F6F] text-[14px]">투입 직무 등급</span>{' '}
-                                          <span className='font-bold text-[16px] leading-normal text-black'>{project.project_manpower?.position || '-'}</span>
+                                          <span className='w-[90px] font-bold text-[16px] leading-normal text-black'>{project.project_manpower?.position || '-'}</span>
                                         </li>
                                         <li className="flex items-center before:content-['•'] before:mr-2 before:text-[#6F6F6F]">
                                           <span className="w-[90px] text-[#6F6F6F] text-[14px]">투입 직무</span>{' '}
@@ -1487,8 +1487,8 @@ export default function AddWorkerSlideOver({
                                     <div className="flex-1 rounded-lg p-4 border border-gray-200">
                                       <ul className="space-y-3">
                                         {project.other_workers?.map((worker, index) => (
-                                          <li key={index} className="flex items-center before:content-['•'] before:mr-1 before:text-[#6F6F6F]">
-                                            <span className="w-[40px] text-[#6F6F6F] text-[14px]">{worker.grade}</span>{' '}
+                                          <li key={index} className="flex items-center  before:content-['•'] before:mr-1 before:text-[#6F6F6F]">
+                                            <span className="w-[5px] text-[#6F6F6F] text-[14px]">{worker.grade}</span>{' '}
                                             <span className='flex-1 font-bold text-[16px] leading-normal text-black whitespace-nowrap'>{worker.name}</span>
                                             <span className={`w-[90px] text-[11px] ml-1 ${
                                               worker.worker_type === '협력사임직원' ? 'text-[#3DAF07]' :
