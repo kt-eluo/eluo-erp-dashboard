@@ -79,9 +79,6 @@ export default function AddManpowerModal({
   // state 키 형식 변경: `${workerId}-${role}`
   const [workersEffort, setWorkersEffort] = useState<{ [key: string]: WorkerEffortData }>({})
 
-  // 이전 데이터를 저장하기 위한 state 추가
-  const [previousEfforts, setPreviousEfforts] = useState<{[key: string]: {[monthKey: string]: string}}>({});
-
   // 수정 모드 상태 추가
   const [isEditMode, setIsEditMode] = useState(false)
 
@@ -304,113 +301,54 @@ export default function AddManpowerModal({
     }, 0)
   }
 
-  // 체크박스 상태 관리를 위한 state 수정
-  const [copyEffortFlags, setCopyEffortFlags] = useState<{[key: string]: boolean}>({});
-
-  // 모달이 열릴 때마다 체크박스 상태 초기화를 위한 useEffect 추가
-  useEffect(() => {
-    if (isOpen) {
-      setCopyEffortFlags({});
-    }
-  }, [isOpen]);
-
-  // 체크박스 변경 핸들러 수정
-  const handleEffortCopyChange = (workerId: string, role: string, monthKey: string, isChecked: boolean) => {
-    const workerKey = `${workerId}-${role}`;
-    
-    if (isChecked) {
-      // 체크 시 현재 데이터 저장
-      const currentEfforts: {[monthKey: string]: string} = {};
-      const months = getMonths();
-      months.forEach(month => {
-        currentEfforts[month] = tempInputs[`${workerId}-${role}-${month}`] ?? 
-          (workersEffort[workerKey]?.monthlyEfforts?.[month]?.toString() || '');
-      });
-      setPreviousEfforts(prev => ({
-        ...prev,
-        [workerKey]: currentEfforts
-      }));
-
-      // 체크박스 상태 업데이트
-      setCopyEffortFlags(prev => ({
-        ...prev,
-        [workerKey]: true
-      }));
-
-      // 첫 번째 월의 값을 가져옴
-      const firstMonthValue = tempInputs[`${workerId}-${role}-${monthKey}`] ?? 
-        (workersEffort[workerKey]?.monthlyEfforts?.[monthKey]?.toString() || '');
-
-      // 모든 월에 첫 번째 월의 값을 복사
-      months.forEach(month => {
-        if (month !== monthKey) {
-          handleWorkerEffortChange(workerId, role, month, firstMonthValue);
-        }
-      });
-    } else {
-      // 체크박스 상태 업데이트
-      setCopyEffortFlags(prev => ({
-        ...prev,
-        [workerKey]: false
-      }));
-
-      // 체크 해제 시 이전 데이터 복원
-      const savedEfforts = previousEfforts[workerKey] || {};
-      const months = getMonths();
-      months.forEach(month => {
-        if (month !== monthKey) {
-          const originalValue = savedEfforts[month] || '';
-          handleWorkerEffortChange(workerId, role, month, originalValue);
-        }
-      });
-    }
-  };
-
-  // 기존 input 변경 핸들러 수정
+  // 월별 공수 데이터 처리 함수 수정
   const handleWorkerEffortChange = (workerId: string, role: string, monthKey: string, value: string) => {
     const inputKey = `${workerId}-${role}-${monthKey}`;
     const workerKey = `${workerId}-${role}`;
 
+    // 빈 문자열 처리
+    if (value === '') {
+      setTempInputs(prev => ({ ...prev, [inputKey]: '' }));
+      setWorkersEffort(prev => {
+        const currentEffort = prev[workerKey] || { 
+          monthlyEfforts: {}, 
+          total_mm_value: 0,
+          grade: null,
+          position: null,
+          unitPrice: null
+        };
+        const currentMonthlyEfforts = { ...currentEffort.monthlyEfforts };
+        currentMonthlyEfforts[monthKey] = null;
+
+        return {
+          ...prev,
+          [workerKey]: {
+            ...currentEffort,
+            monthlyEfforts: currentMonthlyEfforts,
+            total_mm_value: calculateTotalMMValue(currentMonthlyEfforts)
+          }
+        };
+      });
+      return;
+    }
+
+    // 유효한 입력값 검사 (소수점 또는 숫자만 허용)
+    if (!/^[0-9.]*$/.test(value)) {
+      return;
+    }
+
+    // 소수점이 하나만 있는지 확인
+    if ((value.match(/\./g) || []).length > 1) {
+      return;
+    }
+
     // 임시 입력값 업데이트
     setTempInputs(prev => ({ ...prev, [inputKey]: value }));
 
-    // 체크박스가 선택된 상태라면 모든 월에 동일한 값 적용
-    if (copyEffortFlags[`${workerId}-${role}`]) {
-      const months = getMonths();
-      months.forEach(month => {
-        const monthInputKey = `${workerId}-${role}-${month}`;
-        setTempInputs(prev => ({ ...prev, [monthInputKey]: value }));
-        
-        // 유효한 숫자인 경우 실제 상태도 업데이트
-        if (value !== '' && value !== '.') {
-          const numericValue = parseFloat(value);
-          if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 1) {
-            setWorkersEffort(prev => {
-              const currentEffort = prev[workerKey] || { 
-                monthlyEfforts: {}, 
-                total_mm_value: 0,
-                grade: null,
-                position: null,
-                unitPrice: null
-              };
-              const currentMonthlyEfforts = { ...currentEffort.monthlyEfforts };
-              currentMonthlyEfforts[month] = numericValue;
-
-              return {
-                ...prev,
-                [workerKey]: {
-                  ...currentEffort,
-                  monthlyEfforts: currentMonthlyEfforts,
-                  total_mm_value: calculateTotalMMValue(currentMonthlyEfforts)
-                }
-              };
-            });
-          }
-        }
-      });
-    } else {
-      // 기존 로직 유지 (단일 월 업데이트)
-      if (value === '') {
+    // 유효한 숫자인 경우에만 실제 상태 업데이트
+    if (value !== '.') {
+      const numericValue = parseFloat(value);
+      if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 1) {
         setWorkersEffort(prev => {
           const currentEffort = prev[workerKey] || { 
             monthlyEfforts: {}, 
@@ -420,7 +358,7 @@ export default function AddManpowerModal({
             unitPrice: null
           };
           const currentMonthlyEfforts = { ...currentEffort.monthlyEfforts };
-          currentMonthlyEfforts[monthKey] = null;
+          currentMonthlyEfforts[monthKey] = numericValue;
 
           return {
             ...prev,
@@ -431,39 +369,11 @@ export default function AddManpowerModal({
             }
           };
         });
-        return;
-      }
-
-      if (!/^[0-9.]*$/.test(value)) return;
-      if ((value.match(/\./g) || []).length > 1) return;
-
-      if (value !== '.') {
-        const numericValue = parseFloat(value);
-        if (!isNaN(numericValue) && numericValue >= 0 && numericValue <= 1) {
-          setWorkersEffort(prev => {
-            const currentEffort = prev[workerKey] || { 
-              monthlyEfforts: {}, 
-              total_mm_value: 0,
-              grade: null,
-              position: null,
-              unitPrice: null
-            };
-            const currentMonthlyEfforts = { ...currentEffort.monthlyEfforts };
-            currentMonthlyEfforts[monthKey] = numericValue;
-
-            return {
-              ...prev,
-              [workerKey]: {
-                ...currentEffort,
-                monthlyEfforts: currentMonthlyEfforts,
-                total_mm_value: calculateTotalMMValue(currentMonthlyEfforts)
-              }
-            };
-          });
-        }
       }
     }
   };
+
+  // 부모 컴포넌트 상태 업데이트를 위한 useEffect 제거 (불필요)
 
   // 투입비용 계산 함수 수정
   const calculateTotalCost = (workerId: string, role: string) => {
@@ -663,33 +573,16 @@ export default function AddManpowerModal({
                               <span>{workerData.unitPrice?.toLocaleString() || '-'} 원</span>
                             )}
                           </td>
-                          {startDate && endDate && getMonths().map((monthKey, index) => (
+                          {startDate && endDate && getMonths().map((monthKey) => (
                             <td key={monthKey} className="px-2 py-2 text-center text-sm text-gray-900 whitespace-nowrap">
                               {isEditMode ? (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
-                                    onChange={(e) => {
-                                      handleWorkerEffortChange(worker.id, role, monthKey, e.target.value);
-                                    }}
-                                    className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                                  />
-                                  {index === 0 && (
-                                    <div className="flex items-center">
-                                      <input
-                                        type="checkbox"
-                                        checked={copyEffortFlags[`${worker.id}-${role}`] || false}
-                                        onChange={(e) => {
-                                          const isChecked = e.target.checked;
-                                          handleEffortCopyChange(worker.id, role, monthKey, isChecked);
-                                        }}
-                                        className="w-4 h-4 text-[#4E49E7] rounded border-gray-300 focus:ring-[#4E49E7] cursor-pointer"
-                                      />
-                                    </div>
-                                  )}
-                                </div>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
+                                  onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
+                                  className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                />
                               ) : (
                                 <span>{workerData.monthlyEfforts?.[monthKey] || '-'}</span>
                               )}
