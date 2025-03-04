@@ -457,37 +457,9 @@ export default function AddProjectSlideOver({
     const searchTerm = searchTerms[jobType]?.toLowerCase() || '';
     
     return workers.filter(worker => {
-      // 이름으로 검색 필터링
-      const nameMatch = worker.name.toLowerCase().includes(searchTerm);
-      
-      // 직무별 필터링
-      let jobTypeMatch = false;
-      switch(jobType) {
-        case 'BD(BM)':
-          jobTypeMatch = ['BD', 'BM'].includes(worker.grade || '');
-          break;
-        case 'PM(PL)': 
-          // PM(PL)은 모든 job_type 허용 (기획, 디자인, 퍼블리싱, 개발, 기타)
-          jobTypeMatch = ['기획', '디자인', '퍼블리싱', '개발', '기타'].includes(worker.job_type);
-          break;
-        case '기획':
-          jobTypeMatch = worker.job_type === '기획';
-          break;
-        case '디자이너':
-          jobTypeMatch = worker.job_type === '디자인';
-          break;
-        case '퍼블리셔':
-          jobTypeMatch = worker.job_type === '퍼블리싱';
-          break;
-        case '개발':
-          jobTypeMatch = worker.job_type === '개발';
-          break;
-        default:
-          jobTypeMatch = false;
-      }
-
-      return nameMatch && jobTypeMatch;
-    })
+      // 이름으로만 검색 필터링
+      return worker.name.toLowerCase().includes(searchTerm);
+    });
   };
 
   // 실무자 선택 핸들러 수정
@@ -1998,6 +1970,7 @@ export default function AddProjectSlideOver({
                                         className="relative w-[139px] mr-[8px]"
                                         ref={el => dropdownRefs.current[jobType] = el}
                                       >
+                                        {/* 직무별 실무자 검색창 */}
                                         <input
                                           type="text"
                                           value={searchTerms[jobType]}
