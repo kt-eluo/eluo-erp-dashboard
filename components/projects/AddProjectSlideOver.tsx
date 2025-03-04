@@ -2021,7 +2021,7 @@ export default function AddProjectSlideOver({
                                   ))}
                                 </div>
                                 {/* 버튼 추가 */}
-                                <div className="flex justify-end gap-2 mt-4">
+                                <div className="flex justify-end gap-2 mt-2">
                                   <button
                                     type="button"
                                     onClick={() => setShowAllWorkersModal(true)}
@@ -2555,7 +2555,7 @@ export default function AddProjectSlideOver({
                               {/* PM(PL) */}
                               {selectedWorkers['PM(PL)']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
+                                  <span className="font-pretendard font-bold text-[16px] leading-[19.09px] text-[#666666] block">
                                     PM(PL)
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
@@ -2580,7 +2580,7 @@ export default function AddProjectSlideOver({
                               {/* 기획 */}
                               {selectedWorkers['기획']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
+                                  <span className="font-pretendard font-bold text-[16px] leading-[19.09px] text-[#666666] block">
                                     기획
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
@@ -2605,7 +2605,7 @@ export default function AddProjectSlideOver({
                               {/* 디자이너 */}
                               {selectedWorkers['디자이너']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
+                                  <span className="font-pretendard font-bold text-[16px] leading-[19.09px] text-[#666666] block">
                                     디자이너
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
@@ -2630,7 +2630,7 @@ export default function AddProjectSlideOver({
                               {/* 퍼블리셔 */}
                               {selectedWorkers['퍼블리셔']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
+                                  <span className="font-pretendard font-bold text-[16px] leading-[19.09px] text-[#666666] block">
                                     퍼블리셔
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
@@ -2655,7 +2655,7 @@ export default function AddProjectSlideOver({
                               {/* 개발 */}
                               {selectedWorkers['개발']?.length > 0 && (
                                 <div className="w-[100%]">
-                                  <span className="font-pretendard font-normal text-[16px] leading-[19.09px] text-[#666666] block">
+                                  <span className="font-pretendard font-bold text-[16px] leading-[19.09px] text-[#666666] block">
                                     개발
                                   </span>
                                   <ul className="space-y-1 rounded-[8px] p-4">
