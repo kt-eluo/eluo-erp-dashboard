@@ -2145,29 +2145,6 @@ export default function AddProjectSlideOver({
                               </div>
 
                               <div className="space-y-8">
-                                {/* 계약 금액 */}
-                                <div className="relative">
-                                  <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
-                                    <input
-                                      type="text"
-                                      value={budget}
-                                      onChange={handleBudgetChange}
-                                      className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
-                                      placeholder="계약 금액"
-                                    />
-                                    <span className="text-gray-400 ml-2 flex-shrink-0">원</span>
-                                    <div className="ml-4 flex items-center gap-1.5 flex-shrink-0">
-                                      <input
-                                        type="checkbox"
-                                        checked={isVatIncluded}
-                                        onChange={(e) => setIsVatIncluded(e.target.checked)}
-                                        className="rounded border-gray-300 text-[#4E49E7] focus:ring-0 w-4 h-4"
-                                      />
-                                      <span className="text-[13px] text-gray-500 whitespace-nowrap">VAT 포함</span>
-                                    </div>
-                                  </div>
-                                </div>
-
                                 {/* 계약 유형 */}
                                 <div className="relative" ref={contractTypeRef}>
                                   <button
@@ -2175,7 +2152,7 @@ export default function AddProjectSlideOver({
                                     onClick={() => openDropdown(setIsContractTypeOpen)}
                                     className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus:border-[#4E49E7] focus:ring-0 focus:bg-gray-50 transition-all duration-200 py-2 text-left flex items-center justify-between"
                                   >
-                                    <span className="text-gray-400">
+                                    <span className="text-gray-400 font-bold text-gray-500">
                                       {contractType === '회차 정산형' ? '회차 정산형' : '정기 결제형'}
                                     </span>
                                     <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isContractTypeOpen ? 'rotate-180' : ''}`} />
@@ -2214,6 +2191,32 @@ export default function AddProjectSlideOver({
                                 {/* 계약 유형별 추가 필드 */}
                                 {contractType === '회차 정산형' ? (
                                   <div className="space-y-8">
+
+                                    {/* 계약 금액 */}
+                                    <div className="relative">
+                                      <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">
+                                        <input
+                                          type="text"
+                                          value={budget}
+                                          onChange={handleBudgetChange}
+                                          className="w-full bg-transparent border-0 outline-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-400"
+                                          placeholder="계약 금액"
+                                        />
+                                        <span className="text-gray-400 ml-2 flex-shrink-0">원</span>
+                                        <div className="ml-4 flex items-center gap-1.5 flex-shrink-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isVatIncluded}
+                                            onChange={(e) => setIsVatIncluded(e.target.checked)}
+                                            className="rounded border-gray-300 text-[#4E49E7] focus:ring-0 w-4 h-4"
+                                          />
+                                          <span className="text-[13px] text-gray-500 whitespace-nowrap">VAT 포함</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+
+
                                     {/* 착수금 */}
                                     <div className="relative">
                                       <div className="w-full border-0 border-b-2 border-transparent bg-transparent text-1xl font-medium text-gray-900 focus-within:border-[#4E49E7] focus-within:bg-gray-50 transition-all duration-200 py-2 flex items-center">

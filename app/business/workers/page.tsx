@@ -9,6 +9,27 @@ import { Search, LayoutGrid, Table } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import AddMultipleWorkersModal from '@/components/workers/AddMultipleWorkersModal'
 
+interface Worker {
+  id: string;
+  name: string;
+  job_type: string;
+  worker_type: string | null;
+  grade?: string;
+  level?: string;
+  price: number | null;
+  is_dispatched: boolean;
+  created_at: string;
+  monthly_effort?: number;
+  project_manpower?: Array<{
+    id: string;
+    project_monthly_efforts?: Array<{
+      mm_value: number;
+      year: number;
+      month: number;
+    }>;
+  }>;
+}
+
 interface WorkerFormData {
   name: string;
   job_type: WorkerJobType | null;
@@ -46,7 +67,9 @@ export default function WorkersManagementPage() {
   const fetchWorkers = async () => {
     try {
       setLoading(true)
-      const currentYear = new Date().getFullYear()
+      const currentDate = new Date()
+      const currentYear = currentDate.getFullYear()
+      const currentMonth = currentDate.getMonth() + 1
 
       let { data: workersData, error } = await supabase
         .from('workers')
@@ -64,7 +87,8 @@ export default function WorkersManagementPage() {
             id,
             project_monthly_efforts!project_monthly_efforts_project_manpower_id_fkey(
               mm_value,
-              year
+              year,
+              month
             )
           )
         `)
@@ -73,27 +97,25 @@ export default function WorkersManagementPage() {
 
       if (error) throw error
 
-      // 각 worker의 현재 년도 총 공수 계산
-      const workersWithYearlyEffort = workersData?.map(worker => {
-        const yearlyEffort = worker.project_manpower?.reduce((total, pm) => {
-          const yearEfforts = pm.project_monthly_efforts
-            ?.filter(effort => effort.year === currentYear)
+      // 현재 월의 공수 계산
+      const workersWithMonthlyEffort = workersData?.map(worker => {
+        const monthlyEffort = worker.project_manpower?.reduce((total, pm) => {
+          const currentMonthEfforts = pm.project_monthly_efforts
+            ?.filter(effort => effort.year === currentYear && effort.month === currentMonth)
             ?.reduce((sum, effort) => {
-              // mm_value가 있는 경우에만 합산
               const mmValue = effort.mm_value || 0;
-              // 이미 올바른 소수점 형식(0.5 등)으로 저장되어 있다고 가정
               return sum + mmValue;
             }, 0) || 0;
-          return total + yearEfforts;
+          return total + currentMonthEfforts;
         }, 0) || 0;
 
         return {
           ...worker,
-          yearly_effort: yearlyEffort
+          monthly_effort: monthlyEffort
         }
       });
 
-      setWorkers(workersWithYearlyEffort || [])
+      setWorkers(workersWithMonthlyEffort || [])
     } catch (error) {
       console.error('Error fetching workers:', error)
       toast.error('실무자 목록을 불러오는데 실패했습니다.')
@@ -688,7 +710,7 @@ export default function WorkersManagementPage() {
               <div 
                 key={worker.id}
                 className={`rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-200 ${
-                  !worker.yearly_effort || worker.yearly_effort === 0 ? 'bg-gray-50' : 'bg-white'
+                  !worker.monthly_effort || worker.monthly_effort === 0 ? 'bg-gray-50' : 'bg-white'
                 }`}
               >
                 <div className="pt-4 pb-3 pr-2 pl-6 space-y-4 cursor-pointer" onClick={() => handleEditClick(worker)}>
@@ -727,21 +749,44 @@ export default function WorkersManagementPage() {
                       <span className="text-gray-900">{worker.is_dispatched ? '파견중' : '파견안함'}</span>
                     </div>
 
-                    {/* 년도 공수 표시 */}
+                    {/* 현재 월 공수 표시 */}
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <div className="flex items-baseline gap-1 justify-center">
                         <span className={`text-xl font-bold ${
-                          !worker.yearly_effort || worker.yearly_effort === 0 
+                          !worker.project_manpower?.some(pm => 
+                            pm.project_monthly_efforts?.some(me => 
+                              me.year === new Date().getFullYear() && 
+                              me.month === new Date().getMonth() + 1 && 
+                              me.mm_value > 0
+                            )
+                          )
                             ? 'text-red-500' 
                             : 'text-gray-900'
                         }`}>
-                          {(!worker.yearly_effort || worker.yearly_effort === 0)
-                            ? '0'
-                            : Number(worker.yearly_effort.toFixed(10)).toString()}
+                          {(() => {
+                            const currentYear = new Date().getFullYear();
+                            const currentMonth = new Date().getMonth() + 1;
+                            const monthlyEffort = worker.project_manpower?.reduce((total, pm) => {
+                              const monthEffort = pm.project_monthly_efforts?.reduce((sum, me) => {
+                                if (me.year === currentYear && me.month === currentMonth) {
+                                  return sum + (me.mm_value || 0);
+                                }
+                                return sum;
+                              }, 0) || 0;
+                              return total + monthEffort;
+                            }, 0) || 0;
+                            
+                            return monthlyEffort === 0 
+                              ? '0' 
+                              : Number(monthlyEffort.toFixed(3)).toString().replace(/\.?0+$/, '');
+                          })()}
                         </span>
                         <span className="text-[13px] text-gray-500">MM</span>
                       </div>
                     </div>
+
+
+                    
                   </div>
                 </div>
               </div>

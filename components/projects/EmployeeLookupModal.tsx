@@ -113,7 +113,7 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
           }} 
         />
         <div 
-          className="relative bg-white rounded-lg w-[150px] h-[150px] p-6"
+          className="relative bg-white rounded-lg w-[450px] h-[580px] p-6"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center mb-6">
@@ -175,19 +175,17 @@ export default function EmployeeLookupModal({ isOpen, onClose, mode }: EmployeeL
                   </div>
                   {worker.worker_type && (
                     <span className={`text-sm px-2 py-1 rounded ${
-                      mode === 'available'
-                        ? 'bg-green-100 text-green-800'
-                        : worker.worker_type === '임직원'
-                          ? 'bg-[#FF6B6B] text-white'
-                          : worker.worker_type === '협력사임직원'
-                            ? 'bg-[#3DAF07] text-white'
-                            : worker.worker_type === '프리랜서(기업)'
-                              ? 'bg-[#1D89EA] text-white'
-                              : worker.worker_type === '프리랜서(개인)'
-                                ? 'bg-[#FF00BF] text-white'
-                                : ''
+                      worker.worker_type === '임직원'
+                        ? 'bg-[#FF6B6B] text-white'
+                        : worker.worker_type === '협력사임직원'
+                          ? 'bg-[#3DAF07] text-white'
+                          : worker.worker_type === '프리랜서(기업)'
+                            ? 'bg-[#1D89EA] text-white'
+                            : worker.worker_type === '프리랜서(개인)'
+                              ? 'bg-[#FF00BF] text-white'
+                              : ''
                     }`}>
-                      {mode === 'available' ? '' : worker.worker_type}
+                      {worker.worker_type}
                     </span>
                   )}
                 </div>
