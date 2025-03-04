@@ -1945,7 +1945,7 @@ export default function AddProjectSlideOver({
 
 
                               {/* 직무별 실무자 */}
-                              <div className="space-y-6 mt-[25px] pb-[15px]">
+                              <div className="space-y-4 mt-[25px] pb-[15px]">
                                 <div className="text-black text-[16px] font-normal leading-[19.09px]">직무별 실무자</div>
                                 <div className="space-y-[11px]">
                                   {Object.keys(searchTerms).map((jobType) => (
