@@ -576,7 +576,7 @@ export default function AddManpowerModal({
                 <div key={role} className="flex-1 bg-white rounded-lg p-2">
                   <div className="text-center">
                     <div className="text-[28px] font-bold mb-1">
-                      {calculateRoleTotalEffort(role).toFixed(1)}
+                      {Number(calculateRoleTotalEffort(role).toFixed(10)).toString()}
                     </div>
                     <div className="text-sm text-gray-600 mb-2">
                       {calculateRoleTotalCost(role).toLocaleString()}
