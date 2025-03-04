@@ -2527,7 +2527,7 @@ export default function AddProjectSlideOver({
                               {Object.entries(totalEfforts).map(([role, value]) => value > 0 && (
                                 <div key={role} className="flex flex-col items-center">
                                   <span className="font-pretendard font-bold text-[32px] leading-[38.19px] text-black mb-2">
-                                    {value.toFixed(1)}
+                                    {Number(value.toFixed(10)).toString()}
                                   </span>
                                   <span className="font-pretendard font-normal text-[13px] leading-[16.71px] text-[#666666]">
                                     {role}
@@ -2567,7 +2567,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2592,7 +2592,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2617,7 +2617,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2642,7 +2642,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>
@@ -2667,7 +2667,7 @@ export default function AddProjectSlideOver({
                                         </span>
                                         <div className="flex items-baseline">
                                           <span className="font-pretendard font-semibold text-[16px] leading-[19.09px] text-black">
-                                            {worker.total_mm_value?.toFixed(1) || '0.0'}
+                                            {Number(worker.total_mm_value?.toFixed(10) || '0.0').toString()}
                                           </span>
                                           <span className="font-pretendard font-normal text-[12px] leading-[14.32px] ml-1">M/M</span>
                                         </div>

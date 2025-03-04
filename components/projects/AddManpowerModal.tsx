@@ -499,7 +499,7 @@ export default function AddManpowerModal({
                               <select
                                 value={workerData.grade || ''}
                                 onChange={(e) => handleGradeChange(worker.id, role, e.target.value as Grade)}
-                                className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                className="w-[60px] h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                               >
                                 <option value="">선택</option>
                                 {grades.map((grade) => (
@@ -515,7 +515,7 @@ export default function AddManpowerModal({
                               <select
                                 value={workerData.position || ''}
                                 onChange={(e) => handlePositionChange(worker.id, role, e.target.value as Position)}
-                                className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                className="w-[60px] h-[38px] px-3 rounded-lg border border-gray-200 text-sm appearance-none bg-white focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                               >
                                 <option value="">선택</option>
                                 {positions.map((position) => (
@@ -533,7 +533,7 @@ export default function AddManpowerModal({
                                   type="text"
                                   value={workerData.unitPrice?.toLocaleString() || ''}
                                   onChange={(e) => handleUnitPriceChange(worker.id, role, e.target.value)}
-                                  className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  className="w-[120px] h-[38px] px-3 rounded-lg border border-gray-200 text-sm focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
                                   placeholder="단가 입력"
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">원</span>
