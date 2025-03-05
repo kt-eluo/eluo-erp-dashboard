@@ -907,7 +907,7 @@ export default function ProjectsManagementPage() {
           <h1 className="text-[18px] sm:text-[20px] font-semibold">프로젝트 관리</h1>
           <div className="flex items-center gap-3">
             {/* 엑셀 파일 버튼 */}
-            <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+            <button className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-[12px] font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               파일
             </button>
@@ -916,7 +916,7 @@ export default function ProjectsManagementPage() {
             <div className="relative">
               <button 
                 onClick={() => setIsFilterModalOpen(!isFilterModalOpen)}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-[12px] font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
               >
                 <Filter className="w-4 h-4 mr-2" />
                 필터
@@ -934,7 +934,7 @@ export default function ProjectsManagementPage() {
             {/* 추가 버튼 */}
             <button
               onClick={() => setIsAddSlideOverOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#4E49E7] hover:bg-[#3F3ABE] focus:outline-none"
+              className="inline-flex items-center px-3 sm:px-4 py-2 text-[12px] bg-[#4E49E7] text-white rounded-lg hover:bg-[#3F3ABE] transition-colors border border-black"
             >
               <Plus className="w-4 h-4 mr-2" />
               새 프로젝트
