@@ -462,6 +462,64 @@ export default function AddManpowerModal({
 
   const [tempInputs, setTempInputs] = useState<{[key: string]: string}>({});
 
+  // 공수 복사 관련 상태 추가
+  const [effortCopyChecks, setEffortCopyChecks] = useState<{[key: string]: boolean}>({});
+
+  // 공수 복사 체크박스 핸들러
+  const handleEffortCopyChange = (workerId: string, role: string, monthKey: string, checked: boolean) => {
+    if (!isEditMode) return;
+
+    const workerKey = `${workerId}-${role}`;
+    
+    // 체크박스 상태 업데이트
+    setEffortCopyChecks(prev => ({
+      ...prev,
+      [workerKey]: checked
+    }));
+
+    // 체크 활성화 시에만 공수 복사 수행
+    if (checked) {
+      const firstMonthValue = workersEffort[workerKey]?.monthlyEfforts[monthKey];
+      if (typeof firstMonthValue === 'number') {
+        const months = getMonths();
+        
+        // 모든 월에 첫 월의 공수값 적용
+        const newMonthlyEfforts = months.reduce((acc, month) => {
+          acc[month] = firstMonthValue;
+          return acc;
+        }, {} as {[key: string]: number | null});
+
+        // 공수 데이터 업데이트
+        setWorkersEffort(prev => ({
+          ...prev,
+          [workerKey]: {
+            ...prev[workerKey],
+            monthlyEfforts: newMonthlyEfforts,
+            total_mm_value: calculateTotalMMValue(newMonthlyEfforts)
+          }
+        }));
+
+        // 입력값 업데이트
+        const newTempInputs = months.reduce((acc, month) => {
+          acc[`${workerId}-${role}-${month}`] = firstMonthValue.toString();
+          return acc;
+        }, {} as {[key: string]: string});
+
+        setTempInputs(prev => ({
+          ...prev,
+          ...newTempInputs
+        }));
+      }
+    }
+  };
+
+  // 모달 열릴 때 체크박스 초기화
+  useEffect(() => {
+    if (isOpen) {
+      setEffortCopyChecks({});
+    }
+  }, [isOpen]);
+
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[999999] pointer-events-auto">
       {/* 배경 오버레이의 z-index 설정 */}
@@ -573,16 +631,28 @@ export default function AddManpowerModal({
                               <span>{workerData.unitPrice?.toLocaleString() || '-'} 원</span>
                             )}
                           </td>
-                          {startDate && endDate && getMonths().map((monthKey) => (
+                          {startDate && endDate && getMonths().map((monthKey, index) => (
                             <td key={monthKey} className="px-2 py-2 text-center text-sm text-gray-900 whitespace-nowrap">
                               {isEditMode ? (
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
-                                  onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
-                                  className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
-                                />
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={tempInputs[`${worker.id}-${role}-${monthKey}`] ?? (workerData.monthlyEfforts?.[monthKey]?.toString() || '')}
+                                    onChange={(e) => handleWorkerEffortChange(worker.id, role, monthKey, e.target.value)}
+                                    className="w-[60px] h-[38px] px-2 rounded-lg border border-gray-200 text-sm text-center focus:border-[#4E49E7] focus:ring-1 focus:ring-[#4E49E7] transition-all"
+                                  />
+                                  {/* 첫 월의 공수값을 모든 월에 적용 */}
+                                  {isEditMode && index === 0 && (
+                                    <input
+                                      type="checkbox"
+                                      checked={effortCopyChecks[`${worker.id}-${role}`] || false}
+                                      onChange={(e) => handleEffortCopyChange(worker.id, role, monthKey, e.target.checked)}
+                                      className="w-4 h-4 text-[#4E49E7] border-gray-300 rounded focus:ring-[#4E49E7] cursor-pointer"
+                                      title="체크박스 선택 시 해당 공수가 전체 적용 됩니다."
+                                    />
+                                  )}
+                                </div>
                               ) : (
                                 <span>{workerData.monthlyEfforts?.[monthKey] || '-'}</span>
                               )}
