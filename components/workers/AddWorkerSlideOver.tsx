@@ -164,6 +164,8 @@ export default function AddWorkerSlideOver({
   // 상단에 상태 추가
   const [isMMRecordsLoading, setIsMMRecordsLoading] = useState(false);
   const [hasMMRecordsError, setHasMMRecordsError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
 
   // body 스크롤 제어
   useEffect(() => {
@@ -259,72 +261,41 @@ export default function AddWorkerSlideOver({
     }
   }, [level, isEdit])
 
-  // M/M 기록 가져오기 함수 수정
-  useEffect(() => {
-    const fetchMMRecords = async () => {
-      if (!workerId) return;
-      
-      setIsMMRecordsLoading(true);
-      setHasMMRecordsError(false);
-      
-      try {
-        const { data, error } = await supabase
-          .from('worker_mm_records')
-          .select('*')
-          .eq('worker_id', workerId)
-          .eq('year', currentYear);
+  // 공수 데이터 가져오는 함수 수정
+  const fetchMMRecords = async () => {
+    if (!workerId) return;
+    
+    setIsMMRecordsLoading(true);
+    setHasMMRecordsError(false);
+    
+    try {
+      const { data, error } = await supabase
+        .from('worker_mm_records')
+        .select('*')
+        .eq('worker_id', workerId)
+        .eq('year', currentYear);
 
-        if (error) throw error;
-        
-        if (data) {
-          setMMRecords(data);
-        }
-      } catch (error) {
-        console.error('Error fetching MM records:', error);
-        setHasMMRecordsError(true);
-        toast.error('공수 데이터를 불러오는데 실패했습니다.');
-      } finally {
-        setIsMMRecordsLoading(false);
+      if (error) throw error;
+      
+      if (data) {
+        setMMRecords(data);
+        setRetryCount(0); // 성공 시 재시도 카운트 초기화
       }
-    };
-
-    if (workerId) {
-      fetchMMRecords();
-    } else {
-      setMMRecords([]);
+    } catch (error) {
+      console.error('Error fetching MM records:', error);
+      setHasMMRecordsError(true);
+    } finally {
+      setIsMMRecordsLoading(false);
     }
-  }, [workerId]);
+  };
 
-  // 에러 발생 시 자동 재시도 로직
+  // 자동 재시도 로직을 위한 useEffect 추가
   useEffect(() => {
     let retryTimeout: NodeJS.Timeout;
     
-    if (hasMMRecordsError && workerId) {
+    if (hasMMRecordsError && workerId && retryCount < MAX_RETRIES) {
       retryTimeout = setTimeout(() => {
-        const fetchMMRecords = async () => {
-          setIsMMRecordsLoading(true);
-          setHasMMRecordsError(false);
-          
-          try {
-            const { data, error } = await supabase
-              .from('worker_mm_records')
-              .select('*')
-              .eq('worker_id', workerId)
-              .eq('year', currentYear);
-
-            if (error) throw error;
-            
-            if (data) {
-              setMMRecords(data);
-            }
-          } catch (error) {
-            console.error('Error retrying MM records fetch:', error);
-            setHasMMRecordsError(true);
-          } finally {
-            setIsMMRecordsLoading(false);
-          }
-        };
-        
+        setRetryCount(prev => prev + 1);
         fetchMMRecords();
       }, 3000); // 3초 후 재시도
     }
@@ -334,7 +305,7 @@ export default function AddWorkerSlideOver({
         clearTimeout(retryTimeout);
       }
     };
-  }, [hasMMRecordsError, workerId]);
+  }, [hasMMRecordsError, workerId, retryCount]);
 
   // 프로젝트 상태 카운트를 가져오는 함수
   const fetchProjectStatusCounts = async (workerId: string) => {
@@ -1319,7 +1290,16 @@ export default function AddWorkerSlideOver({
                             ) : hasMMRecordsError ? (
                               <div className="flex flex-col items-center justify-center h-40 space-y-4">
                                 <p className="text-red-500 text-sm">데이터를 불러오는데 실패했습니다.</p>
-                                <p className="text-gray-500 text-xs">잠시 후 자동으로 다시 시도합니다.</p>
+                                <p className="text-gray-500 text-xs">잠시 후 자동으로 다시 시도합니다. ({retryCount}/{MAX_RETRIES})</p>
+                                <button
+                                  onClick={() => {
+                                    setRetryCount(0);
+                                    fetchMMRecords();
+                                  }}
+                                  className="px-4 py-2 text-sm text-[#4E49E7] hover:bg-gray-50 rounded-md border border-[#4E49E7]"
+                                >
+                                  다시 시도
+                                </button>
                               </div>
                             ) : (
                               <table className="w-full text-[14px]">
