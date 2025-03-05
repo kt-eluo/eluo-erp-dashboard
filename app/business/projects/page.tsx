@@ -276,20 +276,20 @@ const FilterModal = ({
       <div className="flex items-center justify-between gap-2">
         <button
           onClick={onClose}
-          className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+          className="px-4 py-2 border border-gray-300 rounded-md text-[12px] text-gray-700 hover:bg-gray-50"
         >
           닫기
         </button>
         <div className="flex items-center gap-2">
           <button
             onClick={handleReset}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+            className="px-4 py-2 border border-gray-300 rounded-md text-[12px] text-gray-700 hover:bg-gray-50"
           >
             필터 초기화
           </button>
           <button
             onClick={handleApply}
-            className="px-4 py-2 bg-[#4E49E7] text-white rounded-md text-sm hover:bg-[#3F3ABE]"
+            className="px-4 py-2 bg-[#4E49E7] text-white rounded-md text-[12px] hover:bg-[#3F3ABE]"
           >
             필터 적용하기
           </button>
